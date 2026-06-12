@@ -218,6 +218,10 @@ main, .footer { position: relative; z-index: 2; }
 
 @media (max-width: 720px) {
   .hero { height: 300vh; }
+  /* móvil: quitar el HUD de progreso de la animación (se amontona con los botones) */
+  .hud--br { display: none; }
+  /* dar aire abajo para que el botón "Servicios" no tape el scroll cue */
+  .hero__content { padding-bottom: clamp(112px, 18vh, 150px); }
 }
 
 /* ---------------------------------------------------------------
