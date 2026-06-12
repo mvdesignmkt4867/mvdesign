@@ -114,6 +114,14 @@
     window.addEventListener("scroll", function () { onScrollNav(window.scrollY); }, { passive: true });
   }
 
+  /* ---------- ScrollTrigger: ignorar el resize de la barra de URL del navegador
+     móvil (iOS/Android). Es la causa del "salto" al cambiar de dirección de scroll:
+     la barra aparece/desaparece → cambia el alto del viewport → ScrollTrigger
+     recalcula scrubs/pines. Con esto los ignora y el scroll se queda en su sitio. */
+  if (typeof ScrollTrigger !== "undefined") {
+    ScrollTrigger.config({ ignoreMobileResize: true });
+  }
+
   /* ---------- Preloader ---------- */
   var pre = document.querySelector("[data-preloader]");
   var preCount = document.querySelector("[data-preloader-count]");
