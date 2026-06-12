@@ -3,11 +3,10 @@
    "Impulsando Proyectos"
    ============================================================ */
 
-/* --------- Webfont imports (Google Fonts substitutes) --------- */
-/* NOTE: The original wordmark in the supplied logo appears to be a
-   custom or licensed geometric sans. Montserrat is used as the
-   closest free substitute. See README for substitution notes.    */
-@import url("https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700;1,800&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500&display=swap");
+/* --------- Webfonts --------- */
+/* Las fuentes se cargan vía <link> en el <head> del HTML (en paralelo con el
+   CSS, NO encadenadas con @import) y solo con los pesos que se usan.
+   Montserrat = sustituto libre del wordmark geométrico original. */
 
 :root {
   /* ----- Brand color stops (from logo SVG) ----- */
