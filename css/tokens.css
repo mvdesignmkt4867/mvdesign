@@ -1,0 +1,204 @@
+/* ============================================================
+   MV DESIGN — Colors & Type Tokens
+   "Impulsando Proyectos"
+   ============================================================ */
+
+/* --------- Webfont imports (Google Fonts substitutes) --------- */
+/* NOTE: The original wordmark in the supplied logo appears to be a
+   custom or licensed geometric sans. Montserrat is used as the
+   closest free substitute. See README for substitution notes.    */
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700;1,800&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500&display=swap");
+
+:root {
+  /* ----- Brand color stops (from logo SVG) ----- */
+  --mv-blue-1:    #4892D9;   /* electric blue   */
+  --mv-blue-2:    #2BCCD9;   /* cyan            */
+  --mv-purple-1:  #9E43B8;   /* magenta-purple  */
+  --mv-purple-2:  #625CD9;   /* indigo          */
+
+  /* ----- Signature gradients ----- */
+  --grad-blue:    linear-gradient(135deg, #4892D9 0%, #2BCCD9 100%);
+  --grad-purple:  linear-gradient(135deg, #9E43B8 0%, #625CD9 100%);
+  /* The "full brand" gradient sweeps from purple → blue → cyan and
+     is the hero gradient used for big surfaces and CTAs. */
+  --grad-brand:   linear-gradient(120deg, #9E43B8 0%, #625CD9 28%, #4892D9 65%, #2BCCD9 100%);
+  /* A radial spot gradient for halos and section backgrounds. */
+  --grad-spot:    radial-gradient(60% 60% at 30% 20%, rgba(98,92,217,.35) 0%, rgba(43,204,217,.20) 45%, transparent 75%);
+  /* Cover / portada halo field — three brand-tinted radial lights on a
+     flat dark canvas. Indigo top-right, cyan bottom-left, magenta low-center.
+     Each stop stays ≤30% alpha so the gradient reads as light, not wallpaper.
+     Layer this OVER --ink-0; pair with the color mark as a 10%-opacity watermark. */
+  --grad-cover-halos:
+    radial-gradient(60% 60% at 80% 8%,   rgba(98,92,217,.30) 0%, transparent 60%),
+    radial-gradient(55% 60% at 8% 96%,   rgba(43,204,217,.22) 0%, transparent 60%),
+    radial-gradient(55% 55% at 52% 108%, rgba(158,67,184,.16) 0%, transparent 60%);
+
+  /* ----- Foreground / surface scale ----- */
+  --fg-1:  #0A0A0F;  /* primary text on light          */
+  --fg-2:  #2A2A33;  /* secondary text on light        */
+  --fg-3:  #5B5B66;  /* tertiary text / captions       */
+  --fg-4:  #9094A0;  /* muted / placeholder            */
+  --fg-on-dark-1: #FFFFFF;
+  --fg-on-dark-2: #C9CBD3;
+  --fg-on-dark-3: #8B8E99;
+
+  /* ----- Surfaces ----- */
+  --bg-0:  #FFFFFF;  /* canvas (light)                 */
+  --bg-1:  #F6F6F8;  /* subtle panel                   */
+  --bg-2:  #EDEEF2;  /* divider / muted panel          */
+  --bg-3:  #E1E2E8;  /* strong divider                 */
+  --ink-0: #0A0A0F;  /* canvas (dark / hero)           */
+  --ink-1: #14141B;  /* dark panel raised              */
+  --ink-2: #1E1F28;  /* dark panel raised+             */
+  --ink-3: #2A2B35;  /* dark border                    */
+
+  /* ----- Lines ----- */
+  --line-soft:    rgba(10,10,15,0.06);
+  --line:         rgba(10,10,15,0.10);
+  --line-strong:  rgba(10,10,15,0.18);
+  --line-dark:    rgba(255,255,255,0.10);
+
+  /* ----- Semantic colors ----- */
+  --success: #1FB47A;
+  --warning: #F1A60E;
+  --danger:  #E5484D;
+  --info:    var(--mv-blue-1);
+
+  /* ----- Radii ----- */
+  --r-xs: 6px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+  --r-2xl: 40px;
+  --r-pill: 999px;
+
+  /* ----- Spacing scale (4-pt base) ----- */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-7: 32px;
+  --s-8: 40px;
+  --s-9: 56px;
+  --s-10: 72px;
+  --s-11: 96px;
+  --s-12: 128px;
+
+  /* ----- Shadows / Elevation ----- */
+  --shadow-1: 0 1px 2px rgba(10,10,15,0.05), 0 1px 1px rgba(10,10,15,0.04);
+  --shadow-2: 0 6px 16px -8px rgba(10,10,15,0.18), 0 2px 4px rgba(10,10,15,0.04);
+  --shadow-3: 0 18px 40px -16px rgba(10,10,15,0.22), 0 4px 10px rgba(10,10,15,0.05);
+  --shadow-pop: 0 30px 60px -20px rgba(98,92,217,0.35), 0 8px 24px -12px rgba(43,204,217,0.30);
+  --shadow-inset: inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -1px 0 rgba(0,0,0,0.06);
+
+  /* ----- Type families ----- */
+  --font-display: "Montserrat", "Helvetica Neue", Arial, sans-serif;
+  --font-body:    "Plus Jakarta Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* ----- Type scale ----- */
+  --t-cover-xl:   800 150px/0.92 var(--font-display); /* portada / cover only */
+  --t-display-xl: 700 96px/0.95 var(--font-display); /* hero      */
+  --t-display-lg: 700 72px/1.00 var(--font-display);
+  --t-display-md: 700 56px/1.05 var(--font-display);
+  --t-h1:         700 44px/1.08 var(--font-display);
+  --t-h2:         700 36px/1.12 var(--font-display);
+  --t-h3:         600 28px/1.20 var(--font-display);
+  --t-h4:         600 22px/1.28 var(--font-display);
+  --t-eyebrow:    600 12px/1.4  var(--font-display);
+  --t-lead:       500 20px/1.55 var(--font-body);
+  --t-body:       400 16px/1.6  var(--font-body);
+  --t-body-sm:    400 14px/1.55 var(--font-body);
+  --t-caption:    500 12px/1.45 var(--font-body);
+  --t-mono:       500 13px/1.5  var(--font-mono);
+
+  /* ----- Motion ----- */
+  --ease-out:    cubic-bezier(.20, .80, .25, 1);
+  --ease-spring: cubic-bezier(.34, 1.56, .64, 1);
+  --dur-1: 120ms;
+  --dur-2: 220ms;
+  --dur-3: 380ms;
+  --dur-4: 600ms;
+}
+
+/* ============================================================
+   Semantic element styles — opt-in via class "mv-type"
+   ============================================================ */
+
+.mv-type {
+  font: var(--t-body);
+  color: var(--fg-1);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+.mv-type .eyebrow,
+.mv-eyebrow {
+  font: var(--t-eyebrow);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+.mv-type h1, .mv-h1 { font: var(--t-h1); letter-spacing: -0.02em; color: var(--fg-1); }
+.mv-type h2, .mv-h2 { font: var(--t-h2); letter-spacing: -0.02em; color: var(--fg-1); }
+.mv-type h3, .mv-h3 { font: var(--t-h3); letter-spacing: -0.015em; color: var(--fg-1); }
+.mv-type h4, .mv-h4 { font: var(--t-h4); letter-spacing: -0.01em; color: var(--fg-1); }
+.mv-type p,  .mv-body { font: var(--t-body); color: var(--fg-2); text-wrap: pretty; }
+.mv-type .lead, .mv-lead { font: var(--t-lead); color: var(--fg-2); }
+.mv-type small, .mv-caption { font: var(--t-caption); color: var(--fg-3); }
+.mv-type code, .mv-code { font: var(--t-mono); color: var(--fg-1); }
+
+/* Display utility: huge wordmark-style headings */
+.mv-display    { font: var(--t-display-md); letter-spacing: -0.03em; color: var(--fg-1); }
+.mv-display-lg { font: var(--t-display-lg); letter-spacing: -0.035em; color: var(--fg-1); }
+.mv-display-xl { font: var(--t-display-xl); letter-spacing: -0.04em; color: var(--fg-1); }
+
+/* Cover / portada title — the single largest step in the system (150px).
+   Reserved for the title on a brandbook/proposal cover. On a dark canvas
+   set color to --fg-on-dark-1. Pair with exactly one .mv-grad-text word. */
+.mv-cover-title { font: var(--t-cover-xl); letter-spacing: -0.04em; color: var(--fg-1); }
+
+/* Gradient text — the brand's signature treatment.
+   RULE: gradient-colored words are ALWAYS italic.        */
+.mv-grad-text {
+  background: var(--grad-brand);
+  -webkit-background-clip: text;
+          background-clip: text;
+  color: transparent;
+  font-style: italic;
+  /* Montserrat italic at heavy weights has slightly compressed metrics;
+     pull a hair of tracking back so it visually aligns with upright weights. */
+  letter-spacing: -0.01em;
+}
+.mv-grad-text--blue   { background: var(--grad-blue);   -webkit-background-clip: text; background-clip: text; color: transparent; font-style: italic; letter-spacing: -0.01em; }
+.mv-grad-text--purple { background: var(--grad-purple); -webkit-background-clip: text; background-clip: text; color: transparent; font-style: italic; letter-spacing: -0.01em; }
+
+/* ============================================================
+   Horizontal lockup — mark + "MV DESIGN", sin slogan.
+   One control var: --lh (mark height). Everything scales from it.
+   Mark color is set per surface (color SVG, or currentColor for mono).
+   ============================================================ */
+.mv-lockup-h { display: inline-flex; align-items: center; --lh: 64px; gap: calc(var(--lh) * 0.34); }
+.mv-lockup-h .mark { width: var(--lh); height: var(--lh); flex: 0 0 auto; display: block; }
+.mv-lockup-h .name {
+  font-family: var(--font-display); font-weight: 600;
+  font-size: calc(var(--lh) * 0.46); line-height: 1; letter-spacing: 0.01em;
+}
+
+/* Dark-mode token swap — apply [data-theme="dark"] on a wrapper */
+[data-theme="dark"] {
+  --fg-1: #FFFFFF;
+  --fg-2: #C9CBD3;
+  --fg-3: #8B8E99;
+  --fg-4: #5B5E69;
+  --bg-0: #0A0A0F;
+  --bg-1: #14141B;
+  --bg-2: #1E1F28;
+  --bg-3: #2A2B35;
+  --line-soft:   rgba(255,255,255,0.06);
+  --line:        rgba(255,255,255,0.10);
+  --line-strong: rgba(255,255,255,0.18);
+  color-scheme: dark;
+}

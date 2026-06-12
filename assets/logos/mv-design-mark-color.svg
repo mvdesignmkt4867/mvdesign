@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 283.46 283.46">
+  <defs>
+    <linearGradient id="mvBlue" x1="88.59" y1="41.38" x2="194.36" y2="142.22" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4892d9"></stop>
+      <stop offset="1" stop-color="#2bccd9"></stop>
+    </linearGradient>
+    <linearGradient id="mvPurple" x1="157.27" y1="150.49" x2="236.51" y2="71.25" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9e43b8"></stop>
+      <stop offset="1" stop-color="#625cd9"></stop>
+    </linearGradient>
+    <linearGradient id="mvPurpleDot" x1="39.02" y1="193.19" x2="94.11" y2="193.19" gradientTransform="translate(156.1 9.52) rotate(45)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9e43b8"></stop>
+      <stop offset="1" stop-color="#625cd9"></stop>
+    </linearGradient>
+    <linearGradient id="mvBlueDot" x1="189.93" y1="193.19" x2="245.02" y2="193.19" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4892d9"></stop>
+      <stop offset="1" stop-color="#2bccd9"></stop>
+    </linearGradient>
+  </defs>
+  <path fill="url(#mvBlue)" d="M141.73,193.56c-7.05,0-14.1-2.69-19.48-8.07L46.51,109.75c-10.76-10.76-10.76-28.2,0-38.95,10.76-10.76,28.2-10.76,38.95,0l56.27,56.27,56.27-56.27c10.76-10.76,28.19-10.76,38.95,0,10.76,10.76,10.76,28.19,0,38.95l-75.74,75.74c-5.38,5.38-12.43,8.07-19.48,8.07Z"></path>
+  <path fill="url(#mvPurple)" d="M236.95,70.8c-10.76-10.76-28.2-10.76-38.95,0l-56.27,56.27c26.73,26.85,56.16,21.74,71.68,6.22,0,0,.01,0,.02-.02l23.53-23.52c10.76-10.76,10.76-28.2,0-38.95Z"></path>
+  <circle fill="url(#mvPurpleDot)" cx="66.56" cy="193.19" r="27.54" transform="translate(-117.11 103.65) rotate(-45)"></circle>
+  <path fill="url(#mvBlueDot)" d="M244.88,190.38c1.73,17.42-12.79,31.94-30.21,30.22-12.89-1.28-23.32-11.7-24.59-24.59-1.72-17.42,12.8-31.94,30.22-30.21,12.89,1.28,23.31,11.7,24.59,24.59Z"></path>
+</svg>

@@ -1,0 +1,10 @@
+# Archivos fuente pesados — NO se sirven (solo se publican los optimizados)
+assets/vid/*.mov
+assets/img/Vistarealweb.png
+assets/img/manzzani.jpg
+assets/img/render3.jpeg
+assets/img/case-protectdiversity.png
+
+# Sistema
+.DS_Store
+Thumbs.db
