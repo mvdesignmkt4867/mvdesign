@@ -1,0 +1,24 @@
+# MV Design — https://www.mvdesign.mx
+# Permitimos a todos los buscadores y a los crawlers de IA (queremos que nos indexen y nos recomienden).
+User-agent: *
+Allow: /
+
+# Crawlers de IA (GEO) — explícitamente permitidos
+User-agent: GPTBot
+Allow: /
+User-agent: OAI-SearchBot
+Allow: /
+User-agent: ChatGPT-User
+Allow: /
+User-agent: ClaudeBot
+Allow: /
+User-agent: Claude-Web
+Allow: /
+User-agent: PerplexityBot
+Allow: /
+User-agent: Google-Extended
+Allow: /
+User-agent: Applebot-Extended
+Allow: /
+
+Sitemap: https://www.mvdesign.mx/sitemap.xml

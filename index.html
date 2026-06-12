@@ -6,8 +6,17 @@
   <script>document.documentElement.classList.add('js');</script>
 
   <title>MV Design · Impulsando Proyectos — Branding, web y contenido en Querétaro</title>
-  <meta name="description" content="MV Design es un estudio creativo y estratégico en Querétaro. Branding, redes sociales, web — desde sitios editoriales hasta experiencias 3D inmersivas. Diseño con intención." />
+  <meta name="description" content="Agencia de diseño en Querétaro: branding, diseño web (de editorial a experiencias 3D inmersivas), tiendas en línea Shopify y manejo de redes sociales. Diseño con intención comercial — desde Querétaro para todo México." />
   <link rel="canonical" href="https://www.mvdesign.mx/" />
+
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+  <meta name="author" content="MV Design" />
+  <meta name="theme-color" content="#0A0A0F" />
+  <meta name="keywords" content="diseño web Querétaro, agencia de diseño Querétaro, branding Querétaro, tiendas en línea Shopify México, marketing digital Querétaro, páginas web Querétaro, diseño web 3D inmersivo" />
+  <meta name="geo.region" content="MX-QUE" />
+  <meta name="geo.placename" content="Santiago de Querétaro" />
+  <meta name="geo.position" content="20.5888;-100.3899" />
+  <meta name="ICBM" content="20.5888, -100.3899" />
 
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="es_MX" />
@@ -27,6 +36,9 @@
 
   <link rel="icon" type="image/svg+xml" href="assets/logos/mv-design-mark-color.svg" />
 
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
   <link rel="stylesheet" href="css/tokens.css" />
   <link rel="stylesheet" href="css/base.css" />
   <link rel="stylesheet" href="css/components.css" />
@@ -34,14 +46,46 @@
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
-    "@type": "ProfessionalService",
-    "name": "MV Design",
-    "slogan": "Impulsando Proyectos",
-    "description": "Estudio creativo y estratégico: branding, redes sociales, desarrollo web y experiencias 3D inmersivas.",
-    "email": "mvdesign.mkt@gmail.com",
-    "telephone": "+52-442-714-8255",
-    "address": { "@type": "PostalAddress", "addressLocality": "Querétaro", "addressCountry": "MX" },
-    "sameAs": ["https://www.instagram.com/mvdesign.mkt"]
+    "@graph": [
+      {
+        "@type": ["ProfessionalService", "Organization"],
+        "@id": "https://www.mvdesign.mx/#organization",
+        "name": "MV Design",
+        "alternateName": "MV Design Querétaro",
+        "slogan": "Impulsando Proyectos",
+        "url": "https://www.mvdesign.mx/",
+        "logo": { "@type": "ImageObject", "url": "https://www.mvdesign.mx/assets/logos/mv-design-mark-color.svg" },
+        "image": "https://www.mvdesign.mx/assets/img/og.jpg",
+        "description": "Agencia creativa y estratégica en Querétaro. Branding, diseño web (de editorial a experiencias 3D inmersivas), tiendas en línea Shopify y manejo de redes sociales, con intención comercial.",
+        "email": "mvdesign.mkt@gmail.com",
+        "telephone": "+52-442-714-8255",
+        "priceRange": "$$",
+        "currenciesAccepted": "MXN",
+        "address": { "@type": "PostalAddress", "addressLocality": "Santiago de Querétaro", "addressRegion": "Querétaro", "addressCountry": "MX" },
+        "geo": { "@type": "GeoCoordinates", "latitude": 20.5888, "longitude": -100.3899 },
+        "areaServed": [ { "@type": "City", "name": "Querétaro" }, { "@type": "Country", "name": "México" } ],
+        "knowsAbout": ["Branding", "Diseño web", "Desarrollo web", "E-commerce Shopify", "Experiencias 3D inmersivas", "Redes sociales", "Marketing digital", "Identidad de marca"],
+        "sameAs": ["https://www.instagram.com/mvdesign.mkt"],
+        "contactPoint": { "@type": "ContactPoint", "telephone": "+52-442-714-8255", "email": "mvdesign.mkt@gmail.com", "contactType": "sales", "areaServed": "MX", "availableLanguage": ["es"] },
+        "hasOfferCatalog": {
+          "@type": "OfferCatalog",
+          "name": "Paquetes web",
+          "itemListElement": [
+            { "@type": "Offer", "name": "Web Editorial / Corporativa", "description": "Sitio one-pager o multipágina estilo editorial, responsive, optimizado para captación.", "priceCurrency": "MXN", "price": "8000", "priceSpecification": { "@type": "PriceSpecification", "minPrice": "8000", "priceCurrency": "MXN" } },
+            { "@type": "Offer", "name": "E-commerce · Shopify", "description": "Tienda completa en Shopify, mobile first, con checkout optimizado.", "priceCurrency": "MXN", "price": "12000", "priceSpecification": { "@type": "PriceSpecification", "minPrice": "12000", "priceCurrency": "MXN" } },
+            { "@type": "Offer", "name": "Web 3D inmersiva", "description": "Experiencia 3D inmersiva e interactiva con animaciones y transiciones premium.", "priceCurrency": "MXN", "price": "16000", "priceSpecification": { "@type": "PriceSpecification", "minPrice": "16000", "priceCurrency": "MXN" } }
+          ]
+        }
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://www.mvdesign.mx/#website",
+        "url": "https://www.mvdesign.mx/",
+        "name": "MV Design",
+        "inLanguage": "es-MX",
+        "publisher": { "@id": "https://www.mvdesign.mx/#organization" }
+      }
+    ]
   }
   </script>
 </head>
