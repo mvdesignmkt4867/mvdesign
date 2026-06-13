@@ -643,7 +643,7 @@ main, .footer { position: relative; z-index: 2; }
 .brandstrip__svg  { display: block; width: 100%; height: 100%; }
 .brandstrip__fill { fill: var(--ink-1); }   /* the solid ribbon surface */
 .brandstrip__track {
-  --brand-seq: 5953px;                       /* one logo sequence (SVG user units) */
+  --brand-seq: 5725px;                       /* one logo sequence (SVG user units) */
   animation: brandscroll var(--brand-dur, 72s) linear infinite;
   will-change: transform;
 }
