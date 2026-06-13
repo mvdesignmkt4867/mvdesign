@@ -8,10 +8,10 @@
 - **E-commerce Shopify**: tiendas en línea completas, mobile first, con checkout optimizado.
 - **Redes sociales y contenido**: estrategia, contenido y campañas con enfoque en conversión.
 
-## Paquetes web (precios desde, MXN)
-- **Editorial / Corporativa** — desde $8,000 MXN · entrega 3 a 5 días.
-- **E-commerce · Shopify** — desde $12,000 MXN · entrega 7 a 10 días.
-- **Web 3D inmersiva** — desde $16,000 MXN · entrega desde 2 semanas.
+## Paquetes web
+- **Editorial / Corporativa** — sitio one-pager o multipágina estilo editorial, responsive, optimizado para captación.
+- **E-commerce · Shopify** — tienda completa en Shopify, mobile first, con checkout optimizado.
+- **Web 3D inmersiva** — experiencia 3D inmersiva e interactiva con animaciones y transiciones premium.
 
 ## Casos
 - GU · Gestión Urbanística (web 3D inmersiva, inmobiliario/urbanismo)
