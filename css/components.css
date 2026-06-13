@@ -624,3 +624,43 @@ main, .footer { position: relative; z-index: 2; }
 .footer__brand span { font: var(--t-eyebrow); letter-spacing: 0.18em; text-transform: uppercase; }
 .footer__meta { font: var(--t-caption); color: var(--fg-on-dark-3); display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-6); }
 .footer__meta a:hover { color: #fff; }
+
+/* ============================================================
+   Brandstrip — clientes knockout marquee (Casos)
+   The ribbon is a solid "ficha" (--ink-1); the 26 client logos
+   are punched out as holes that reveal the brand gradient behind.
+   ============================================================ */
+.brandstrip {
+  position: relative;
+  margin-top: clamp(40px, 6vh, 72px);
+  height: clamp(104px, 13vw, 148px);
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line-dark);
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--grad-brand);            /* glows through the logo holes */
+}
+.brandstrip__svg  { display: block; width: 100%; height: 100%; }
+.brandstrip__fill { fill: var(--ink-1); }   /* the solid ribbon surface */
+.brandstrip__track {
+  --brand-seq: 5953px;                       /* one logo sequence (SVG user units) */
+  animation: brandscroll var(--brand-dur, 72s) linear infinite;
+  will-change: transform;
+}
+@keyframes brandscroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(calc(-1 * var(--brand-seq))); }
+}
+/* soft edge fade into the ribbon surface */
+.brandstrip::before,
+.brandstrip::after {
+  content: ""; position: absolute; top: 0; bottom: 0; z-index: 2;
+  width: clamp(28px, 6%, 80px); pointer-events: none;
+}
+.brandstrip::before { left: 0;  background: linear-gradient(90deg,  var(--ink-1), transparent); }
+.brandstrip::after  { right: 0; background: linear-gradient(270deg, var(--ink-1), transparent); }
+.brandstrip:hover .brandstrip__track { animation-play-state: paused; }
+
+@media (prefers-reduced-motion: reduce) {
+  .brandstrip__track { animation: none; }
+}
