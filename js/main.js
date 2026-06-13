@@ -388,6 +388,22 @@
     vids.forEach(function (v) { io.observe(v); });
   })();
 
+  /* ---------- Brandstrip (logos): solo corre cuando está en viewport ----------
+     El cometa ya tiene 2 canvas WebGL; no vale la pena gastar el slider cuando
+     no se ve. (La máscara es estática; esto solo pausa el transform.) */
+  (function () {
+    var strip = document.querySelector(".brandstrip");
+    var svg = strip && strip.querySelector(".brandstrip__svg");
+    if (!svg || !("IntersectionObserver" in window)) return;
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        // "" deja que mande el CSS (corre, salvo :hover); "paused" cuando no se ve
+        svg.style.animationPlayState = e.isIntersecting ? "" : "paused";
+      });
+    }, { rootMargin: "150px 0px" });
+    io.observe(strip);
+  })();
+
   /* ---------- Cards 3D: tilt con el cursor + brillo que lo sigue ---------- */
   function addTilt(sel, maxDeg) {
     document.querySelectorAll(sel).forEach(function (card) {

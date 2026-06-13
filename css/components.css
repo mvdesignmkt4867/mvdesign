@@ -627,29 +627,42 @@ main, .footer { position: relative; z-index: 2; }
 
 /* ============================================================
    Brandstrip — clientes knockout marquee (Casos)
-   The ribbon is a solid "ficha" (--ink-1); the 26 client logos
+   The ribbon is a solid "ficha" (--ink-1); the 25 client logos
    are punched out as holes that reveal the brand gradient behind.
+   PERF: the masked ribbon is ONE static SVG (holds two sequences);
+   the mask is rasterized ONCE and the whole SVG just slides via
+   transform (translateX -50% = one sequence -> seamless). No per-
+   frame mask recompute -> smooth on mobile alongside the WebGL comet.
    ============================================================ */
 .brandstrip {
+  --bh: clamp(104px, 13vw, 148px);          /* band height */
+  --strip-ar: 67.353;                        /* slider aspect = sliderW/VBH = 11450/170 */
   position: relative;
-  margin-top: clamp(40px, 6vh, 72px);
-  height: clamp(104px, 13vw, 148px);
-  border-radius: var(--r-lg);
-  border: 1px solid var(--line-dark);
+  margin-top: clamp(48px, 7vh, 88px);
+  /* full-bleed: break out of .wrap to span the viewport (body has overflow-x:hidden) */
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  height: var(--bh);
+  border-top: 1px solid var(--line-dark);
+  border-bottom: 1px solid var(--line-dark);
   overflow: hidden;
   isolation: isolate;
-  background: var(--grad-brand);            /* glows through the logo holes */
+  background: var(--grad-brand);            /* static; glows through the logo holes */
 }
-.brandstrip__svg  { display: block; width: 100%; height: 100%; }
-.brandstrip__fill { fill: var(--ink-1); }   /* the solid ribbon surface */
-.brandstrip__track {
-  --brand-seq: 5725px;                       /* one logo sequence (SVG user units) */
+.brandstrip__svg {
+  /* explicit width = height x aspect; max-width:none beats the global img/svg reset
+     (base.css: max-width:100%) that would otherwise clamp the slider to its parent */
+  display: block; height: var(--bh); width: calc(var(--bh) * var(--strip-ar));
+  max-width: none;
   animation: brandscroll var(--brand-dur, 72s) linear infinite;
   will-change: transform;
+  backface-visibility: hidden;
 }
+.brandstrip__fill { fill: var(--ink-1); }     /* the solid ribbon surface */
 @keyframes brandscroll {
-  from { transform: translateX(0); }
-  to   { transform: translateX(calc(-1 * var(--brand-seq))); }
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(-50%, 0, 0); }
 }
 /* soft edge fade into the ribbon surface */
 .brandstrip::before,
@@ -659,8 +672,8 @@ main, .footer { position: relative; z-index: 2; }
 }
 .brandstrip::before { left: 0;  background: linear-gradient(90deg,  var(--ink-1), transparent); }
 .brandstrip::after  { right: 0; background: linear-gradient(270deg, var(--ink-1), transparent); }
-.brandstrip:hover .brandstrip__track { animation-play-state: paused; }
+.brandstrip:hover .brandstrip__svg { animation-play-state: paused; }
 
 @media (prefers-reduced-motion: reduce) {
-  .brandstrip__track { animation: none; }
+  .brandstrip__svg { animation: none; }
 }
