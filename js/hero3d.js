@@ -342,6 +342,16 @@
   var clock = new THREE.Clock();
   var raf = null;
 
+  // Señal de "primer frame del cometa ya pintado": el preloader la usa para
+  // no revelar un hero vacío. Se dispara UNA vez, tras el primer render().
+  var firstPaintDone = false;
+  function signalPaint() {
+    if (firstPaintDone) return;
+    firstPaintDone = true;
+    if (window.MVHERO) window.MVHERO.painted = true;
+    try { window.dispatchEvent(new Event("mvhero:painted")); } catch (e) {}
+  }
+
   function applySystem(sys, t, asm, spn, wv, rf, rp, headNorm, isFront) {
     var u = sys.uniforms;
     u.uTime.value = t;
@@ -409,6 +419,7 @@
     }
     applySystem(back, t, asm, spn, wv, rf, rp, headNorm, false);
     if (front) applySystem(front, t, asm, spn, wv, rf, rp, headNorm, true);
+    signalPaint();
 
     raf = requestAnimationFrame(frame);
   }
@@ -420,6 +431,7 @@
     back.uniforms.uMScale.value = A_HERO[2];
     back.camera.position.z = 4.9;
     back.renderer.render(back.scene, back.camera);
+    signalPaint(); // reduced-motion: render estático único, igual avisamos
   } else {
     raf = requestAnimationFrame(frame);
   }
@@ -432,6 +444,7 @@
 
   window.MVHERO = {
     ready: true,
+    painted: firstPaintDone, // true ya si reduced-motion pintó su frame estático
     setState: function (s) { for (var k in s) if (k in target) target[k] = Math.max(0, Math.min(1.5, s[k])); },
     setRoute: function (defs) {
       route = defs.filter(function (d) { return d && d.el; });

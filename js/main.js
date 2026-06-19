@@ -147,8 +147,21 @@
       }
     });
   }
-  window.addEventListener("load", function () { setTimeout(finishPreloader, 350); });
-  setTimeout(finishPreloader, 4200); // red de seguridad
+  /* El preloader se va cuando el cometa PINTA su primer frame — así nunca se
+     revela un hero vacío y el usuario puede scrollear con el impacto completo.
+     (Antes salía en window.load o a los 4.2s, y en móvil lento eso destapaba
+     el hero antes de que las partículas estuvieran listas.) */
+  function onCometPainted() { setTimeout(finishPreloader, 150); }
+  if (window.MVHERO && window.MVHERO.painted) {
+    onCometPainted();
+  } else {
+    window.addEventListener("mvhero:painted", onCometPainted, { once: true });
+  }
+  /* Red de seguridad atada a 'load' (que ya espera a three.js): si tras cargar
+     TODO el cometa no pintó en 3s, asumimos fallo de WebGL y revelamos igual.
+     Clave: NO es un timer fijo, así en conexiones lentas NUNCA destapa el hero
+     antes de tiempo — espera lo que tarde three.js y solo cubre el fallo real. */
+  window.addEventListener("load", function () { setTimeout(finishPreloader, 3000); });
 
   /* ---------- Hero: intro + scrub de ensamble ---------- */
   var heroTitleWords = wordSets.length ? wordSets[0].words : [];
