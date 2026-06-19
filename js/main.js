@@ -77,7 +77,7 @@
   if (typeof gsap === "undefined" || reduced) {
     document.querySelectorAll("[data-reveal]").forEach(function (el) { el.classList.add("is-in"); });
     if (window.MVHERO) window.MVHERO.setProgress(1);
-    finishPreloader(true);
+    revealHero(true);
     return;
   }
 
@@ -127,41 +127,81 @@
   var preCount = document.querySelector("[data-preloader-count]");
   var preDone = false;
 
-  var fake = { v: 0 };
-  var fakeTween = gsap.to(fake, {
-    v: 92, duration: 2.2, ease: "power2.out",
-    onUpdate: function () { if (preCount) preCount.textContent = String(Math.round(fake.v)).padStart(2, "0"); }
-  });
-
-  function finishPreloader(instant) {
+  function revealHero(instant) {
     if (preDone || !pre) return;
     preDone = true;
-    if (fakeTween) fakeTween.kill();
-    if (instant) { pre.classList.add("is-done"); introHero(true); return; }
-    gsap.to(fake, {
-      v: 100, duration: 0.4, ease: "power1.in",
-      onUpdate: function () { if (preCount) preCount.textContent = String(Math.round(fake.v)); },
-      onComplete: function () {
-        pre.classList.add("is-done");
-        setTimeout(introHero, 250);
-      }
+    if (preCount) preCount.textContent = "100";
+    pre.classList.add("is-done");
+    introHero(!!instant);
+  }
+
+  /* El contador del preloader: DESKTOP queda EXACTAMENTE igual (rápido, se va
+     cuando el cometa pinta su primer frame). SOLO el teléfono espera a que las
+     partículas se ENSAMBLEN antes de llegar a 100. */
+  var phoneMode = !!(window.matchMedia && window.matchMedia("(max-width: 760px)").matches);
+
+  if (!phoneMode) {
+    /* ---------- DESKTOP (sin cambios) ---------- */
+    var fake = { v: 0 };
+    var fakeTween = gsap.to(fake, {
+      v: 92, duration: 2.2, ease: "power2.out",
+      onUpdate: function () { if (preCount) preCount.textContent = String(Math.round(fake.v)).padStart(2, "0"); }
     });
-  }
-  /* El preloader se va cuando el cometa PINTA su primer frame — así nunca se
-     revela un hero vacío y el usuario puede scrollear con el impacto completo.
-     (Antes salía en window.load o a los 4.2s, y en móvil lento eso destapaba
-     el hero antes de que las partículas estuvieran listas.) */
-  function onCometPainted() { setTimeout(finishPreloader, 150); }
-  if (window.MVHERO && window.MVHERO.painted) {
-    onCometPainted();
+    var finishDesktop = function () {
+      if (preDone || !pre) return;
+      if (fakeTween) fakeTween.kill();
+      gsap.to(fake, {
+        v: 100, duration: 0.4, ease: "power1.in",
+        onUpdate: function () { if (preCount) preCount.textContent = String(Math.round(fake.v)); },
+        onComplete: function () {
+          if (preDone) return;
+          preDone = true;
+          pre.classList.add("is-done");
+          setTimeout(introHero, 250);
+        }
+      });
+    };
+    if (window.MVHERO && window.MVHERO.painted) { setTimeout(finishDesktop, 150); }
+    else { window.addEventListener("mvhero:painted", function () { setTimeout(finishDesktop, 150); }, { once: true }); }
+    window.addEventListener("load", function () { setTimeout(finishDesktop, 3000); });
   } else {
-    window.addEventListener("mvhero:painted", onCometPainted, { once: true });
+    /* ---------- MÓVIL: 100% = partículas ya ensambladas ----------
+       El número llega a 100 SOLO cuando las partículas se ENSAMBLARON (no en el
+       primer frame disperso). Sube deliberado (mín. ~2.8s) y cada tope se cruza
+       al cumplir su hito real → al revelar, el scroll y el ensamblaje YA están.
+       El ensamblaje se dispara DURANTE el preloader (kick a syncFx). */
+    var T_MIN = 2.8;
+    var preT0 = (window.performance && performance.now) ? performance.now() : Date.now();
+    var counterShown = 0;
+    var cometPainted = !!(window.MVHERO && window.MVHERO.painted);
+    var assemblyKicked = false;
+    var forceReady = false; // solo si WebGL falla de verdad
+    if (!cometPainted) window.addEventListener("mvhero:painted", function () { cometPainted = true; }, { once: true });
+    window.addEventListener("load", function () { setTimeout(function () { forceReady = true; }, 4000); });
+
+    var assemble01 = function () {
+      if (!window.MVHERO || !window.MVHERO.getState) return 0;
+      var s = window.MVHERO.getState();
+      var tgt = s.target.assemble;
+      if (tgt <= 0.02) return 0;
+      return Math.min(1, s.shown.assemble / tgt);
+    };
+    var counterTick = function () {
+      if (preDone) return;
+      if (cometPainted && !assemblyKicked && typeof syncFx === "function") { syncFx(); assemblyKicked = true; }
+      var now = (window.performance && performance.now) ? performance.now() : Date.now();
+      var byTime = Math.min(100, ((now - preT0) / 1000 / T_MIN) * 100);
+      var assembled = cometPainted && assemble01() >= 0.985;
+      var cap = forceReady ? 100 : (!cometPainted ? 88 : (assembled ? 100 : 96));
+      var target = Math.min(byTime, cap);
+      var nv = counterShown + (target - counterShown) * 0.14;
+      if (nv > counterShown) counterShown = nv;   // monótono: nunca baja
+      if (forceReady || (assembled && byTime >= 99.5)) { revealHero(false); return; }
+      if (preCount) preCount.textContent = String(Math.round(counterShown)).padStart(2, "0");
+      requestAnimationFrame(counterTick);
+    };
+    requestAnimationFrame(counterTick);
   }
-  /* Red de seguridad atada a 'load' (que ya espera a three.js): si tras cargar
-     TODO el cometa no pintó en 3s, asumimos fallo de WebGL y revelamos igual.
-     Clave: NO es un timer fijo, así en conexiones lentas NUNCA destapa el hero
-     antes de tiempo — espera lo que tarde three.js y solo cubre el fallo real. */
-  window.addEventListener("load", function () { setTimeout(finishPreloader, 3000); });
 
   /* ---------- Hero: intro + scrub de ensamble ---------- */
   var heroTitleWords = wordSets.length ? wordSets[0].words : [];
