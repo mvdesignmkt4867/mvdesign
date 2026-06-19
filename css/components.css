@@ -692,9 +692,11 @@ main, .footer { position: relative; z-index: 2; }
   .brandstrip__svg { animation: none; }
 }
 
-/* Móvil: cada banda más baja (42px) → capa GPU pequeña. Con 2 bandas de ~12
-   logos cada una, los anchos ya son chicos (la división ayuda al rendimiento). */
+/* Móvil: bandas más altas (logos más grandes, llenan mejor el espacio). Sigue
+   siendo manejable: 2 bandas separadas + content-visibility + pausa fuera de
+   vista, así que la capa GPU no satura. */
 @media (max-width: 760px) {
   .brandstrips { margin-top: clamp(32px, 6vh, 56px); }
-  .brandstrip { --bh: 42px; }
+  .brandstrip { --bh: 60px; }
+  .brandstrip + .brandstrip { margin-top: 14px; }
 }
