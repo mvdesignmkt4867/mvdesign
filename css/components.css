@@ -654,6 +654,11 @@ main, .footer { position: relative; z-index: 2; }
   overflow: hidden;
   isolation: isolate;
   background: var(--grad-brand);            /* static; glows through the logo holes */
+  /* el SVG enmascarado (decenas de <image>) NO se rasteriza hasta acercarse al
+     viewport -> evita el "freeze" de 2-3s al revelar el hero (el navegador ya no
+     prepara estas bandas pesadas estando aún fuera de pantalla) */
+  content-visibility: auto;
+  contain-intrinsic-size: 100vw var(--bh);
 }
 .brandstrip + .brandstrip { margin-top: clamp(16px, 2.2vw, 30px); }  /* aire entre bandas */
 .brandstrip--rev .brandstrip__svg { animation-direction: reverse; } /* fila 2: sentido contrario */
