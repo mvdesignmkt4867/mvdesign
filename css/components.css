@@ -678,10 +678,11 @@ main, .footer { position: relative; z-index: 2; }
   .brandstrip__svg { animation: none; }
 }
 
-/* Móvil: el slider del banner es un SVG ~7000px de ancho; promovido a capa
-   (will-change) a 3x DPR es una textura enorme que compite con los 2 canvas
-   WebGL del cometa y provoca tirones de scroll. Lo ocultamos en teléfonos
-   (DIAGNÓSTICO: si esto quita el salto, reconstruyo una versión móvil ligera). */
+/* Móvil: el slider es UN SVG cuyo ancho = altura x aspecto. A 104px de alto el
+   SVG mide ~7000px y, promovido a capa GPU a 3x DPR, es una textura enorme que
+   compite con los 2 canvas WebGL del cometa -> tirones de scroll. Bajando la
+   banda a ~56px el ancho (y por tanto el área de la capa) cae ~3.4x: mismo loop
+   y los 25 logos, solo más compacto. (El IO ya pausa el slider fuera de vista.) */
 @media (max-width: 760px) {
-  .brandstrip { display: none; }
+  .brandstrip { --bh: 56px; margin-top: clamp(32px, 6vh, 56px); }
 }
