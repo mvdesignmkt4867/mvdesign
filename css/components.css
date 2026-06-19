@@ -677,3 +677,11 @@ main, .footer { position: relative; z-index: 2; }
 @media (prefers-reduced-motion: reduce) {
   .brandstrip__svg { animation: none; }
 }
+
+/* Móvil: el slider del banner es un SVG ~7000px de ancho; promovido a capa
+   (will-change) a 3x DPR es una textura enorme que compite con los 2 canvas
+   WebGL del cometa y provoca tirones de scroll. Lo ocultamos en teléfonos
+   (DIAGNÓSTICO: si esto quita el salto, reconstruyo una versión móvil ligera). */
+@media (max-width: 760px) {
+  .brandstrip { display: none; }
+}
