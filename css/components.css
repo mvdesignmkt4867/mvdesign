@@ -655,7 +655,7 @@ main, .footer { position: relative; z-index: 2; }
   isolation: isolate;
   background: var(--grad-brand);            /* static; glows through the logo holes */
 }
-.brandstrip + .brandstrip { margin-top: 8px; }                       /* gap entre bandas */
+.brandstrip + .brandstrip { margin-top: clamp(16px, 2.2vw, 30px); }  /* aire entre bandas */
 .brandstrip--rev .brandstrip__svg { animation-direction: reverse; } /* fila 2: sentido contrario */
 .brandstrip__svg {
   /* explicit width = height x aspect; max-width:none beats the global img/svg reset
@@ -669,7 +669,9 @@ main, .footer { position: relative; z-index: 2; }
 .brandstrip__fill { fill: var(--ink-1); }     /* the solid ribbon surface */
 @keyframes brandscroll {
   from { transform: translate3d(0, 0, 0); }
-  to   { transform: translate3d(-50%, 0, 0); }
+  /* cada banda desliza UNA secuencia: -100/copias % (var inline) -> seamless y
+     siempre cubre el viewport sin importar cuántos logos tenga */
+  to   { transform: translate3d(var(--brand-shift, -50%), 0, 0); }
 }
 /* soft edge fade into the ribbon surface */
 .brandstrip::before,
