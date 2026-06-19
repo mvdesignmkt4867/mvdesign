@@ -458,6 +458,10 @@
     },
     setCtaAnchor: function (el) { ctaAnchorEl = el || null; },
     setProgress: function (p) { target.assemble = Math.max(0, Math.min(1, p)); },
+    // clava shown = target (sin easing): el preloader lo usa para que, al abrir,
+    // las partículas YA estén en su estado de reposo aunque el ensamblaje por
+    // frame no haya terminado (hilo saturado en la carga = pocos fps)
+    settleNow: function () { for (var k in shown) shown[k] = target[k]; },
     getState: function () { return { target: JSON.parse(JSON.stringify(target)), shown: JSON.parse(JSON.stringify(shown)), uWave: back.uniforms.uWave.value }; }
   };
 })();

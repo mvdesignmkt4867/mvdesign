@@ -11,10 +11,12 @@
   position: fixed; inset: 0; z-index: 200;
   background: var(--ink-0);
   display: grid; place-items: center;
-  transition: clip-path 900ms var(--ease-out);
-  clip-path: inset(0 0 0 0);
+  transition: opacity 700ms var(--ease-out);
+  opacity: 1;
 }
-.preloader.is-done { clip-path: inset(0 0 100% 0); pointer-events: none; }
+/* fade out limpio (antes era un clip-path que recortaba de abajo → dejaba ver
+   una franja del fondo al final); el fade cubre toda la pantalla por igual */
+.preloader.is-done { opacity: 0; pointer-events: none; }
 .preloader__inner { display: grid; justify-items: center; gap: var(--s-6); }
 .preloader__mark { width: 72px; height: 72px; }
 .preloader__count {
@@ -634,11 +636,14 @@ main, .footer { position: relative; z-index: 2; }
    transform (translateX -50% = one sequence -> seamless). No per-
    frame mask recompute -> smooth on mobile alongside the WebGL comet.
    ============================================================ */
+/* Dos bandas apiladas que corren en DIRECCIONES OPUESTAS (los 25 logos van
+   repartidos en 2 filas). Cada banda fija su propio --strip-ar y --brand-dur
+   inline (anchos distintos → misma velocidad px/s). */
+.brandstrips { margin-top: clamp(48px, 7vh, 88px); }
 .brandstrip {
-  --bh: clamp(104px, 13vw, 148px);          /* band height */
-  --strip-ar: 67.353;                        /* slider aspect = sliderW/VBH = 11450/170 */
+  --bh: clamp(64px, 8vw, 92px);             /* alto de CADA banda (van 2 apiladas) */
+  --strip-ar: 40;                            /* fallback; cada banda lo fija inline */
   position: relative;
-  margin-top: clamp(48px, 7vh, 88px);
   /* full-bleed: break out of .wrap to span the viewport (body has overflow-x:hidden) */
   width: 100vw;
   margin-left: calc(50% - 50vw);
@@ -650,6 +655,8 @@ main, .footer { position: relative; z-index: 2; }
   isolation: isolate;
   background: var(--grad-brand);            /* static; glows through the logo holes */
 }
+.brandstrip + .brandstrip { margin-top: 8px; }                       /* gap entre bandas */
+.brandstrip--rev .brandstrip__svg { animation-direction: reverse; } /* fila 2: sentido contrario */
 .brandstrip__svg {
   /* explicit width = height x aspect; max-width:none beats the global img/svg reset
      (base.css: max-width:100%) that would otherwise clamp the slider to its parent */
@@ -678,11 +685,9 @@ main, .footer { position: relative; z-index: 2; }
   .brandstrip__svg { animation: none; }
 }
 
-/* Móvil: el slider es UN SVG cuyo ancho = altura x aspecto. A 104px de alto el
-   SVG mide ~7000px y, promovido a capa GPU a 3x DPR, es una textura enorme que
-   compite con los 2 canvas WebGL del cometa -> tirones de scroll. Bajando la
-   banda a ~56px el ancho (y por tanto el área de la capa) cae ~3.4x: mismo loop
-   y los 25 logos, solo más compacto. (El IO ya pausa el slider fuera de vista.) */
+/* Móvil: cada banda más baja (42px) → capa GPU pequeña. Con 2 bandas de ~12
+   logos cada una, los anchos ya son chicos (la división ayuda al rendimiento). */
 @media (max-width: 760px) {
-  .brandstrip { --bh: 56px; margin-top: clamp(32px, 6vh, 56px); }
+  .brandstrips { margin-top: clamp(32px, 6vh, 56px); }
+  .brandstrip { --bh: 42px; }
 }

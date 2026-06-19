@@ -181,24 +181,28 @@
     // fallback DEBE ser mayor que T_MIN, si no cortaría la espera antes de tiempo
     window.addEventListener("load", function () { setTimeout(function () { forceReady = true; }, 6000); });
 
-    var assemble01 = function () {
-      if (!window.MVHERO || !window.MVHERO.getState) return 0;
-      var s = window.MVHERO.getState();
-      var tgt = s.target.assemble;
-      if (tgt <= 0.02) return 0;
-      return Math.min(1, s.shown.assemble / tgt);
+    var settleAndReveal = function () {
+      // garantía: deja el cometa en su estado de reposo ANTES de abrir, así las
+      // partículas YA están al revelar (no dependemos de que el easing por frame
+      // haya terminado bajo la carga). Luego abre.
+      if (window.MVHERO) {
+        if (typeof syncFx === "function") syncFx();              // fija el target del reposo
+        if (window.MVHERO.settleNow) window.MVHERO.settleNow();  // clava shown = target
+      }
+      revealHero(false);
     };
     var counterTick = function () {
       if (preDone) return;
       if (cometPainted && !assemblyKicked && typeof syncFx === "function") { syncFx(); assemblyKicked = true; }
       var now = (window.performance && performance.now) ? performance.now() : Date.now();
       var byTime = Math.min(100, ((now - preT0) / 1000 / T_MIN) * 100);
-      var assembled = cometPainted && assemble01() >= 0.985;
-      var cap = forceReady ? 100 : (!cometPainted ? 88 : (assembled ? 100 : 96));
+      // listo = el cometa ya pintó al menos un frame (puede renderizar) + pasó el
+      // ritmo mínimo. Al abrir clavamos el reposo, así las partículas YA están.
+      var cap = forceReady ? 100 : (!cometPainted ? 90 : 100);
       var target = Math.min(byTime, cap);
       var nv = counterShown + (target - counterShown) * 0.14;
       if (nv > counterShown) counterShown = nv;   // monótono: nunca baja
-      if (forceReady || (assembled && byTime >= 99.5)) { revealHero(false); return; }
+      if (forceReady || (cometPainted && byTime >= 99.5)) { settleAndReveal(); return; }
       if (preCount) preCount.textContent = String(Math.round(counterShown)).padStart(2, "0");
       requestAnimationFrame(counterTick);
     };
@@ -447,16 +451,16 @@
      El cometa ya tiene 2 canvas WebGL; no vale la pena gastar el slider cuando
      no se ve. (La máscara es estática; esto solo pausa el transform.) */
   (function () {
-    var strip = document.querySelector(".brandstrip");
-    var svg = strip && strip.querySelector(".brandstrip__svg");
-    if (!svg || !("IntersectionObserver" in window)) return;
+    var strips = document.querySelectorAll(".brandstrip");
+    if (!strips.length || !("IntersectionObserver" in window)) return;
     var io = new IntersectionObserver(function (entries) {
       entries.forEach(function (e) {
+        var svg = e.target.querySelector(".brandstrip__svg");
         // "" deja que mande el CSS (corre, salvo :hover); "paused" cuando no se ve
-        svg.style.animationPlayState = e.isIntersecting ? "" : "paused";
+        if (svg) svg.style.animationPlayState = e.isIntersecting ? "" : "paused";
       });
     }, { rootMargin: "150px 0px" });
-    io.observe(strip);
+    strips.forEach(function (s) { io.observe(s); });
   })();
 
   /* ---------- Cards 3D: tilt con el cursor + brillo que lo sigue ---------- */
