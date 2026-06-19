@@ -152,9 +152,13 @@
     camera.position.set(0, 0.05, 7.2);
     var renderer;
     try {
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+      // Móvil: sin antialias (las partículas son glows suaves con additive blending,
+      // el MSAA casi no se ve pero es caro por frame y al arrancar) y DPR tope 1.5
+      // en vez de 2 (en una pantalla 3x son ~44% menos píxeles) → el cometa corre
+      // fluido desde el primer frame en el teléfono. Desktop queda igual.
+      renderer = new THREE.WebGLRenderer({ antialias: !MOBILE, alpha: true, powerPreference: "high-performance" });
     } catch (e) { return null; }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MOBILE ? 1.5 : 2));
     mount.appendChild(renderer.domElement);
 
     var group = new THREE.Group();

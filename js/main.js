@@ -170,8 +170,8 @@
        primer frame disperso). Sube deliberado (mín. ~2.8s) y cada tope se cruza
        al cumplir su hito real → al revelar, el scroll y el ensamblaje YA están.
        El ensamblaje se dispara DURANTE el preloader (kick a syncFx). */
-    var T_MIN = 5.8;        // ~3s más largo que antes: da tiempo a que el cometa
-                            // termine de renderizar/ensamblar antes de abrir
+    var T_MIN = 3.5;        // con el cometa ya optimizado (arranca fluido) basta
+                            // un margen modesto para que ensamble antes de abrir
     var preT0 = (window.performance && performance.now) ? performance.now() : Date.now();
     var counterShown = 0;
     var cometPainted = !!(window.MVHERO && window.MVHERO.painted);
@@ -179,7 +179,7 @@
     var forceReady = false; // solo si WebGL falla de verdad
     if (!cometPainted) window.addEventListener("mvhero:painted", function () { cometPainted = true; }, { once: true });
     // fallback DEBE ser mayor que T_MIN, si no cortaría la espera antes de tiempo
-    window.addEventListener("load", function () { setTimeout(function () { forceReady = true; }, 9000); });
+    window.addEventListener("load", function () { setTimeout(function () { forceReady = true; }, 6000); });
 
     var assemble01 = function () {
       if (!window.MVHERO || !window.MVHERO.getState) return 0;
