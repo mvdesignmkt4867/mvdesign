@@ -237,6 +237,13 @@
     window.addEventListener("resize", resize);
     resize();
 
+    // Pre-compila los shaders y hace un primer draw AHORA (en el setup, detrás
+    // del preloader). En iOS, con el canvas ocluido por el preloader opaco,
+    // Safari difiere la compilación GPU hasta hacerlo visible → eso causaba el
+    // freeze de 2-3s justo al revelar el hero. Forzándolo aquí, el trabajo
+    // pesado de GPU ocurre mientras aún se ve el loader, y el reveal es fluido.
+    try { renderer.compile(scene, camera); renderer.render(scene, camera); } catch (e) {}
+
     return { scene: scene, camera: camera, renderer: renderer, group: group, uniforms: uniforms, opts: opts };
   }
 
