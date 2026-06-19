@@ -239,10 +239,19 @@
 
     // Pre-compila los shaders y hace un primer draw AHORA (en el setup, detrás
     // del preloader). En iOS, con el canvas ocluido por el preloader opaco,
-    // Safari difiere la compilación GPU hasta hacerlo visible → eso causaba el
-    // freeze de 2-3s justo al revelar el hero. Forzándolo aquí, el trabajo
-    // pesado de GPU ocurre mientras aún se ve el loader, y el reveal es fluido.
-    try { renderer.compile(scene, camera); renderer.render(scene, camera); } catch (e) {}
+    // Safari DIFIERE la compilación GPU hasta el composite (al hacerse visible)
+    // → eso causaba el freeze de 2-3s justo al revelar el hero. `gl.readPixels`
+    // OBLIGA al GPU a terminar compile+draw de forma SÍNCRONA aquí mismo (aunque
+    // el canvas esté tapado), así el trabajo pesado ocurre detrás del loader.
+    try {
+      renderer.compile(scene, camera);
+      renderer.render(scene, camera);
+      var _gl = renderer.getContext();
+      if (_gl && _gl.readPixels) {
+        var _px = new Uint8Array(4);
+        _gl.readPixels(0, 0, 1, 1, _gl.RGBA, _gl.UNSIGNED_BYTE, _px);
+      }
+    } catch (e) {}
 
     return { scene: scene, camera: camera, renderer: renderer, group: group, uniforms: uniforms, opts: opts };
   }
