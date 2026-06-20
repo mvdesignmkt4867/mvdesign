@@ -27,10 +27,10 @@
   font: var(--t-mono); letter-spacing: 0.12em;
   color: var(--fg-on-dark-3);
 }
-/* "SCROLL" abajo del loader — aparece al 60% */
+/* "SCROLL" justo debajo del % (cerca del centro, no en el fondo) — aparece al 60% */
 .preloader__scroll {
   position: absolute;
-  bottom: clamp(36px, 7vh, 84px);
+  top: calc(50% + 78px);
   left: 0; right: 0; text-align: center;
   font: var(--t-mono); letter-spacing: 0.34em;
   color: var(--fg-on-dark-3);
