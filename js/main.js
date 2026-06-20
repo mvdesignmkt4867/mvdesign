@@ -215,7 +215,7 @@
   function introHero(instant) {
     var d = instant ? 0 : 0.9;
     gsap.to(heroTitleWords, {
-      clipPath: "inset(0 0 -10% 0)", y: 0,
+      opacity: 1, y: 0,
       duration: instant ? 0 : d, ease: EASE, stagger: instant ? 0 : 0.07, delay: instant ? 0 : 0.05
     });
     gsap.to(".hero [data-reveal]", {
@@ -354,7 +354,7 @@
   wordSets.forEach(function (set, idx) {
     if (idx === 0) return;
     gsap.to(set.words, {
-      clipPath: "inset(0 0 -10% 0)", y: 0,
+      opacity: 1, y: 0,
       duration: 0.85, ease: EASE, stagger: 0.06,
       scrollTrigger: { trigger: set.el, start: "top 84%" }
     });
