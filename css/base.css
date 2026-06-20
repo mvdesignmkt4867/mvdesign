@@ -81,6 +81,11 @@ h1, h2, h3, h4 { font-family: var(--font-display); color: var(--fg-on-dark-1); }
   display: inline-block;
   opacity: 0;
   transform: translateY(0.42em);
+  /* cada palabra en su propia capa GPU: el contenido (incl. el texto en gradiente
+     '.grad', carísimo de repintar en iOS) se pinta UNA vez como textura y la
+     animación opacity/transform solo la COMPONE → sin repintar cada frame, sin
+     freeze al revelar. will-change en el wrapper, no en el .grad (no rompe el clip). */
+  will-change: transform, opacity;
 }
 .js.no-motion [data-words] .w { opacity: 1; transform: none; }
 
