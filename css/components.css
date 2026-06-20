@@ -27,6 +27,18 @@
   font: var(--t-mono); letter-spacing: 0.12em;
   color: var(--fg-on-dark-3);
 }
+/* "SCROLL" abajo del loader — aparece al 60% */
+.preloader__scroll {
+  position: absolute;
+  bottom: clamp(36px, 7vh, 84px);
+  left: 0; right: 0; text-align: center;
+  font: var(--t-mono); letter-spacing: 0.34em;
+  color: var(--fg-on-dark-3);
+  opacity: 0; transform: translateY(8px);
+  transition: opacity 600ms var(--ease-out), transform 600ms var(--ease-out);
+  pointer-events: none;
+}
+.preloader__scroll.is-shown { opacity: 0.7; transform: none; }
 
 /* ---------------------------------------------------------------
    NAV — glass solo aquí (regla DS)

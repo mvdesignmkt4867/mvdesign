@@ -141,6 +141,7 @@
   /* ---------- Preloader ---------- */
   var pre = document.querySelector("[data-preloader]");
   var preCount = document.querySelector("[data-preloader-count]");
+  var preScroll = document.querySelector("[data-preloader-scroll]");
   var preDone = false;
 
   function revealHero(instant) {
@@ -149,6 +150,12 @@
     if (preCount) preCount.textContent = "100";
     pre.classList.add("is-done");
     introHero(!!instant);
+  }
+
+  // "SCROLL" aparece abajo del loader al llegar a 60%
+  var scrollCueShown = false;
+  function maybeShowScroll(v) {
+    if (!scrollCueShown && preScroll && v >= 60) { preScroll.classList.add("is-shown"); scrollCueShown = true; }
   }
 
   /* El contador del preloader: DESKTOP queda EXACTAMENTE igual (rápido, se va
@@ -161,7 +168,7 @@
     var fake = { v: 0 };
     var fakeTween = gsap.to(fake, {
       v: 92, duration: 2.2, ease: "power2.out",
-      onUpdate: function () { if (preCount) preCount.textContent = String(Math.round(fake.v)).padStart(2, "0"); }
+      onUpdate: function () { if (preCount) preCount.textContent = String(Math.round(fake.v)).padStart(2, "0"); maybeShowScroll(fake.v); }
     });
     var finishDesktop = function () {
       if (preDone || !pre) return;
@@ -218,6 +225,7 @@
       var target = Math.min(byTime, cap);
       var nv = counterShown + (target - counterShown) * 0.14;
       if (nv > counterShown) counterShown = nv;   // monótono: nunca baja
+      maybeShowScroll(counterShown);
       if (forceReady || (cometPainted && byTime >= 99.5)) { settleAndReveal(); return; }
       if (preCount) preCount.textContent = String(Math.round(counterShown)).padStart(2, "0");
       requestAnimationFrame(counterTick);
