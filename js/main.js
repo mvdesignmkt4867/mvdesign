@@ -152,10 +152,10 @@
     introHero(!!instant);
   }
 
-  // "SCROLL" aparece abajo del loader al llegar a 60%
+  // "SCROLL" aparece abajo del loader al llegar a 50%
   var scrollCueShown = false;
   function maybeShowScroll(v) {
-    if (!scrollCueShown && preScroll && v >= 60) { preScroll.classList.add("is-shown"); scrollCueShown = true; }
+    if (!scrollCueShown && preScroll && v >= 50) { preScroll.classList.add("is-shown"); scrollCueShown = true; }
   }
 
   /* El contador del preloader: DESKTOP queda EXACTAMENTE igual (rápido, se va
