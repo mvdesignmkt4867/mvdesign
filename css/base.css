@@ -73,25 +73,30 @@ h1, h2, h3, h4 { font-family: var(--font-display); color: var(--fg-on-dark-1); }
 .js [data-reveal].is-in,
 .js.no-motion [data-reveal] { opacity: 1; transform: none; }
 
-/* Palabras del hero / manifiesto: reveal con opacity + transform (SOLO compositor).
-   Antes era clip-path animado, que en iOS NO se acelera por GPU → repintaba el
-   título grande (con el texto en gradiente) cada frame y congelaba la animación
-   al revelar el hero. opacity+translate corre en el compositor = fluido en móvil. */
+/* Palabras del hero / manifiesto. DESKTOP: wipe con clip-path (original).
+   MÓVIL (abajo): opacity + transform — clip-path NO se acelera por GPU en iOS y
+   congelaba el reveal del título; opacity corre en el compositor = fluido. */
 .js [data-words] .w {
   display: inline-block;
-  opacity: 0;
-  transform: translateY(0.42em);
-  /* cada palabra en su propia capa GPU: el contenido (incl. el texto en gradiente
-     '.grad', carísimo de repintar en iOS) se pinta UNA vez como textura y la
-     animación opacity/transform solo la COMPONE → sin repintar cada frame, sin
-     freeze al revelar. will-change en el wrapper, no en el .grad (no rompe el clip). */
-  will-change: transform, opacity;
+  clip-path: inset(0 0 110% 0);
+  transform: translateY(0.35em);
 }
-.js.no-motion [data-words] .w { opacity: 1; transform: none; }
+.js.no-motion [data-words] .w { clip-path: none; opacity: 1; transform: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .js [data-reveal] { opacity: 1; transform: none; transition: none; }
-  .js [data-words] .w { opacity: 1; transform: none; }
+  .js [data-words] .w { clip-path: none; opacity: 1; transform: none; }
+}
+
+/* Móvil: reveal por opacity (compositor), no clip-path. Cada palabra en su propia
+   capa GPU (will-change) para que el gradiente de '.grad' no se repinte cada frame. */
+@media (max-width: 760px) {
+  .js [data-words] .w {
+    clip-path: none;
+    opacity: 0;
+    transform: translateY(0.42em);
+    will-change: transform, opacity;
+  }
 }
 
 /* --- Utilidades ----------------------------------------------------- */

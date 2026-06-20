@@ -230,10 +230,10 @@
 
   function introHero(instant) {
     var d = instant ? 0 : 0.9;
-    gsap.to(heroTitleWords, {
-      opacity: 1, y: 0,
-      duration: instant ? 0 : d, ease: EASE, stagger: instant ? 0 : 0.07, delay: instant ? 0 : 0.05
-    });
+    var hv = { y: 0, duration: instant ? 0 : d, ease: EASE, stagger: instant ? 0 : 0.07, delay: instant ? 0 : 0.05 };
+    // móvil: reveal por opacity (compositor); desktop: el wipe original con clip-path
+    if (phoneMode) { hv.opacity = 1; } else { hv.clipPath = "inset(0 0 -10% 0)"; }
+    gsap.to(heroTitleWords, hv);
     gsap.to(".hero [data-reveal]", {
       opacity: 1, y: 0, duration: instant ? 0 : 0.8, ease: EASE, stagger: 0.12, delay: instant ? 0 : 0.35
     });
@@ -369,11 +369,9 @@
   /* ---------- Títulos por palabras (fuera del hero) ---------- */
   wordSets.forEach(function (set, idx) {
     if (idx === 0) return;
-    gsap.to(set.words, {
-      opacity: 1, y: 0,
-      duration: 0.85, ease: EASE, stagger: 0.06,
-      scrollTrigger: { trigger: set.el, start: "top 84%" }
-    });
+    var sv = { y: 0, duration: 0.85, ease: EASE, stagger: 0.06, scrollTrigger: { trigger: set.el, start: "top 84%" } };
+    if (phoneMode) { sv.opacity = 1; } else { sv.clipPath = "inset(0 0 -10% 0)"; }
+    gsap.to(set.words, sv);
   });
 
   /* ---------- Servicios: horizontal pinned ---------- */
