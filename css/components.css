@@ -645,7 +645,7 @@ main, .footer { position: relative; z-index: 2; }
    inline (anchos distintos → misma velocidad px/s). */
 .brandstrips { margin-top: clamp(48px, 7vh, 88px); }
 .brandstrip {
-  --bh: clamp(64px, 8vw, 92px);             /* alto de CADA banda (van 2 apiladas) */
+  --bh: clamp(76px, 9.5vw, 110px);          /* alto de CADA banda (más aire vertical) */
   --strip-ar: 40;                            /* fallback; cada banda lo fija inline */
   position: relative;
   /* full-bleed: break out of .wrap to span the viewport (body has overflow-x:hidden) */
@@ -701,6 +701,6 @@ main, .footer { position: relative; z-index: 2; }
    vista, así que la capa GPU no satura. */
 @media (max-width: 760px) {
   .brandstrips { margin-top: clamp(32px, 6vh, 56px); }
-  .brandstrip { --bh: 60px; }
+  .brandstrip { --bh: 78px; }
   .brandstrip + .brandstrip { margin-top: 14px; }
 }
