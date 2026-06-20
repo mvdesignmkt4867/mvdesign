@@ -10,6 +10,22 @@
   var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (reduced) docEl.classList.add("no-motion");
 
+  /* Forzar la carga de las fuentes de los títulos AHORA (durante el loader). El
+     título está oculto (opacity:0), así que el navegador DIFIERE cargar su fuente
+     hasta que se ve (al revelar) — y "vendes" es itálica (archivo aparte). Si esa
+     fuente carga al revelar → dispara document.fonts.ready → ScrollTrigger.refresh
+     (recalcula 41 triggers + hero pineado = 1-2s) JUSTO en la animación del título
+     = el freeze en móvil. Pidiéndolas ya, cargan detrás del loader y el refresh
+     ocurre ahí, no al revelar. */
+  if (document.fonts && document.fonts.load) {
+    try {
+      document.fonts.load("700 1em Montserrat");
+      document.fonts.load("italic 700 1em Montserrat");
+      document.fonts.load("600 1em Montserrat");
+      document.fonts.load("italic 600 1em Montserrat");
+    } catch (e) {}
+  }
+
   var EASE = "power3.out"; // ≈ cubic-bezier(.20,.80,.25,1) del DS
 
   /* ---------- Año ---------- */
