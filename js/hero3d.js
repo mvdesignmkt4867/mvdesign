@@ -158,7 +158,11 @@
       // fluido desde el primer frame en el teléfono. Desktop queda igual.
       renderer = new THREE.WebGLRenderer({ antialias: !MOBILE, alpha: true, powerPreference: "high-performance" });
     } catch (e) { return null; }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MOBILE ? 1.5 : 2));
+    // Móvil: DPR 1.0 (no 1.5). El costo del cometa es FILL-RATE (partículas
+    // grandes con additive blending = mucho overdraw) y escala con DPR² → bajar
+    // a 1.0 son ~2.25x menos píxeles que pintar. Es lo que colapsaba los fps del
+    // iPhone en el pico del reveal (cometa a full + título + fade del loader).
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MOBILE ? 1.0 : 2));
     mount.appendChild(renderer.domElement);
 
     var group = new THREE.Group();
@@ -257,14 +261,14 @@
   }
 
   var back = createSystem(mountBack, {
-    count: MOBILE ? 6200 : 10600, ambient: 0.24,
-    size: MOBILE ? 32 : 38, spreadX: 2.4, zSpread: 1.2, zBias: 0, dim: 1.0
+    count: MOBILE ? 4200 : 10600, ambient: 0.24,
+    size: MOBILE ? 30 : 38, spreadX: 2.4, zSpread: 1.2, zBias: 0, dim: 1.0
   });
   if (!back) return;
 
   var front = (!reduced && mountFront) ? createSystem(mountFront, {
-    count: MOBILE ? 900 : 2400, ambient: 0.1,
-    size: MOBILE ? 46 : 58, spreadX: 2.1, zSpread: 1.6, zBias: 2.4, dim: 0.62
+    count: MOBILE ? 600 : 2400, ambient: 0.1,
+    size: MOBILE ? 40 : 58, spreadX: 2.1, zSpread: 1.6, zBias: 2.4, dim: 0.62
   }) : null;
 
   /* ---------- Estado ---------- */
