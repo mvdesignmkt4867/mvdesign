@@ -141,6 +141,7 @@
   /* ---------- Preloader ---------- */
   var pre = document.querySelector("[data-preloader]");
   var preCount = document.querySelector("[data-preloader-count]");
+  var preScroll = document.querySelector("[data-preloader-scroll]");
   var preDone = false;
 
   function revealHero(instant) {
@@ -149,6 +150,34 @@
     if (preCount) preCount.textContent = "100";
     pre.classList.add("is-done");
     introHero(!!instant);
+  }
+
+  // "SCROLL" aparece abajo del loader al 60%
+  var scrollCueShown = false;
+  function maybeShowScroll(v) {
+    if (!scrollCueShown && preScroll && v >= 60) { preScroll.classList.add("is-shown"); scrollCueShown = true; }
+  }
+  /* Calienta el primer scroll DETRÁS del loader: Pietro notó que un mini-scroll
+     antes de revelar evita el freeze del título → lo hacemos programático una vez
+     (dispara ScrollTrigger/scrub/cometa), para que SIEMPRE abra suave. */
+  var warmedUp = false;
+  function warmScroll() {
+    if (warmedUp) return; warmedUp = true;
+    // toca scroll 150 y vuelve a 0 EN FRAMES SEPARADOS (el navegador compone una
+    // vez por frame) → dispara el primer composite del hero pineado + scrub del
+    // cometa detrás del loader, así el reveal no se congela.
+    var steps = [150, 0], i = 0;
+    (function step() {
+      if (i >= steps.length) return;
+      var y = steps[i++];
+      try {
+        if (window.__lenis) window.__lenis.scrollTo(y, { immediate: true, force: true });
+        else window.scrollTo(0, y);
+        if (typeof ScrollTrigger !== "undefined" && ScrollTrigger.update) ScrollTrigger.update();
+        if (typeof syncFx === "function") syncFx();
+      } catch (e) {}
+      requestAnimationFrame(step);
+    })();
   }
 
   /* El contador del preloader: DESKTOP queda EXACTAMENTE igual (rápido, se va
@@ -161,7 +190,7 @@
     var fake = { v: 0 };
     var fakeTween = gsap.to(fake, {
       v: 92, duration: 2.2, ease: "power2.out",
-      onUpdate: function () { if (preCount) preCount.textContent = String(Math.round(fake.v)).padStart(2, "0"); }
+      onUpdate: function () { if (preCount) preCount.textContent = String(Math.round(fake.v)).padStart(2, "0"); maybeShowScroll(fake.v); }
     });
     var finishDesktop = function () {
       if (preDone || !pre) return;
@@ -198,6 +227,9 @@
     window.addEventListener("load", function () { setTimeout(function () { forceReady = true; }, 8000); });
 
     var settleAndReveal = function () {
+      warmScroll();                                              // por si no corrió aún
+      // volver al tope (por si el usuario scrolleó con el loader) ANTES de revelar
+      try { if (window.__lenis) window.__lenis.scrollTo(0, { immediate: true, force: true }); else window.scrollTo(0, 0); } catch (e) {}
       // garantía: deja el cometa en su estado de reposo ANTES de abrir, así las
       // partículas YA están al revelar (no dependemos de que el easing por frame
       // haya terminado bajo la carga). Luego abre.
@@ -210,6 +242,7 @@
     var counterTick = function () {
       if (preDone) return;
       if (cometPainted && !assemblyKicked && typeof syncFx === "function") { syncFx(); assemblyKicked = true; }
+      if (cometPainted) warmScroll();   // calienta el primer scroll detrás del loader
       var now = (window.performance && performance.now) ? performance.now() : Date.now();
       var byTime = Math.min(100, ((now - preT0) / 1000 / T_MIN) * 100);
       // listo = el cometa ya pintó al menos un frame (puede renderizar) + pasó el
@@ -218,6 +251,7 @@
       var target = Math.min(byTime, cap);
       var nv = counterShown + (target - counterShown) * 0.14;
       if (nv > counterShown) counterShown = nv;   // monótono: nunca baja
+      maybeShowScroll(counterShown);
       if (forceReady || (cometPainted && byTime >= 99.5)) { settleAndReveal(); return; }
       if (preCount) preCount.textContent = String(Math.round(counterShown)).padStart(2, "0");
       requestAnimationFrame(counterTick);
