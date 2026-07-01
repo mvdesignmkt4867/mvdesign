@@ -1,0 +1,16 @@
+{
+  "name": "MV Design",
+  "short_name": "MV Design",
+  "description": "Agencia de marketing, branding y diseño web en Querétaro.",
+  "lang": "es-MX",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0A0A0F",
+  "theme_color": "#0A0A0F",
+  "icons": [
+    { "src": "assets/logos/favicon-192.png", "type": "image/png", "sizes": "192x192" },
+    { "src": "assets/logos/favicon-512.png", "type": "image/png", "sizes": "512x512" },
+    { "src": "assets/logos/favicon-maskable-512.png", "type": "image/png", "sizes": "512x512", "purpose": "maskable" }
+  ]
+}
