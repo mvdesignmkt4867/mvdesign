@@ -1,31 +1,43 @@
 # MV Design
 
-> Agencia de marketing y diseño en Santiago de Querétaro, México. Branding, sitios web (de editorial a experiencias 3D inmersivas), tiendas en línea Shopify, redes sociales y marketing digital, siempre con intención comercial. Lema: "Impulsando Proyectos".
+> Agencia de marketing, branding y diseño en Santiago de Querétaro, México. Branding, diseño y desarrollo web (de editorial a experiencias 3D inmersivas), tiendas en línea Shopify, redes sociales, producción audiovisual y campañas de performance, siempre con intención comercial. Lema: "Impulsando Proyectos". Última actualización: 2026-09-20.
 
 ## Qué hacemos
-- **Branding integral**: identidad de marca, logotipo, sistema visual y aplicación (del logo al empaque y punto de venta).
-- **Diseño y desarrollo web**: desde sitios editoriales/corporativos hasta experiencias 3D inmersivas e interactivas.
-- **E-commerce Shopify**: tiendas en línea completas, mobile first, con checkout optimizado.
-- **Redes sociales y contenido**: estrategia, contenido y campañas con enfoque en conversión.
+- **Branding estratégico**: naming, identidad de marca, logotipo, sistema visual y aplicación (del logotipo al empaque, el punto de venta y la fachada).
+- **Redes sociales y contenido**: estrategia, contenido, comunidad y pauta con enfoque en conversión.
+- **Diseño web, apps y automatizaciones**: desde sitios editoriales y corporativos hasta experiencias 3D inmersivas e interactivas.
+- **E-commerce Shopify**: tiendas en línea completas, mobile first, con checkout optimizado. Somos Shopify Partners.
+- **Producción audiovisual**: foto y video propios para redes sociales y campañas; sin banco de imágenes genérico.
+- **Gráfica y editorial**: catálogos, papelería, señalética y campañas para impresión.
+- **Medios y performance**: campañas en Google Ads y Meta Ads, SEO y reporte con datos.
 
 ## Paquetes web
-- **Editorial / Corporativa** — sitio one-pager o multipágina estilo editorial, responsive, optimizado para captación.
-- **E-commerce · Shopify** — tienda completa en Shopify, mobile first, con checkout optimizado.
-- **Web 3D inmersiva** — experiencia 3D inmersiva e interactiva con animaciones y transiciones premium.
+- **Editorial / Corporativa** — sitio one-pager o multipágina estilo editorial, responsive, optimizado para captación, con integración de WhatsApp y SEO básico on-page.
+- **E-commerce · Shopify** — tienda completa en Shopify, mobile first, hasta 20 productos con variantes, checkout optimizado + Mercado Pago, envíos, Analytics y capacitación del panel.
+- **Web 3D inmersiva** — experiencia 3D inmersiva e interactiva con mapas, recorridos, animaciones y transiciones premium, y SEO técnico on-page. Es el paquete con el que está hecho www.mvdesign.mx.
+
+## Cómo trabajamos
+Cinco etapas: briefing → estructura y wireframe → diseño → desarrollo → lanzamiento, con capacitación y 30 días de acompañamiento post-lanzamiento.
 
 ## Casos
-- GU · Gestión Urbanística (web 3D inmersiva, inmobiliario/urbanismo)
-- Vista Real Country Club (web institucional)
-- Blak Coffee & Co (branding, cafetería de especialidad)
-- Protect Diversity (e-commerce Shopify, dermocosmética vegana)
-- Manzzani (Shopify + redes, manzanas gourmet)
+- GU · Gestión Urbanística (web 3D inmersiva con mapas y recorridos, inmobiliario/urbanismo)
+- Vista Real Country Club (sistema de marca y web institucional, club deportivo/hospitalidad) — https://www.vistareal.mx
+- Blak Coffee & Co (branding integral, cafetería de especialidad)
+- Protect Diversity (e-commerce Shopify, dermocosmética vegana hecha en CDMX) — https://www.protectdiversity.store
+- Manzzani (Shopify + redes sociales, manzanas gourmet de regalo) — https://www.manzzani.com
 
 ## Ubicación y cobertura
 - Base: Santiago de Querétaro, Querétaro, México.
-- Atendemos clientes en todo México.
+- Negocio de área de servicio: atendemos con cita, sin oficina abierta al público.
+- Presencial: Santiago de Querétaro y zona metropolitana (El Marqués, Corregidora, Juriquilla).
+- Remoto: todo México, incluida la Ciudad de México.
+- Horario de atención: lunes a sábado, 8:00–19:00 (hora del centro de México).
 
 ## Contacto
 - Sitio: https://www.mvdesign.mx
 - Email: mvdesign.mkt@gmail.com
-- Teléfono / WhatsApp: +52 442 714 6255
+- WhatsApp (Ma. Fernanda Velasco): +52 442 714 6255 — https://wa.me/5214427146255
+- WhatsApp (Gian Pietro Milani): +52 442 107 6923 — https://wa.me/5214421076923
 - Instagram: https://www.instagram.com/mvdesign.mkt
+- Facebook: https://www.facebook.com/mvdesign.mkt
+- Canal preferido: WhatsApp.
