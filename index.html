@@ -660,21 +660,26 @@
   <script src="js/hero3d.js" defer></script>
   <script src="js/main.js" defer></script>
 
-  <!-- Meta Pixel · conversiones: WhatsApp = Lead (principal) · correo = Contact -->
+  <!-- Conversiones: WhatsApp = Lead (principal) · correo = Contact. Envia a Meta Pixel Y a GA4 -->
   <script>
   (function () {
-    function fire(ev, name) {
+    function fire(metaEvent, gaEvent, metodo) {
+      // Meta Pixel
       if (typeof fbq === 'function') {
-        fbq('track', ev, { content_name: name, content_category: 'contacto' });
+        fbq('track', metaEvent, { content_name: metodo, content_category: 'contacto' });
+      }
+      // Google Analytics 4
+      if (typeof gtag === 'function') {
+        gtag('event', gaEvent, { method: metodo });
       }
     }
     document.addEventListener('click', function (e) {
       var t = e.target;
       if (!t || !t.closest) return;
       if (t.closest('a[href*="wa.me"], a[href*="api.whatsapp.com"], a[href*="web.whatsapp.com"], a[href*="wa.link"]')) {
-        fire('Lead', 'WhatsApp');
+        fire('Lead', 'generate_lead', 'WhatsApp');
       } else if (t.closest('a[href^="mailto:"]')) {
-        fire('Contact', 'Correo');
+        fire('Contact', 'contact', 'Correo');
       }
     }, true);
   })();
