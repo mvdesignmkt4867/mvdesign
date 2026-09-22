@@ -724,3 +724,30 @@ main, .footer { position: relative; z-index: 2; }
   .brandstrip { --bh: 78px; }
   .brandstrip + .brandstrip { margin-top: 14px; }
 }
+
+/* ---------------------------------------------------------------
+   WHATSAPP FLOTANTE — reutiliza .btn--solid/.btn--pop. Aparece cuando los CTAs
+   del hero salen de pantalla y se oculta si hay otro WhatsApp a la vista (JS en
+   index.html). Oculto = visibility:hidden + inert (fuera del orden de Tab).
+--------------------------------------------------------------- */
+.wa-float {
+  position: fixed; z-index: 50;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  min-height: 48px; padding: 12px 20px 12px 16px;
+  opacity: 0; visibility: hidden; transform: translateY(14px) scale(0.96);
+  transition: opacity var(--dur-2) var(--ease-out),
+              transform var(--dur-2) var(--ease-out),
+              visibility 0s linear var(--dur-2);
+}
+.wa-float svg { width: 20px; height: 20px; flex: none; }
+.wa-float.is-visible {
+  opacity: 1; visibility: visible; transform: none;
+  transition: opacity var(--dur-2) var(--ease-out),
+              transform var(--dur-2) var(--ease-out),
+              visibility 0s;
+}
+.wa-float.is-visible:active { transform: scale(0.97); }
+@media (prefers-reduced-motion: reduce) {
+  .wa-float, .wa-float.is-visible { transition: none; transform: none; }
+}

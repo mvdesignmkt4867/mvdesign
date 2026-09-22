@@ -102,11 +102,15 @@
   }
   </script>
 
+  <!-- Analítica solo en producción real: nunca en pruebas (?qa=, ?debug=, ?notrack=) ni
+       en previews, para no ensuciar los datos con los que Meta optimiza los anuncios -->
+  <script>window.MV_TRACK = location.hostname === "www.mvdesign.mx" && !/[?&](qa|debug|notrack)=/.test(location.search);</script>
+
   <!-- Google tag (gtag.js) · GA4 -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-DTBRCV9C94"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
+    function gtag(){ if (window.MV_TRACK) dataLayer.push(arguments); }
     gtag('js', new Date());
 
     gtag('config', 'G-DTBRCV9C94');
@@ -114,7 +118,7 @@
 
   <!-- Meta Pixel Code -->
   <script>
-  !function(f,b,e,v,n,t,s)
+  if (window.MV_TRACK) !function(f,b,e,v,n,t,s)
   {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
   n.callMethod.apply(n,arguments):n.queue.push(arguments)};
   if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
@@ -122,8 +126,7 @@
   t.src=v;s=b.getElementsByTagName(e)[0];
   s.parentNode.insertBefore(t,s)}(window, document,'script',
   'https://connect.facebook.net/en_US/fbevents.js');
-  fbq('init', '1494974869057200');
-  fbq('track', 'PageView');
+  if (window.MV_TRACK) { fbq('init', '1494974869057200'); fbq('track', 'PageView'); }
   </script>
   <noscript><img height="1" width="1" style="display:none"
   src="https://www.facebook.com/tr?id=1494974869057200&ev=PageView&noscript=1"
@@ -169,6 +172,14 @@
     </div>
   </header>
 
+  <!-- WhatsApp flotante: aparece cuando los CTAs del hero salen de pantalla; se oculta
+       si hay otro botón de WhatsApp a la vista, en Contacto y en el footer -->
+  <a class="btn btn--solid btn--pop wa-float" href="https://wa.me/5214427146255?text=Hola%20MV%20Design%2C%20quiero%20cotizar%20un%20proyecto.%20%5Bweb%20%C2%B7%20bot%C3%B3n%20flotante%5D" target="_blank" rel="noopener" data-cta="flotante" data-wa-float
+     aria-label="Escribir por WhatsApp a MV Design" inert>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.6-1.2A9 9 0 1 0 12 3Z"/><path d="M8.8 9.4c0 3.2 2.6 5.8 5.8 5.8.5 0 .9-.2 1.1-.6l.4-.8c.2-.4 0-.8-.4-1l-1.4-.6c-.3-.1-.7 0-.9.3l-.2.3a4.4 4.4 0 0 1-1.9-1.9l.3-.2c.3-.2.4-.6.3-.9l-.6-1.4c-.2-.4-.6-.6-1-.4l-.8.4c-.4.2-.7.6-.7 1Z"/></svg>
+    <span>WhatsApp</span>
+  </a>
+
   <main id="main">
     <!-- =========================================================
          01 · HERO — el espacio M
@@ -185,8 +196,8 @@
           <h1 class="hero__title" data-words>Diseñamos lo que <span class="grad">vendes</span>.</h1>
           <p class="hero__lead" data-reveal style="--d:.25s">Branding, redes y web con intención comercial. No decoramos negocios: construimos percepción — y cada decisión visual responde a una razón.</p>
           <div class="hero__actions" data-reveal style="--d:.4s">
-            <a class="btn btn--solid btn--pop" href="#casos">Ver el trabajo</a>
-            <a class="btn" href="#servicios">Servicios</a>
+            <a class="btn btn--solid btn--pop" href="https://wa.me/5214427146255?text=Hola%20MV%20Design%2C%20quiero%20cotizar%20un%20proyecto.%20%5Bweb%20%C2%B7%20inicio%5D" target="_blank" rel="noopener" data-cta="inicio">Cotiza por WhatsApp</a>
+            <a class="btn" href="#casos">Ver el trabajo</a>
           </div>
         </div>
 
@@ -310,7 +321,7 @@
           <article class="svc svc--cta">
             <p class="eyebrow">¿Por dónde empezamos?</p>
             <h3 class="h3">Tu marca al nivel de tu <span class="grad">negocio</span>.</h3>
-            <a class="btn" href="#contacto">Agenda una llamada</a>
+            <a class="btn" href="https://wa.me/5214427146255?text=Hola%20MV%20Design%2C%20quiero%20agendar%20una%20llamada%20para%20platicar%20mi%20proyecto.%20%5Bweb%20%C2%B7%20servicios%5D" target="_blank" rel="noopener" data-cta="servicios">Agenda una llamada</a>
           </article>
         </div>
 
@@ -557,7 +568,7 @@
               <li>Integración WhatsApp y redes</li>
               <li>SEO básico on-page</li>
             </ul>
-            <a class="btn" href="#contacto">Cotizar editorial</a>
+            <a class="btn" href="https://wa.me/5214427146255?text=Hola%20MV%20Design%2C%20me%20interesa%20el%20paquete%20Editorial%20%2F%20Corporativa.%20%5Bweb%20%C2%B7%20paquete%20editorial%5D" target="_blank" rel="noopener" data-cta="paquete-editorial">Cotizar editorial</a>
           </article>
 
           <article class="tier tier--featured" data-reveal style="--d:.12s">
@@ -573,7 +584,7 @@
               <li>Estructura escalable y optimizada</li>
               <li>SEO técnico on-page</li>
             </ul>
-            <a class="btn btn--solid" href="#contacto">Cotizar inmersiva</a>
+            <a class="btn btn--solid" href="https://wa.me/5214427146255?text=Hola%20MV%20Design%2C%20me%20interesa%20el%20paquete%20Web%203D%20inmersiva.%20%5Bweb%20%C2%B7%20paquete%203D%5D" target="_blank" rel="noopener" data-cta="paquete-3d">Cotizar inmersiva</a>
           </article>
 
           <article class="tier" data-reveal style="--d:.24s">
@@ -592,7 +603,7 @@
               <li>Envíos, Analytics y WhatsApp</li>
               <li>Capacitación del panel</li>
             </ul>
-            <a class="btn" href="#contacto">Cotizar tienda</a>
+            <a class="btn" href="https://wa.me/5214427146255?text=Hola%20MV%20Design%2C%20me%20interesa%20el%20paquete%20E-commerce%20Shopify.%20%5Bweb%20%C2%B7%20paquete%20Shopify%5D" target="_blank" rel="noopener" data-cta="paquete-shopify">Cotizar tienda</a>
           </article>
         </div>
 
@@ -609,8 +620,8 @@
         <h2 class="cta__title" data-words style="margin-top:var(--s-6)">Hagamos que tu marca <span class="grad">venda</span>.</h2>
         <p class="cta__lead" data-reveal>Cuéntanos qué tienes en mente. Agendamos una llamada, definimos el alcance correcto para ti y arrancamos. Presencial en Querétaro y su zona metropolitana, remoto en todo México.</p>
         <div class="cta__actions" data-reveal style="--d:.15s">
-          <a class="btn btn--solid btn--pop" href="https://wa.me/5214427146255" target="_blank" rel="noopener">WhatsApp directo</a>
-          <a class="btn" href="mailto:mvdesign.mkt@gmail.com">Escríbenos por correo</a>
+          <a class="btn btn--solid btn--pop" href="https://wa.me/5214427146255?text=Hola%20MV%20Design%2C%20quiero%20cotizar%20un%20proyecto.%20%5Bweb%20%C2%B7%20contacto%5D" target="_blank" rel="noopener" data-cta="contacto">WhatsApp directo</a>
+          <a class="btn" href="mailto:mvdesign.mkt@gmail.com" data-cta="contacto-correo">Escríbenos por correo</a>
         </div>
         <div class="cta__contact" data-reveal style="--d:.3s">
           <a href="https://www.instagram.com/mvdesign.mkt" target="_blank" rel="noopener">
@@ -621,15 +632,15 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
             Facebook
           </a>
-          <a href="https://wa.me/5214427146255" target="_blank" rel="noopener">
+          <a href="https://wa.me/5214427146255?text=Hola%20Fer%2C%20quiero%20cotizar%20un%20proyecto%20con%20MV%20Design.%20%5Bweb%20%C2%B7%20contacto%5D" target="_blank" rel="noopener" data-cta="contacto-fer">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.6-1.2A9 9 0 1 0 12 3Z"/><path d="M8.8 9.4c0 3.2 2.6 5.8 5.8 5.8.5 0 .9-.2 1.1-.6l.4-.8c.2-.4 0-.8-.4-1l-1.4-.6c-.3-.1-.7 0-.9.3l-.2.3a4.4 4.4 0 0 1-1.9-1.9l.3-.2c.3-.2.4-.6.3-.9l-.6-1.4c-.2-.4-.6-.6-1-.4l-.8.4c-.4.2-.7.6-.7 1Z"/></svg>
             María Fernanda Velasco · 442 714 6255
           </a>
-          <a href="https://wa.me/5214421076923" target="_blank" rel="noopener">
+          <a href="https://wa.me/5214421076923?text=Hola%20Gian%20Pietro%2C%20quiero%20cotizar%20un%20proyecto%20con%20MV%20Design.%20%5Bweb%20%C2%B7%20contacto%5D" target="_blank" rel="noopener" data-cta="contacto-gian">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.6-1.2A9 9 0 1 0 12 3Z"/><path d="M8.8 9.4c0 3.2 2.6 5.8 5.8 5.8.5 0 .9-.2 1.1-.6l.4-.8c.2-.4 0-.8-.4-1l-1.4-.6c-.3-.1-.7 0-.9.3l-.2.3a4.4 4.4 0 0 1-1.9-1.9l.3-.2c.3-.2.4-.6.3-.9l-.6-1.4c-.2-.4-.6-.6-1-.4l-.8.4c-.4.2-.7.6-.7 1Z"/></svg>
             Gian Pietro Milani · 442 107 6923
           </a>
-          <a href="mailto:mvdesign.mkt@gmail.com">
+          <a href="mailto:mvdesign.mkt@gmail.com" data-cta="contacto-correo-chip">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
             mvdesign.mkt@gmail.com
           </a>
@@ -663,25 +674,57 @@
   <!-- Conversiones: WhatsApp = Lead (principal) · correo = Contact. Envia a Meta Pixel Y a GA4 -->
   <script>
   (function () {
-    function fire(metaEvent, gaEvent, metodo) {
+    // cta_location = qué botón fue (data-cta), para saber cuál convierte de verdad
+    function fire(metaEvent, gaEvent, metodo, ubicacion) {
       // Meta Pixel
       if (typeof fbq === 'function') {
-        fbq('track', metaEvent, { content_name: metodo, content_category: 'contacto' });
+        fbq('track', metaEvent, { content_name: metodo, content_category: 'contacto', cta_location: ubicacion });
       }
       // Google Analytics 4
       if (typeof gtag === 'function') {
-        gtag('event', gaEvent, { method: metodo });
+        gtag('event', gaEvent, { method: metodo, cta_location: ubicacion });
       }
     }
     document.addEventListener('click', function (e) {
-      var t = e.target;
+      var t = e.target, a;
       if (!t || !t.closest) return;
-      if (t.closest('a[href*="wa.me"], a[href*="api.whatsapp.com"], a[href*="web.whatsapp.com"], a[href*="wa.link"]')) {
-        fire('Lead', 'generate_lead', 'WhatsApp');
-      } else if (t.closest('a[href^="mailto:"]')) {
-        fire('Contact', 'contact', 'Correo');
+      if ((a = t.closest('a[href*="wa.me"], a[href*="api.whatsapp.com"], a[href*="web.whatsapp.com"], a[href*="wa.link"]'))) {
+        fire('Lead', 'generate_lead', 'WhatsApp', a.getAttribute('data-cta') || 'sin-etiqueta');
+      } else if ((a = t.closest('a[href^="mailto:"]'))) {
+        fire('Contact', 'contact', 'Correo', a.getAttribute('data-cta') || 'sin-etiqueta');
       }
     }, true);
+  })();
+  </script>
+
+  <!-- WhatsApp flotante: visible solo cuando no hay otro WhatsApp a la vista -->
+  <script>
+  (function () {
+    var fab = document.querySelector('[data-wa-float]');
+    if (!fab || !('IntersectionObserver' in window)) return;
+    var hero = document.querySelector('.hero__actions');
+    var hide = [document.getElementById('contacto'), document.querySelector('.footer')].filter(Boolean);
+    var heroOn = true, hideOn = new Set(), waOn = new Set();
+    function update() {
+      var show = !heroOn && hideOn.size === 0 && waOn.size === 0;
+      fab.classList.toggle('is-visible', show);
+      if (show) fab.removeAttribute('inert'); else fab.setAttribute('inert', '');
+    }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        var el = en.target, on = en.isIntersecting;
+        if (el === hero) heroOn = on;
+        else if (hide.indexOf(el) > -1) { on ? hideOn.add(el) : hideOn.delete(el); }
+        else { on ? waOn.add(el) : waOn.delete(el); }
+      });
+      update();
+    });
+    if (hero) io.observe(hero); else heroOn = false;
+    hide.forEach(function (el) { io.observe(el); });
+    document.querySelectorAll('a[href^="https://wa.me/"]').forEach(function (a) {
+      if (a === fab || (hero && hero.contains(a)) || hide.some(function (h) { return h.contains(a); })) return;
+      io.observe(a);
+    });
   })();
   </script>
 </body>
