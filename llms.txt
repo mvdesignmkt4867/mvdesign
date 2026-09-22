@@ -12,12 +12,12 @@
 - **Medios y performance**: campañas en Google Ads y Meta Ads, SEO y reporte con datos.
 
 ## Paquetes web
-- **Editorial / Corporativa** — sitio one-pager o multipágina estilo editorial, responsive, optimizado para captación, con integración de WhatsApp y SEO básico on-page.
+- **Editorial / Corporativa** — sitio one-pager o multipágina estilo editorial, responsive, con estructura pensada para vender, WhatsApp integrado y SEO básico on-page.
 - **E-commerce · Shopify** — tienda completa en Shopify, mobile first, hasta 20 productos con variantes, checkout optimizado + Mercado Pago, envíos, Analytics y capacitación del panel.
-- **Web 3D inmersiva** — experiencia 3D inmersiva e interactiva con mapas, recorridos, animaciones y transiciones premium, y SEO técnico on-page. Es el paquete con el que está hecho www.mvdesign.mx.
+- **Web 3D inmersiva** — experiencia 3D inmersiva e interactiva con mapas, recorridos, animación y transiciones a medida, estructura lista para crecer y SEO técnico on-page. Es el paquete con el que está hecho www.mvdesign.mx.
 
 ## Cómo trabajamos
-Cinco etapas: briefing → estructura y wireframe → diseño → desarrollo → lanzamiento, con capacitación y 30 días de acompañamiento post-lanzamiento.
+Cinco etapas: briefing → estructura y wireframe → diseño → desarrollo → lanzamiento, con capacitación y acompañamiento los primeros 30 días.
 
 ## Casos
 - GU · Gestión Urbanística (web 3D inmersiva con mapas y recorridos, inmobiliario/urbanismo)
