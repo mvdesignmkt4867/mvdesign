@@ -40,6 +40,28 @@
 
   var MOBILE = window.innerWidth < 860;
 
+  /* Fase 2a. El canvas mide 100lvh (CSS) y solo reasigna sus búferes si cambia el
+     ancho o, en touch, si el alto cambia más de 20%: la barra de Safari ya no lo
+     redimensiona a mitad del reveal. `?legacy=1` restaura el comportamiento
+     anterior (canvas inset:0 + setSize en cada resize) para comparar en un iPhone. */
+  var LEGACY = /[?&]legacy=1/.test(location.search);
+  if (LEGACY) document.documentElement.classList.add("fx-legacy");
+  var COARSE = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+  var stats = { resizes: 0, reallocs: 0, k: 1, legacy: LEGACY };
+
+  /* Encuadre compensado (fase 2a). Con la barra de Safari visible, el canvas
+     (100lvh) es más alto que el área visible (k = visible / canvas < 1). La cámara
+     encuadra SOLO el área visible, igual que antes, y el sobrante del canvas queda
+     abajo, fuera de pantalla: setViewOffset con un "cuadro completo" del alto
+     visible (cssH·k) dibujando el canvas entero (cssH). Así la M, las estrellas y el
+     cometa se ven idénticos. Con k = 1 (desktop, barra oculta, ?legacy=1) equivale
+     a una cámara normal con aspect = ancho/alto. */
+  function frameCam(sys, k) {
+    if (!sys || !sys.cssW || !sys.cssH) return;
+    sys.camera.setViewOffset(sys.cssW, sys.cssH * k, 0, 0, sys.cssW, sys.cssH);
+    sys.kApplied = k;
+  }
+
   function rand() { return Math.random(); }
   function lerp(a, b, t) { return a + (b - a) * t; }
   function smooth(t) { return t * t * (3 - 2 * t); }
@@ -147,9 +169,11 @@
 
   /* ---------- Fábrica de sistemas (capa trasera / delantera) ---------- */
   function createSystem(mount, opts) {
+    var sys = { cssW: 0, cssH: 0 }; // tamaño CSS vigente del canvas (para proyectar el DOM)
     var scene = new THREE.Scene();
     var camera = new THREE.PerspectiveCamera(42, 1, 0.1, 60);
     camera.position.set(0, 0.05, 7.2);
+    sys.camera = camera; // resize() → frameCam() la necesita desde la primera llamada
     var renderer;
     try {
       // Móvil: sin antialias (las partículas son glows suaves con additive blending,
@@ -232,11 +256,21 @@
     });
     group.add(new THREE.Points(geo, mat));
 
+    var bufW = 0, bufH = 0;
     function resize() {
       var w = mount.clientWidth, h = mount.clientHeight;
+      if (!w || !h) return;
+      sys.cssW = w; sys.cssH = h;
+      // la proyección sigue SIEMPRE al tamaño CSS: si el búfer no se reasigna, el
+      // estiramiento CSS no deforma la escena (solo los glows quedan apenas ovalados)
+      frameCam(sys, sys.kApplied || 1);
+      // setSize reasigna los búferes del canvas (bloqueo síncrono de GPU en iOS):
+      // solo si cambió el ancho, o el alto en desktop, o el alto >20% en touch
+      // (Firefox iOS y algunos in-app sí cambian lvh con su barra)
+      if (!LEGACY && w === bufW && (h === bufH || (COARSE && Math.abs(h - bufH) < bufH * 0.2))) return;
+      if (bufW) stats.reallocs++; // solo REasignaciones: la inicial no cuenta
+      bufW = w; bufH = h;
       renderer.setSize(w, h, false);
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
     }
     window.addEventListener("resize", resize);
     resize();
@@ -257,7 +291,9 @@
       }
     } catch (e) {}
 
-    return { scene: scene, camera: camera, renderer: renderer, group: group, uniforms: uniforms, opts: opts };
+    sys.scene = scene; sys.camera = camera; sys.renderer = renderer;
+    sys.group = group; sys.uniforms = uniforms; sys.opts = opts;
+    return sys;
   }
 
   var back = createSystem(mountBack, {
@@ -278,11 +314,26 @@
   var A_HERO = MOBILE ? [0, 0.78, 0.92] : [2.18, -0.1, 1.14];
   var A_CTA  = MOBILE ? [0, 1.35, 0.58] : [0, 1.28, 0.7];
 
+  /* k para el encuadre compensado (ver frameCam). Cuando la barra se oculta, k→1
+     con suavidad (antes era un salto + el realloc). En desktop y ?legacy=1, k = 1. */
+  var kTarget = 1, kShown = 1;
+  function updateK() {
+    if (LEGACY || !back || !back.cssH) { kTarget = 1; return; }
+    if (window.visualViewport && window.visualViewport.scale > 1.01) return; // pinch-zoom: no tocar
+    kTarget = Math.max(0.8, Math.min(1, window.innerHeight / back.cssH));
+    stats.k = kTarget;
+  }
   window.addEventListener("resize", function () {
+    stats.resizes++;
     MOBILE = window.innerWidth < 860;
     A_HERO = MOBILE ? [0, 0.78, 0.92] : [2.18, -0.1, 1.14];
     A_CTA  = MOBILE ? [0, 1.35, 0.58] : [0, 1.28, 0.7];
+    updateK();
   });
+  // el pinch-zoom no dispara window.resize en Chrome: al volver a escala 1, recalcular
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", updateK);
+  updateK(); kShown = kTarget; // al cargar, sin animación
+  frameCam(back, kShown); if (front) frameCam(front, kShown);
 
   /* ---------- RUTA real: spline por los elementos del DOM ----------
      El cometa visita títulos, fichas y rieles en orden, leyendo sus
@@ -290,9 +341,17 @@
   var route = [];          // [{el, dx, dy}] — dx/dy en fracción de viewport
   var ctaAnchorEl = null;  // el M reformado vive AQUÍ y scrollea con la página
 
+  // El DOM se proyecta sobre lo que encuadra la cámara: el alto visible cssH·k
+  // (con la barra oculta = innerHeight, como antes). El ancho, como antes.
+  function viewW() { return window.innerWidth; }
+  function viewH() {
+    if (LEGACY || !back || !back.cssH) return window.innerHeight;
+    return back.cssH * kShown;
+  }
+
   function rectWorld(el, camZ) {
     var r = el.getBoundingClientRect();
-    var vw = window.innerWidth, vh = window.innerHeight;
+    var vw = viewW(), vh = viewH();
     var halfH = Math.tan(21 * Math.PI / 180) * camZ;
     var halfW = halfH * (vw / vh);
     return [
@@ -303,7 +362,7 @@
 
   function computeRoutePts(camZ) {
     if (route.length < 2) return null;
-    var vw = window.innerWidth, vh = window.innerHeight;
+    var vw = viewW(), vh = viewH();
     var halfH = Math.tan(21 * Math.PI / 180) * camZ;
     var halfW = halfH * (vw / vh);
     var pts = [], ys = [];
@@ -316,8 +375,8 @@
       ys.push(cy * vh); // posición en viewport (px) para calcular la cabeza
     }
     // la CABEZA del cometa = la parada que está cruzando tu línea de lectura
-    // (58% del viewport). El cometa baja CONTIGO, parada por parada.
-    var ty = vh * 0.58, n = ys.length, headU = 0;
+    // (58% del área VISIBLE). El cometa baja CONTIGO, parada por parada.
+    var ty = window.innerHeight * 0.58, n = ys.length, headU = 0;
     if (ys[0] >= ty) headU = 0;
     else if (ys[n - 1] <= ty) headU = n - 1;
     else {
@@ -432,6 +491,8 @@
     }
     sm.x += (mouse.x - sm.x) * 0.045;
     sm.y += (mouse.y - sm.y) * 0.045;
+    kShown += (kTarget - kShown) * 0.06;
+    if (Math.abs(kShown - (back.kApplied || 1)) > 1e-4) { frameCam(back, kShown); if (front) frameCam(front, kShown); }
 
     var asm = shown.assemble, spn = shown.spin, wv = shown.wave, rf = shown.reform;
     var camZ = 7.2 - asm * (1 - wv) * 2.3;
@@ -450,11 +511,19 @@
 
   if (reduced) {
     shown.assemble = target.assemble = 1;
-    back.uniforms.uProgress.value = 1;
-    back.uniforms.uMOff.value.set(A_HERO[0], A_HERO[1], 0);
-    back.uniforms.uMScale.value = A_HERO[2];
-    back.camera.position.z = 4.9;
-    back.renderer.render(back.scene, back.camera);
+    var renderStatic = function () {
+      kShown = kTarget;
+      frameCam(back, kShown);
+      back.uniforms.uProgress.value = 1;
+      back.uniforms.uMOff.value.set(A_HERO[0], A_HERO[1], 0);
+      back.uniforms.uMScale.value = A_HERO[2];
+      back.camera.position.z = 4.9;
+      back.renderer.render(back.scene, back.camera);
+    };
+    renderStatic();
+    // si el canvas se reasigna (giro de pantalla), setSize lo borra: se vuelve a pintar
+    window.addEventListener("resize", renderStatic);
+    if (window.visualViewport) window.visualViewport.addEventListener("resize", renderStatic);
     signalPaint(); // reduced-motion: render estático único, igual avisamos
   } else {
     raf = requestAnimationFrame(frame);
@@ -482,6 +551,7 @@
     // las partículas YA estén en su estado de reposo aunque el ensamblaje por
     // frame no haya terminado (hilo saturado en la carga = pocos fps)
     settleNow: function () { for (var k in shown) shown[k] = target[k]; },
+    stats: stats, // sonda ?debug=1: resizes, reasignaciones del canvas, k, legacy
     getState: function () { return { target: JSON.parse(JSON.stringify(target)), shown: JSON.parse(JSON.stringify(shown)), uWave: back.uniforms.uWave.value }; }
   };
 })();

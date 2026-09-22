@@ -145,8 +145,14 @@ html:not(.js) .preloader { display: none; }           /* sin JS: nunca aparece *
   background: var(--grad-cover-halos);
   pointer-events: none;
 }
-/* Canvas FX fijo en dos capas: atrás del contenido y encima de él */
-.fx-canvas { position: fixed; inset: 0; pointer-events: none; }
+/* Canvas FX fijo en dos capas: atrás del contenido y encima de él.
+   Nunca mide menos que 100lvh (el viewport GRANDE): cuando Safari muestra u oculta
+   su barra, el canvas NO cambia de tamaño y no se reasignan sus búferes de WebGL a
+   mitad del reveal (fase 2a). inset:0 sigue ahí para los navegadores que reportan
+   lvh más chico que el área visible (SFSafariViewController en iOS 16-18): ahí
+   cubre toda la pantalla. Sin soporte de lvh, 100vh en iOS/Android ya es el grande. */
+.fx-canvas { position: fixed; inset: 0; min-height: 100vh; min-height: 100lvh; pointer-events: none; }
+.fx-legacy .fx-canvas { min-height: 0; } /* ?legacy=1: exactamente como antes, para comparar */
 .fx-canvas canvas { width: 100%; height: 100%; }
 .fx-canvas--back { z-index: 1; }
 .fx-canvas--front { z-index: 3; }
@@ -154,7 +160,13 @@ main, .footer { position: relative; z-index: 2; }
 .preloader { z-index: 200; }
 
 /* Cosmos: nebulosas vivas detrás de todo + estrella fugaz ocasional */
-.cosmos { position: fixed; inset: -22%; z-index: 0; pointer-events: none; }
+/* mismo 144% de antes (inset -22%), pero medido en lvh: con blur(70px), volver a
+   rasterizar estas capas al cambiar la barra de Safari es caro (fase 2a) */
+.cosmos {
+  position: fixed; left: -22%; right: -22%; z-index: 0; pointer-events: none;
+  top: -22vh; height: 144vh; top: -22lvh; height: 144lvh;
+}
+.fx-legacy .cosmos { inset: -22%; height: auto; }
 .cosmos i {
   position: absolute; inset: 0; display: block;
   background:

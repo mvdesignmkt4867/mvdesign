@@ -8,6 +8,15 @@
 
   var docEl = document.documentElement;
   var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* Sonda de arranque (?debug=1): mide en el teléfono real si el reveal se traba.
+     Nunca se carga sin ?debug; con ?debug tampoco se envía analítica (MV_TRACK). */
+  if (/[?&]debug=/.test(location.search)) {
+    var probe = document.createElement("script");
+    probe.src = "js/probe.js";
+    document.head.appendChild(probe);
+  }
+  function announceReveal() { try { window.dispatchEvent(new Event("mv:reveal")); } catch (e) {} }
   if (reduced) docEl.classList.add("no-motion");
 
   /* Forzar la carga de las fuentes de los títulos AHORA (durante el loader). El
@@ -154,6 +163,7 @@
     preDone = true;
     if (preCount) preCount.textContent = "100";
     pre.classList.add("is-done");
+    announceReveal();
     introHero(!!instant);
   }
 
@@ -185,6 +195,7 @@
           if (preDone) return;
           preDone = true;
           pre.classList.add("is-done");
+          announceReveal();
           setTimeout(introHero, 250);
         }
       });
