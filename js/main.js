@@ -89,11 +89,16 @@
     wordSets.push({ el: el, words: splitWords(el) });
   });
 
-  /* ---------- Sin GSAP (o reduced): todo visible y fuera ---------- */
+  /* ---------- Sin GSAP (o reduced): todo visible y fuera ----------
+     OJO: aquí 'pre' todavía no existe (se declara más abajo) e introHero necesita
+     GSAP, así que NO se llama revealHero: se quita el velo directo. Antes el velo
+     se quedaba encima y bloqueaba TODOS los clics, incluido WhatsApp. */
   if (typeof gsap === "undefined" || reduced) {
+    docEl.classList.add("no-motion"); // títulos y reveals visibles por CSS aunque falte GSAP
     document.querySelectorAll("[data-reveal]").forEach(function (el) { el.classList.add("is-in"); });
     if (window.MVHERO) window.MVHERO.setProgress(1);
-    revealHero(true);
+    var preEl = document.querySelector("[data-preloader]");
+    if (preEl) preEl.classList.add("is-done");
     return;
   }
 

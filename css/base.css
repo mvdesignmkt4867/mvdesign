@@ -4,6 +4,11 @@
    ============================================================ */
 
 *, *::before, *::after { box-sizing: border-box; }
+
+/* El sitio es oscuro: tokens.css define --line-strong con el valor del tema CLARO
+   (negro al 18% → bordes invisibles en botones ghost y cards). El swap completo
+   del tema llega con el sistema de diseño 2.0. */
+:root { --line-strong: rgba(255, 255, 255, 0.18); }
 * { margin: 0; }
 
 html { -webkit-text-size-adjust: 100%; }
