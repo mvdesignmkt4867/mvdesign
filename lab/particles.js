@@ -33,9 +33,10 @@ vec4 mvTarget(vec2 u){
   vec3 helix = vec3(uAxis.x + cos(th) * hx.y, uAxis.y + sin(th) * hx.y * .9, hx.z);
   float eA = mvStag(uA, seed), eC = mvStag(uC, rg.w), eB = mvStag(uB, 1. - seed);
   vec3 t = mix(mix(mix(mp + uStart, ring, eA), helix, eC), mp + uEnd, eB);
-  // planeta (casos): ~18% se desprende y forma un anillo de polvo que orbita con las fichas
-  float dsel = step(.82, fract(seed * 7.13)) * eB * uPlanet;
-  float dr = mix(uDust.x, uDust.y, fract(seed * 13.7));
+  // casos: TODAS forman el círculo de partículas donde orbitan las fichas (sin logo);
+  // al pasar al cierre se sueltan en cascada y arman la M
+  float dsel = mvStag(uPlanet, fract(seed * 7.13)) * eB;
+  float dr = mix(uDust.x, uDust.y, (fract(seed * 13.7) + fract(seed * 5.31)) * .5);   // más denso a media banda
   float da = rg.x + uTime * (1.1 / dr);
   vec3 dl = vec3(cos(da) * dr, (fract(seed * 29.3) - .5) * .2, sin(da) * dr);
   vec3 dust = uEnd + vec3(dl.x, dl.y - dl.z * sin(uTilt), dl.z * cos(uTilt));

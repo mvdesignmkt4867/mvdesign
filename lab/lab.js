@@ -18,7 +18,7 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { CSS3DRenderer, CSS3DObject } from "three/addons/renderers/CSS3DRenderer.js";
-import { createParticles } from "./particles.js?v=14";
+import { createParticles } from "./particles.js?v=15";
 
 const canvas = document.querySelector("[data-gl]");
 const curtain = document.querySelector("[data-curtain]");
@@ -753,8 +753,7 @@ function frame() {
   tunnel.forEach((r) => ringDim(r, 0.6 * sm(1.25, 1.9, p) * (1 - sm(2.45, 2.9, p))));   // al salir del túnel se apagan
   ringTime.value = t;
 
-  // planeta: cuánto estamos en casos y la inclinación viva del anillo (precesión suave)
-  const planetW = 1 - sm(0.15, 0.6, Math.abs(p - 3));
+  // órbita de casos: inclinación viva del anillo (precesión suave)
   const orbitTilt = (portrait ? 0.38 : 0.12) + (reduced ? 0 : Math.sin(t * 0.21) * 0.03);
 
   // partículas: armar → anillo → túnel → armar de nuevo al final
@@ -763,12 +762,11 @@ function frame() {
     U.uA.value = sm(0.05, 1.3, p);
     U.uC.value = sm(1.15, 2.1, p);
     U.uB.value = sm(2.2, 2.95, p);         // al salir del túnel la M se construye: es el planeta de los casos
-    // en casos la M se balancea amplio sobre su eje (±55°): se ve su volumen y el logo siempre se lee
-    const planetSwing = Math.sin(t * 0.34) * 0.95 * planetW;
-    U.uRot.value = reduced ? 0 : Math.sin(t * 0.23) * 0.22 * (1 - planetW) + smooth.x * 0.1 + planetSwing;
-    U.uPlanet.value = planetW;
+    U.uRot.value = reduced ? 0 : Math.sin(t * 0.23) * 0.22 + smooth.x * 0.1;
+    // casos: las partículas son el anillo de la órbita; en el cierre vuelven y arman la M
+    U.uPlanet.value = sm(2.2, 2.7, p) * (1 - sm(3.25, 3.85, p));
     U.uTilt.value = orbitTilt;
-    U.uDust.value.set(portrait ? 1.6 : 3.0, portrait ? 3.1 : 5.7);
+    U.uDust.value.set(portrait ? 1.45 : 2.9, portrait ? 3.0 : 5.8);
     const bob = reduced ? 0 : Math.sin(t * 0.6) * 0.04;
     U.uStart.value.set(0, AXIS_Y + bob, 0);
     U.uEnd.value.set(0, AXIS_Y + bob, END_Z);
