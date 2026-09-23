@@ -17,17 +17,17 @@ import { MeshSurfaceSampler } from "three/addons/math/MeshSurfaceSampler.js";
 /* Destinos por estado. u = coordenada de la partícula en las texturas de datos */
 const TARGET_GLSL = /* glsl */ `
 uniform sampler2D tHome, tRing, tHelix;
-uniform float uTime, uA, uB, uC, uRot, uPlanet, uTilt;
+uniform float uTime, uA, uB, uC, uRot, uPlanet, uTilt, uMScale, uRingS;
 uniform vec3 uStart, uEnd; uniform vec2 uAxis, uDust; uniform float uRingZ;
 float mvStag(float u, float s){ return smoothstep(0., 1., clamp(u * 1.6 - s * .6, 0., 1.)); }
 vec3 mvRotY(vec3 p, float a){ float c = cos(a), s = sin(a); return vec3(p.x * c + p.z * s, p.y, -p.x * s + p.z * c); }
 // devuelve el destino; en w, cuánto "viaja" ahora (0 = asentada)
 vec4 mvTarget(vec2 u){
   vec4 h = texture2D(tHome, u); float seed = h.w;
-  vec3 mp = mvRotY(h.xyz, uRot);
+  vec3 mp = mvRotY(h.xyz * uMScale, uRot);
   vec4 rg = texture2D(tRing, u);
   float tt = rg.x + uTime * (1.45 / (rg.y * rg.y));                 // órbita: más rápido cerca del anillo
-  vec3 ring = vec3(uAxis.x + cos(tt) * rg.y, uAxis.y + sin(tt) * rg.y, uRingZ + rg.z);
+  vec3 ring = vec3(uAxis.x + cos(tt) * rg.y * uRingS, uAxis.y + sin(tt) * rg.y * uRingS, uRingZ + rg.z * uRingS);
   vec4 hx = texture2D(tHelix, u);
   float th = hx.x + uTime * (.035 + seed * .05);
   vec3 helix = vec3(uAxis.x + cos(th) * hx.y, uAxis.y + sin(th) * hx.y * .9, hx.z);
@@ -185,15 +185,15 @@ export function createParticles({ renderer, geos, holderMatrix, mobile, reduced,
       col.set([c.r, c.g, c.b], k * 3);
       seeds[k] = seed;
       refs.set([(k % W + 0.5) / W, (Math.floor(k / W) + 0.5) / W], k * 2);
-      // anillo de acreción alrededor del eclipse
+      // anillo de acreción ceñido al eclipse (así cabe en pantalla con el manifiesto adentro)
       const g = (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
-      ring.set([Math.random() * Math.PI * 2, 2.85 + g * 0.55 + (Math.random() < .06 ? Math.random() * 2.5 : 0), g * 0.35, Math.random()], k * 4);
+      ring.set([Math.random() * Math.PI * 2, 2.62 + g * 0.38 + (Math.random() < .06 ? Math.random() * 2 : 0), g * 0.3, Math.random()], k * 4);
       // hélice de tres brazos a lo largo del túnel
-      const z = Math.random() < 0.82 ? -1.5 - Math.random() * 23 : -24.5 - Math.random() * 28;
+      const z = Math.random() < 0.86 ? -8 - Math.random() * 29 : -37.5 - Math.random() * 22;   // dentro del túnel (más ancho y largo)
       const spread = Math.pow(Math.random(), 2) * (Math.random() < .5 ? -1 : 1);
-      helix.set([(k % 3) * (Math.PI * 2 / 3) + z * 0.22 + spread * 0.9, 2.5 + Math.pow(Math.random(), 1.6) * 3.8 + Math.abs(spread) * 0.8, z, 0], k * 4);
+      helix.set([(k % 3) * (Math.PI * 2 / 3) + z * 0.2 + spread * 0.9, 3.4 + Math.pow(Math.random(), 1.6) * 4.4 + Math.abs(spread) * 0.9, z, 0], k * 4);
       // nube de la entrada: la M se arma desde aquí
-      const th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1), rad = 3.2 + Math.random() * 4.5;
+      const th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1), rad = 4.2 + Math.random() * 5.8;
       start.set([Math.sin(ph) * Math.cos(th) * rad * 1.2, Math.cos(ph) * rad * 0.55 + 1.9, Math.sin(ph) * Math.sin(th) * rad * 0.7 - 3.5, 1], k * 4);
     }
   });
@@ -208,6 +208,7 @@ export function createParticles({ renderer, geos, holderMatrix, mobile, reduced,
     uTime: { value: 0 }, uA: { value: 0 }, uB: { value: 0 }, uC: { value: 0 }, uRot: { value: 0 },
     uStart: { value: new THREE.Vector3() }, uEnd: { value: new THREE.Vector3() },
     uPlanet: { value: 0 }, uTilt: { value: 0.15 }, uDust: { value: new THREE.Vector2(3.2, 5.6) },
+    uMScale: { value: 1 }, uRingS: { value: 1 },
     uAxis: { value: new THREE.Vector2(0, 1.9) }, uRingZ: { value: -4.2 },
     uRayO: { value: new THREE.Vector3() }, uRayD: { value: new THREE.Vector3(0, 0, -1) }, uMouse: { value: 0 }
   };

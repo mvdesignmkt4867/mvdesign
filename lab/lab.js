@@ -18,7 +18,7 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { CSS3DRenderer, CSS3DObject } from "three/addons/renderers/CSS3DRenderer.js";
-import { createParticles } from "./particles.js?v=16";
+import { createParticles } from "./particles.js?v=17";
 
 const canvas = document.querySelector("[data-gl]");
 const curtain = document.querySelector("[data-curtain]");
@@ -27,6 +27,12 @@ const mobile = matchMedia("(max-width: 760px), (pointer: coarse)").matches;
 const LAST = 4;        // escenas 0..4
 const END_Z = -40;     // donde la M se vuelve a armar: el planeta de los casos y el cierre
 const AXIS_Y = 1.9;    // centro de la M, del eclipse y del túnel
+const RING_Z = -7;     // el eclipse: más atrás y más grande (el manifiesto vive dentro)
+const RING_S = 1.55;   // radio del eclipse ≈ 3.57
+const M_S = 1.3;       // la M, más grande
+const TUNNEL_STEP = 6, TUNNEL_N = 5, TUNNEL_END = RING_Z - TUNNEL_STEP * TUNNEL_N;   // servicios vive dentro del último anillo
+const RING_R = 2.304;                                   // radio del anillo a escala 1 (plano de 7.2, filo en r = .64)
+const SUN_R = RING_R * RING_S, TUN_R = RING_R * RING_S * (1 + TUNNEL_N * 0.03);
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const sm = (a, b, v) => { const t = clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -149,20 +155,22 @@ function makeRing(off = 0, glow = 1, clip = 0) {
   }));
 }
 const sun = makeRing(0, 1, 1);          // el eclipse detrás de la M
-sun.position.set(0, AXIS_Y, -4.2);
+sun.position.set(0, AXIS_Y, RING_Z);
+sun.scale.setScalar(RING_S);
 scene.add(sun);
 const mirror = new THREE.Group();        // lo que se refleja en el piso
 mirror.scale.y = -1;
 scene.add(mirror);
 const sunMirror = makeRing(0, 1, -1);
 sunMirror.position.copy(sun.position);
+sunMirror.scale.setScalar(RING_S);
 sunMirror.renderOrder = -2;
 mirror.add(sunMirror);
 const tunnel = [];
-for (let i = 1; i <= 5; i++) {
+for (let i = 1; i <= TUNNEL_N; i++) {       // túnel más ancho y más separado
   const r = makeRing(i * 0.13, 0.3);
-  r.position.set(0, AXIS_Y, -4.2 - 3.6 * i);
-  r.scale.setScalar(1 + i * 0.04);
+  r.position.set(0, AXIS_Y, RING_Z - TUNNEL_STEP * i);
+  r.scale.setScalar(RING_S * (1 + i * 0.03));   // cada anillo un poco mayor: desde el fondo se ven anidados
   scene.add(r); tunnel.push(r);
 }
 
@@ -187,7 +195,7 @@ const beam = new THREE.Mesh(
       }`
   })
 );
-beam.position.set(0, 5.2, -0.2);
+beam.position.set(0, 6.0, -0.2);
 scene.add(beam);
 
 /* ---------- Horizonte: resplandor de marca al fondo ---------- */
@@ -519,33 +527,52 @@ let posCurve, lookCurve, FOCUS = [];
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const KEYS = { pos: [], look: [] };
 // ancla de cada texto: distancia frente a la cámara de su escena y desplazamiento vertical (fracción de pantalla)
-const TEXT_DESK = [{ d: 8.4, oy: 0.25 }, { d: 13.2, oy: 0 }, { d: 6.5, oy: 0.02 }, { d: 9.5, oy: 0 }, { d: 8.4, oy: 0.25 }];
-const TEXT_PORT = [{ d: 9.5, oy: 0.14 }, { d: 15.5, oy: 0.02 }, { d: 6.5, oy: 0.04 }, { d: 9.5, oy: 0 }, { d: 9.5, oy: 0.25 }];
+// (manifiesto y servicios se anclan en el plano de su anillo: ver buildPath)
+const TEXT_DESK = [{ d: 11, oy: 0.28 }, { oy: 0 }, { oy: 0 }, { d: 9.5, oy: 0 }, { d: 13.5, oy: 0.27 }];
+const TEXT_PORT = [{ d: 14, oy: 0.17 }, { oy: 0 }, { oy: 0 }, { d: 9.5, oy: 0 }, { d: 17.5, oy: 0.25 }];
+// qué tanto del lado corto de la pantalla ocupa el anillo cuando llegas a su escena
+const RING_FILL = { land: 0.84, port: 0.96 };
 const mLook = new THREE.Matrix4(), qTmp = new THREE.Quaternion();
 function buildPath() {
   const E = END_Z;
+  const tanH = Math.tan(THREE.MathUtils.degToRad(BASE_FOV / 2));
+  const H = innerHeight, narrow = innerWidth <= 720;
+  // distancia a la que un anillo de radio R ocupa `fill` del lado corto de la pantalla
+  const fill = portrait ? RING_FILL.port : RING_FILL.land;
+  const view = (R) => R / (fill * tanH * Math.min(1, innerWidth / innerHeight));
+  const dSun = view(SUN_R), dTun = view(TUN_R);
+  const k1 = RING_Z + dSun;                        // manifiesto: frente al eclipse
+  const k0 = k1 + (portrait ? 6 : 6.5);            // el inicio, más atrás: el viaje al manifiesto se siente
   if (portrait) {
-    KEYS.pos = [V(0, 2.1, 13.5), V(0, 1.9, 12.5), V(0, AXIS_Y, -9), V(0, AXIS_Y + 4.2, E + 16.5), V(0, 2.1, E + 13.5)];
-    KEYS.look = [V(0, 0.75, 0), V(0, 1.6, -4.2), V(0, AXIS_Y, -24), V(0, AXIS_Y + 0.6, E), V(0, 1.15, E)];
-    FOCUS = [13.6, 16.7, 9, 17, 13.6];
+    KEYS.pos = [V(0, 2.3, k0), V(0, AXIS_Y, k1), V(0, AXIS_Y, TUNNEL_END + dTun), V(0, AXIS_Y + 4.2, E + 16.5), V(0, 2.5, E + 20.5)];
+    KEYS.look = [V(0, 0.75, 0), V(0, AXIS_Y, RING_Z), V(0, AXIS_Y, TUNNEL_END), V(0, AXIS_Y + 0.6, E), V(0, 0.35, E)];
+    FOCUS = [k0, dSun, dTun, 17, 20.5];
   } else {
-    KEYS.pos = [V(0, 1.9, 12), V(0, AXIS_Y, 9.8), V(0, AXIS_Y, -9), V(0, AXIS_Y + 1.5, E + 15.4), V(0, 1.9, E + 12)];
-    KEYS.look = [V(0, 1.45, 0), V(0, AXIS_Y, -4.2), V(0, AXIS_Y, -24), V(0, AXIS_Y + 0.35, E), V(0, 1.45, E)];
-    FOCUS = [12, 14, 9, 15, 12];
+    KEYS.pos = [V(0, 2.2, k0), V(0, AXIS_Y, k1), V(0, AXIS_Y, TUNNEL_END + dTun), V(0, AXIS_Y + 1.5, E + 15.4), V(0, 2.3, E + 16.5)];
+    KEYS.look = [V(0, 1.15, 0), V(0, AXIS_Y, RING_Z), V(0, AXIS_Y, TUNNEL_END), V(0, AXIS_Y + 0.35, E), V(0, 0.95, E)];
+    FOCUS = [k0, dSun, dTun, 15, 16.5];
   }
   posCurve = new THREE.CatmullRomCurve3(KEYS.pos, false, "centripetal");
   lookCurve = new THREE.CatmullRomCurve3(KEYS.look, false, "centripetal");
-  // cada texto queda de frente a la cámara de su escena, a 1:1 (nítido) cuando llegas
+  // cada texto queda de frente a la cámara de su escena, a 1:1 (nítido) cuando llegas.
+  // Manifiesto y servicios viven en el plano de su anillo y su tipografía se mide con él (--ring):
+  // el texto queda dentro del círculo con cualquier zoom del navegador y en cualquier pantalla.
   const T = portrait ? TEXT_PORT : TEXT_DESK;
-  const tanH = Math.tan(THREE.MathUtils.degToRad(BASE_FOV / 2));
-  const H = innerHeight, narrow = innerWidth <= 720;
+  const RING_AT = { 1: [SUN_R, dSun], 2: [TUN_R, dTun] };
   labels.forEach((o, i) => {
-    const { d, oy } = T[i];
+    const ring = RING_AT[i];
+    const d = ring ? ring[1] : T[i].d, oy = T[i].oy;
     mLook.lookAt(KEYS.pos[i], KEYS.look[i], THREE.Object3D.DEFAULT_UP);
     qTmp.setFromRotationMatrix(mLook);
     const s = (2 * d * tanH) / H;                   // unidades de mundo por píxel CSS a esa distancia
+    const el = sections[i];
+    if (ring) {
+      const D = (2 * ring[0]) / s;                  // diámetro del anillo en px
+      el.style.setProperty("--ring", D.toFixed(1) + "px");
+      el.classList.toggle("is-compact", portrait || D < 540);   // anillo chico: sólo lo esencial
+    }
     // mide el bloque (el renderer oculta con display:none las escenas lejanas)
-    const el = sections[i], prevD = el.style.display;
+    const prevD = el.style.display;
     el.style.display = "";
     const h = el.offsetHeight;
     el.style.display = prevD;
@@ -569,6 +596,7 @@ function resize() {
   renderer.setSize(w, h, false);
   composer.setSize(w, h);
   css.setSize(w, h);
+  document.documentElement.style.setProperty("--h", h + "px");   // tipografía proporcional al mundo 3D
   finalPass.uniforms.uRes.value.set(w, h);
   buildPath();
 }
@@ -777,6 +805,7 @@ function frame() {
     U.uA.value = sm(0.05, 1.3, p);
     U.uC.value = sm(1.15, 2.1, p);
     U.uB.value = sm(2.2, 2.95, p);         // al salir del túnel la M se construye: es el planeta de los casos
+    U.uMScale.value = M_S; U.uRingS.value = RING_S; U.uRingZ.value = RING_Z;
     U.uRot.value = reduced ? 0 : Math.sin(t * 0.23) * 0.22 + smooth.x * 0.1;
     // casos: las partículas son el anillo de la órbita; en el cierre vuelven y arman la M
     U.uPlanet.value = sm(2.2, 2.7, p) * (1 - sm(3.25, 3.85, p));

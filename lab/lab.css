@@ -54,6 +54,7 @@ ol, ul { list-style: none; }
   content: ""; position: absolute; inset: -14% -8%; z-index: -1; pointer-events: none;
   background: radial-gradient(closest-side, rgba(7,7,11,.72), rgba(7,7,11,.4) 62%, rgba(7,7,11,0));
 }
+html.is-3d .scene--hero .title { font-size: min(calc(var(--h, 100vh) * .102), 11.6vw); }   /* la firma, más grande */
 .scene--hero::before { inset: -30% 4%; background: radial-gradient(closest-side, rgba(7,7,11,.45), rgba(7,7,11,0)); }
 .scene a, .scene button, .scene .g-item { pointer-events: auto; }
 .kicker { color: var(--fg-3); margin-bottom: 18px; letter-spacing: .14em; text-transform: uppercase; font-size: 11px; }
@@ -76,6 +77,40 @@ ol, ul { list-style: none; }
 .svc-grid span { font-size: 11px; color: var(--fg-3); padding-top: 3px; }
 .svc-grid b { font: 600 16px/1.25 "Montserrat", sans-serif; color: #fff; letter-spacing: -.01em; }
 .svc-grid i { grid-column: 2; font-style: normal; font-size: 11px; color: var(--fg-3); margin-top: 4px; }
+
+/* ---------- manifiesto y servicios: dentro de su anillo ----------
+   Con 3D, --ring es el diámetro del anillo en px (lo calcula lab.js). Todo se mide con él (--u = 1% del anillo),
+   así el texto guarda su proporción con el círculo con cualquier zoom del navegador y en cualquier pantalla. */
+html.is-3d .scene--ring { --u: calc(var(--ring, 700px) / 100); width: calc(var(--u) * 74); }
+html.is-3d .scene--ring::before {   /* el disco oscuro del eclipse: el filo de luz queda afuera, el texto se lee adentro */
+  inset: auto; left: 50%; top: 50%; width: var(--ring); height: var(--ring); transform: translate(-50%, -50%); border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(7,7,11,.62), rgba(7,7,11,.5) 66%, rgba(7,7,11,0) 92%);
+}
+html.is-3d .scene--ring .kicker { font-size: calc(var(--u) * 1.55); margin-bottom: calc(var(--u) * 2.2); }
+html.is-3d .scene--ring .title--2 { font-size: calc(var(--u) * 6); max-width: 15ch; }
+html.is-3d .scene--ring .trio { max-width: none; gap: calc(var(--u) * 3); margin-top: calc(var(--u) * 3.6); grid-template-columns: repeat(3, minmax(0, 1fr)); text-align: center; }
+html.is-3d .scene--ring .trio p { font-size: calc(var(--u) * 1.8); padding-top: calc(var(--u) * 1.7); }
+html.is-3d .scene--ring .trio strong { font-size: calc(var(--u) * 2.3); margin-bottom: calc(var(--u) * .7); }
+html.is-3d .scene--ring[data-scene="2"] { width: calc(var(--u) * 80); }
+html.is-3d .scene--ring[data-scene="2"] .title--2 { font-size: calc(var(--u) * 5.6); }
+html.is-3d .scene--ring .svc-grid { max-width: none; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 calc(var(--u) * 3); margin-top: calc(var(--u) * 3.4); }
+html.is-3d .scene--ring .svc-grid li { grid-template-columns: calc(var(--u) * 3.2) 1fr; padding: calc(var(--u) * 1.3) 0 calc(var(--u) * 1.5); }
+html.is-3d .scene--ring .svc-grid span { font-size: calc(var(--u) * 1.45); padding-top: calc(var(--u) * .35); }
+html.is-3d .scene--ring .svc-grid b { font-size: calc(var(--u) * 2.1); }
+html.is-3d .scene--ring .svc-grid i { display: block; font-size: calc(var(--u) * 1.45); margin-top: calc(var(--u) * .5); }
+/* anillo chico (vertical o pantalla baja): sólo lo esencial cabe en el círculo; el resto sigue en el HTML para lectores de pantalla (tamaño 0) */
+html.is-3d .scene--ring.is-compact { width: calc(var(--u) * 78); }
+html.is-3d .scene--ring.is-compact .kicker { font-size: calc(var(--u) * 2.7); margin-bottom: calc(var(--u) * 3); }
+html.is-3d .scene--ring.is-compact .title--2 { font-size: calc(var(--u) * 6.8); }
+html.is-3d .scene--ring.is-compact[data-scene="2"] .title--2 { font-size: calc(var(--u) * 6.2); }
+html.is-3d .scene--ring.is-compact .trio { display: flex; justify-content: center; flex-wrap: wrap; gap: calc(var(--u) * 1.5) calc(var(--u) * 4); margin-top: calc(var(--u) * 5); }
+html.is-3d .scene--ring.is-compact .trio p { font-size: 0; line-height: 0; border: 0; padding: 0; }
+html.is-3d .scene--ring.is-compact .trio strong { font-size: calc(var(--u) * 3.3); margin: 0; line-height: 1.2; }
+html.is-3d .scene--ring.is-compact .svc-grid { display: block; text-align: center; margin-top: calc(var(--u) * 4.5); }
+html.is-3d .scene--ring.is-compact .svc-grid li { display: block; padding: 0; border: 0; font-size: 0; }
+html.is-3d .scene--ring.is-compact .svc-grid span, html.is-3d .scene--ring.is-compact .svc-grid i { font-size: 0; }
+html.is-3d .scene--ring.is-compact .svc-grid i { display: inline; margin: 0; }
+html.is-3d .scene--ring.is-compact .svc-grid b { font-size: calc(var(--u) * 3.5); line-height: 1.55; white-space: nowrap; }
 
 /* ---------- galería de casos: todos a la vista; el que tocas se expande ---------- */
 .gallery { display: flex; gap: 10px; width: min(1080px, 90vw); height: min(44vh, 430px); height: min(44svh, 430px); margin: 30px auto 0; }
