@@ -507,13 +507,13 @@ const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const KEYS = { pos: [], look: [] };
 // ancla de cada texto: distancia frente a la cámara de su escena y desplazamiento vertical (fracción de pantalla)
 const TEXT_DESK = [{ d: 8.4, oy: 0.25 }, { d: 13.2, oy: 0 }, { d: 6.5, oy: 0.02 }, { d: 9.5, oy: 0 }, { d: 8.4, oy: 0.25 }];
-const TEXT_PORT = [{ d: 9.5, oy: 0.26 }, { d: 15.5, oy: 0.02 }, { d: 6.5, oy: 0.04 }, { d: 9.5, oy: 0 }, { d: 9.5, oy: 0.25 }];
+const TEXT_PORT = [{ d: 9.5, oy: 0.14 }, { d: 15.5, oy: 0.02 }, { d: 6.5, oy: 0.04 }, { d: 9.5, oy: 0 }, { d: 9.5, oy: 0.25 }];
 const mLook = new THREE.Matrix4(), qTmp = new THREE.Quaternion();
 function buildPath() {
   const E = END_Z;
   if (portrait) {
     KEYS.pos = [V(0, 2.1, 13.5), V(0, 1.9, 12.5), V(0, AXIS_Y, -9), V(0, AXIS_Y + 4.2, E + 16.5), V(0, 2.1, E + 13.5)];
-    KEYS.look = [V(0, 1.15, 0), V(0, 1.6, -4.2), V(0, AXIS_Y, -24), V(0, AXIS_Y + 1.2, E), V(0, 1.15, E)];
+    KEYS.look = [V(0, 0.75, 0), V(0, 1.6, -4.2), V(0, AXIS_Y, -24), V(0, AXIS_Y + 1.2, E), V(0, 1.15, E)];
     FOCUS = [13.6, 16.7, 9, 17, 13.6];
   } else {
     KEYS.pos = [V(0, 1.9, 12), V(0, AXIS_Y, 9.8), V(0, AXIS_Y, -9), V(0, AXIS_Y + 1.5, E + 15.4), V(0, 1.9, E + 12)];
