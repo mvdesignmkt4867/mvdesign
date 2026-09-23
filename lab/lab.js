@@ -18,7 +18,7 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { CSS3DRenderer, CSS3DObject } from "three/addons/renderers/CSS3DRenderer.js";
-import { createParticles } from "./particles.js?v=17";
+import { createParticles, BLAST_GLSL } from "./particles.js?v=18";
 
 const canvas = document.querySelector("[data-gl]");
 const curtain = document.querySelector("[data-curtain]");
@@ -266,9 +266,24 @@ for (let i = 0; i < AMB; i++) {
 ambGeo.setAttribute("position", new THREE.BufferAttribute(ap, 3));
 ambGeo.setAttribute("aSeed", new THREE.BufferAttribute(aseed, 1));
 ambGeo.setAttribute("aTint", new THREE.BufferAttribute(atint, 3));
+// clic = explosión invisible (ver BLAST_GLSL): la comparten las partículas de la M y el polvo de fondo
+const BLAST = {
+  uBlastO: { value: [new THREE.Vector3(), new THREE.Vector3()] }, uBlastD: { value: [new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 0, -1)] },
+  uBlastT: { value: [99, 99] }, uBlastP: { value: [99, 99] }, uBlastK: { value: reduced ? 0 : 1 }
+};
+let blastSlot = 0;
+function fireBlast(x, y) {
+  if (reduced) return;
+  blastSlot = 1 - blastSlot;
+  raycaster.setFromCamera(new THREE.Vector2(x / innerWidth * 2 - 1, -(y / innerHeight) * 2 + 1), camera);
+  BLAST.uBlastO.value[blastSlot].copy(raycaster.ray.origin);
+  BLAST.uBlastD.value[blastSlot].copy(raycaster.ray.direction);
+  BLAST.uBlastT.value[blastSlot] = BLAST.uBlastP.value[blastSlot] = 0;
+}
 const AU = {
   uTime: { value: 0 }, uPx: { value: DPR }, uSpeed: { value: 0 },
-  uRayO: { value: new THREE.Vector3() }, uRayD: { value: new THREE.Vector3(0, 0, -1) }, uMouse: { value: 0 }
+  uRayO: { value: new THREE.Vector3() }, uRayD: { value: new THREE.Vector3(0, 0, -1) }, uMouse: { value: 0 },
+  ...BLAST
 };
 const ambient = new THREE.Points(ambGeo, new THREE.ShaderMaterial({
   transparent: true, depthWrite: false, uniforms: AU,
@@ -278,6 +293,7 @@ const ambient = new THREE.Points(ambGeo, new THREE.ShaderMaterial({
   vertexShader: `
     uniform float uTime, uPx, uSpeed, uMouse; uniform vec3 uRayO, uRayD;
     attribute float aSeed; attribute vec3 aTint; varying vec3 vC; varying float vA;
+    ${BLAST_GLSL}
     void main(){
       vec3 p = position;
       // deriva lenta, cada una a su ritmo
@@ -288,11 +304,12 @@ const ambient = new THREE.Points(ambGeo, new THREE.ShaderMaterial({
       float f = uMouse * smoothstep(1.7, 0., d) * step(0., tr);
       vec3 n = perp / max(d, 1e-3);
       p += n * f * .95 + cross(uRayD, n) * f * .7;
+      float lit; p += mvBlastDisp(p, aSeed, lit);                // clic: la onda las aparta y regresan solas
       vec4 mv = modelViewMatrix * vec4(p, 1.);
       float z = -mv.z;
       gl_PointSize = clamp((.8 + aSeed * 1.5) * uPx * (12. / max(z, .1)), 1., 5.5);
       float tw = .55 + .45 * sin(uTime * (.8 + aSeed * 1.7) + aSeed * 90.);
-      vA = tw * smoothstep(.6, 2.5, z) * (1. - smoothstep(18., 34., z)) * (.55 + f * 2.6 + uSpeed * .5);
+      vA = tw * smoothstep(.6, 2.5, z) * (1. - smoothstep(18., 34., z)) * (.55 + f * 2.6 + uSpeed * .5 + lit * .5);
       vC = aTint;
       gl_Position = projectionMatrix * mv;
     }`,
@@ -352,7 +369,7 @@ async function buildM() {
   // como en el logo plano, la lágrima morada tapa el brazo derecho del chevrón: ahí no hay partículas azules
   const tear = shapes[1] && shapes[1][0] ? shapes[1][0].getPoints(96) : null;
   const exclude = tear ? [{ geo: 0, poly: tear, margin: 8 }] : [];
-  particles = createParticles({ renderer, geos, holderMatrix: holder.matrix, mobile, reduced, exclude });
+  particles = createParticles({ renderer, geos, holderMatrix: holder.matrix, mobile, reduced, exclude, blast: BLAST });
   particles.px = DPR * (mobile ? 0.8 : 1);
   particles.points.renderOrder = 1;
   particles.reflection.renderOrder = -2;            // debajo del piso: el piso la vela
@@ -445,15 +462,24 @@ const selectCase = (dirn) => select(orbitSel < 0 ? frontCard() : (orbitSel + dir
 document.querySelector("[data-case-prev]")?.addEventListener("click", () => selectCase(-1));
 document.querySelector("[data-case-next]")?.addEventListener("click", () => selectCase(1));
 // tocar / hacer clic en una ficha la presenta; tocar la presentada o fuera la regresa a la órbita
+// y en cualquier escena, un clic o toque fuera de botones y fichas suelta la explosión invisible
 let downX = 0, downY = 0, downT = 0;
-addEventListener("pointerdown", (e) => { downX = e.clientX; downY = e.clientY; downT = performance.now(); }, { passive: true });
+const onUI = (e) => !!(e.target.closest && e.target.closest("button, a, input, .orbit-cap, .hud, .wa"));
+const cardAt = (x, y) => {
+  if (active !== 3) return null;
+  raycaster.setFromCamera(new THREE.Vector2(x / innerWidth * 2 - 1, -(y / innerHeight) * 2 + 1), camera);
+  return raycaster.intersectObjects(cards.filter((m) => m.visible), false)[0] || null;
+};
+addEventListener("pointerdown", (e) => {
+  downX = e.clientX; downY = e.clientY; downT = performance.now();
+  if (e.pointerType === "mouse" && e.button === 0 && !onUI(e) && !cardAt(e.clientX, e.clientY)) fireBlast(e.clientX, e.clientY);
+}, { passive: true });
 addEventListener("pointerup", (e) => {
-  if (active !== 3 || (e.target.closest && e.target.closest("button, a, .orbit-cap, .hud"))) return;
+  if (onUI(e)) return;
   if (Math.hypot(e.clientX - downX, e.clientY - downY) > 10 || performance.now() - downT > 450) return;
-  const pt = new THREE.Vector2(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
-  raycaster.setFromCamera(pt, camera);
-  const hit = raycaster.intersectObjects(cards.filter((m) => m.visible), false)[0];
-  select(hit && orbitSel !== hit.object.userData.i ? hit.object.userData.i : -1);
+  const hit = cardAt(e.clientX, e.clientY);
+  if (e.pointerType !== "mouse" && !hit) fireBlast(e.clientX, e.clientY);
+  if (active === 3) select(hit && orbitSel !== hit.object.userData.i ? hit.object.userData.i : -1);
 }, { passive: true });
 
 /* ---------- Posproceso ---------- */
@@ -894,6 +920,10 @@ function frame() {
   beam.material.uniforms.uTime.value = t;
   dust.material.uniforms.uTime.value = reduced ? 0 : t;
   AU.uTime.value = reduced ? 0 : t;
+  for (let i = 0; i < 2; i++) {
+    BLAST.uBlastP.value[i] = BLAST.uBlastT.value[i];
+    BLAST.uBlastT.value[i] = Math.min(99, BLAST.uBlastT.value[i] + dt);
+  }
   AU.uSpeed.value = kick;
   finalPass.uniforms.uTime.value = t;
 

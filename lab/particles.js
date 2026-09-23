@@ -58,9 +58,61 @@ vec3 mvFlow(vec3 p, float t){
 }
 `;
 
+// clic = explosión invisible: una onda sale del rayo del clic y se abre en la pantalla.
+// La distancia se mide como ángulo (tangente) para que la onda se vea igual a cualquier profundidad.
+// Dos ranuras: un clic nuevo no corta la onda anterior. uBlastT = segundos desde cada clic; uBlastP = el valor del cuadro previo.
+export const BLAST_GLSL = /* glsl */ `
+uniform vec3 uBlastO[2]; uniform vec3 uBlastD[2]; uniform float uBlastT[2]; uniform float uBlastP[2]; uniform float uBlastK;
+const float BLAST_V = 1.15;                         // velocidad del frente (tangente por segundo)
+vec3 mvJit(float s){ return vec3(fract(s * 91.7), fract(s * 47.3), fract(s * 13.1)) - .5; }
+// impulso (velocidad) que recibe una partícula cuando el frente la cruza en este cuadro: no depende de los fps
+vec3 mvBlastKick(vec3 p, float seed){
+  vec3 kick = vec3(0.);
+  for (int i = 0; i < 2; i++) {
+    if (uBlastT[i] > 2.) continue;
+    vec3 w = p - uBlastO[i]; float tr = dot(w, uBlastD[i]);
+    if (tr < .3) continue;
+    vec3 perp = w - uBlastD[i] * tr; float dp = length(perp);
+    float a = dp / tr;
+    float pass = smoothstep(a - .03, a + .03, uBlastT[i] * BLAST_V) - smoothstep(a - .03, a + .03, uBlastP[i] * BLAST_V);
+    if (pass <= 0.) continue;
+    vec3 jit = mvJit(seed);
+    vec3 jp = jit - uBlastD[i] * dot(jit, uBlastD[i]);                        // desorden en el plano de la pantalla
+    vec3 n = dp > 1e-3 ? perp / dp : normalize(jp + vec3(1e-3));
+    // hacia afuera y de lado (se ven volar); casi nada en profundidad: si no, se desenfocan y "desaparecen"
+    vec3 dir = normalize(n + jp * 1.2 + uBlastD[i] * jit.z * .3);
+    float amp = tr * (.36 * exp(-pow(a / .085, 2.)) + .06 * exp(-a / .16));  // fuerte en la zona del clic, se apaga al alejarse
+    amp *= .5 + fract(seed * 7.77) * 1.;                                     // unas salen más lejos que otras: esquirlas, no burbuja
+    kick += dir * amp * pass;
+  }
+  return kick * uBlastK;
+}
+// desplazamiento sin estado (polvo de fondo): sube cuando pasa el frente y regresa a su lugar
+vec3 mvBlastDisp(vec3 p, float seed, out float lit){
+  vec3 disp = vec3(0.); lit = 0.;
+  for (int i = 0; i < 2; i++) {
+    if (uBlastT[i] > 2.) continue;
+    vec3 w = p - uBlastO[i]; float tr = dot(w, uBlastD[i]);
+    if (tr < .3) continue;
+    vec3 perp = w - uBlastD[i] * tr; float dp = length(perp);
+    float a = dp / tr;
+    float tau = uBlastT[i] - a / BLAST_V;
+    if (tau <= 0.) continue;
+    float env = (tau / .14) * exp(1. - tau / .14);                           // pico a 0.14 s, casi en reposo al segundo
+    float fall = exp(-pow(a / .2, 2.));
+    vec3 jit = mvJit(seed);
+    vec3 n = dp > 1e-3 ? perp / dp : normalize(jit + vec3(1e-3));
+    disp += normalize(n + uBlastD[i] * .3 + jit * .5) * tr * .075 * fall * env;
+    lit += env * fall;
+  }
+  return disp * uBlastK;
+}
+`;
+
 const VEL_SHADER = /* glsl */ `
 ${TARGET_GLSL}
 ${FLOW_GLSL}
+${BLAST_GLSL}
 uniform float uDt, uIntro, uFlowAmt, uMouse, uMouseR, uSnap;
 uniform vec3 uRayO, uRayD;
 void main(){
@@ -81,6 +133,7 @@ void main(){
   vec3 dn = dv / max(dist, 1e-3);
   acc += dn * fm * 30. + cross(uRayD, dn) * fm * 11.;
   vel += acc * uDt;
+  vel += mvBlastKick(pos, seed) * rel;                                       // clic: se dispersan y el resorte las regresa
   vel *= exp(-uDt * mix(3.2, 7.2, rel));                                     // amortiguado: un poco de rebote
   gl_FragColor = vec4(vel, 1.);
 }
@@ -99,6 +152,7 @@ void main(){
 `;
 
 const RENDER_VERT = /* glsl */ `
+${BLAST_GLSL}
 uniform sampler2D tPos, tVel;
 uniform float uPx, uFocus, uAperture, uMirror, uAlpha, uReflect, uSim;
 uniform vec3 uRayO, uRayD; uniform float uMouse;
@@ -113,6 +167,7 @@ void main(){
   // luz del cursor: las cercanas a su rayo se encienden
   vec3 w = p - uRayO; float tr = dot(w, uRayD);
   float near = uMouse * smoothstep(.45, 0., length(w - uRayD * tr)) * step(0., tr);
+  float blastLit; mvBlastDisp(p, aSeed, blastLit);                              // (antes de reflejar: la onda vive en el mundo)
   if (uMirror > .5) p.y = -p.y;
   vec4 mv = modelViewMatrix * vec4(p, 1.);
   float z = -mv.z;
@@ -126,6 +181,9 @@ void main(){
   float tw = mix(.72 + .28 * sin(uTime * (1.3 + aSeed * 2.1) + aSeed * 50.), 1., asmW * .75);
   vA = tw / (1. + coc * coc * 5.) * smoothstep(1., 3.5, z) * uAlpha * mix(1., .55, calm);
   if (uMirror > .5) vA *= .7 * smoothstep(-1.8, 0., p.y) * uReflect;
+  blastLit = min(blastLit, 1.);
+  vA *= 1. + blastLit * .9;                                                     // la onda del clic: brillan y crecen un instante al pasar
+  gl_PointSize *= 1. + blastLit * .6;
   vC = aCol * (mix(1.5, 1.3, asmW) + near * .3);                                // siempre su color de marca, nunca blanco
   vCoc = coc;
   gl_Position = projectionMatrix * mv;
@@ -157,7 +215,7 @@ function nearPoly(x, y, poly, margin) {
   return inside || best < margin;
 }
 
-export function createParticles({ renderer, geos, holderMatrix, mobile, reduced, exclude = [] }) {
+export function createParticles({ renderer, geos, holderMatrix, mobile, reduced, exclude = [], blast = {} }) {
   const W = mobile ? 136 : 210, N = W * W;
 
   /* --- muestreo sobre la superficie de la M (menos en la cara trasera: silueta más nítida) --- */
@@ -210,7 +268,8 @@ export function createParticles({ renderer, geos, holderMatrix, mobile, reduced,
     uPlanet: { value: 0 }, uTilt: { value: 0.15 }, uDust: { value: new THREE.Vector2(3.2, 5.6) },
     uMScale: { value: 1 }, uRingS: { value: 1 },
     uAxis: { value: new THREE.Vector2(0, 1.9) }, uRingZ: { value: -4.2 },
-    uRayO: { value: new THREE.Vector3() }, uRayD: { value: new THREE.Vector3(0, 0, -1) }, uMouse: { value: 0 }
+    uRayO: { value: new THREE.Vector3() }, uRayD: { value: new THREE.Vector3(0, 0, -1) }, uMouse: { value: 0 },
+    ...blast                                           // la onda del clic: los mismos uniforms que el polvo de fondo
   };
 
   /* --- simulación en GPU --- */
