@@ -14,10 +14,13 @@
   if (/[?&]debug=/.test(location.search)) {
     var probe = document.createElement("script");
     probe.async = false;
-    probe.src = "js/probe.js?v=2c";
+    probe.src = "js/probe.js?v=3";
     document.head.appendChild(probe);
   }
-  function announceReveal() { try { window.dispatchEvent(new Event("mv:reveal")); } catch (e) {} }
+  function announceReveal() {
+    window.MV_REVEAL_AT = performance.now(); // por si la sonda carga después del reveal
+    try { window.dispatchEvent(new Event("mv:reveal")); } catch (e) {}
+  }
   if (reduced) docEl.classList.add("no-motion");
 
   /* Forzar la carga de las fuentes de los títulos AHORA (durante el loader). El
@@ -101,7 +104,7 @@
 
   /* ---------- Sin GSAP (o reduced): todo visible y fuera ----------
      OJO: aquí 'pre' todavía no existe (se declara más abajo) e introHero necesita
-     GSAP, así que NO se llama revealHero: se quita el velo directo. Antes el velo
+     GSAP, así que no se llama introHero: se quita el velo directo. Antes el velo
      se quedaba encima y bloqueaba TODOS los clics, incluido WhatsApp. */
   if (typeof gsap === "undefined" || reduced) {
     docEl.classList.add("no-motion"); // títulos y reveals visibles por CSS aunque falte GSAP
@@ -116,7 +119,7 @@
 
   /* ---------- Lenis ---------- */
   var lenis = null;
-  if (typeof Lenis !== "undefined" && window.MV_DBG !== "nolenis") {
+  if (typeof Lenis !== "undefined") {
     // lento y cinematográfico: las animaciones se aprecian
     lenis = new Lenis({
       duration: 1.75,
@@ -153,20 +156,17 @@
     ScrollTrigger.config({ ignoreMobileResize: true });
   }
 
-  /* ---------- Preloader ---------- */
+  /* ---------- Preloader ----------
+     Sin espera forzada: se va en cuanto el cometa pinta su primer cuadro, igual
+     en celular y en desktop (menos de 1 s). El mínimo de 5 s que tenía el
+     celular era un parche contra el congelamiento, cuya causa real era el blur
+     de .cosmos (fase 2c). Los shaders igual se compilan antes (readPixels en
+     hero3d.js), detrás del velo. */
   var pre = document.querySelector("[data-preloader]");
   var preCount = document.querySelector("[data-preloader-count]");
   var preScroll = document.querySelector("[data-preloader-scroll]");
   var preDone = false;
-
-  function revealHero(instant) {
-    if (preDone || !pre) return;
-    preDone = true;
-    if (preCount) preCount.textContent = "100";
-    pre.classList.add("is-done");
-    announceReveal();
-    introHero(!!instant);
-  }
+  var phoneMode = !!(window.matchMedia && window.matchMedia("(max-width: 760px)").matches);
 
   // "SCROLL" aparece abajo del loader al llegar a 50%
   var scrollCueShown = false;
@@ -174,82 +174,33 @@
     if (!scrollCueShown && preScroll && v >= 50) { preScroll.classList.add("is-shown"); scrollCueShown = true; }
   }
 
-  /* El contador del preloader: DESKTOP queda EXACTAMENTE igual (rápido, se va
-     cuando el cometa pinta su primer frame). SOLO el teléfono espera a que las
-     partículas se ENSAMBLEN antes de llegar a 100. */
-  var phoneMode = !!(window.matchMedia && window.matchMedia("(max-width: 760px)").matches);
-
-  if (!phoneMode) {
-    /* ---------- DESKTOP (sin cambios) ---------- */
-    var fake = { v: 0 };
-    var fakeTween = gsap.to(fake, {
-      v: 92, duration: 2.2, ease: "power2.out",
-      onUpdate: function () { if (preCount) preCount.textContent = String(Math.round(fake.v)).padStart(2, "0"); maybeShowScroll(fake.v); }
-    });
-    var finishDesktop = function () {
-      if (preDone || !pre) return;
-      if (fakeTween) fakeTween.kill();
-      gsap.to(fake, {
-        v: 100, duration: 0.4, ease: "power1.in",
-        onUpdate: function () { if (preCount) preCount.textContent = String(Math.round(fake.v)); },
-        onComplete: function () {
-          if (preDone) return;
-          preDone = true;
-          pre.classList.add("is-done");
-          announceReveal();
-          setTimeout(introHero, 250);
-        }
-      });
-    };
-    if (window.MVHERO && window.MVHERO.painted) { setTimeout(finishDesktop, 150); }
-    else { window.addEventListener("mvhero:painted", function () { setTimeout(finishDesktop, 150); }, { once: true }); }
-    window.addEventListener("load", function () { setTimeout(finishDesktop, 3000); });
-  } else {
-    /* ---------- MÓVIL: 100% = partículas ya ensambladas ----------
-       El número llega a 100 SOLO cuando las partículas se ENSAMBLARON (no en el
-       primer frame disperso). Sube deliberado (mín. ~2.8s) y cada tope se cruza
-       al cumplir su hito real → al revelar, el scroll y el ensamblaje YA están.
-       El ensamblaje se dispara DURANTE el preloader (kick a syncFx). */
-    var T_MIN = 5.0;        // loader más largo: margen para que el GPU termine de
-                            // compilar los shaders del cometa ANTES de revelar
-    var preT0 = (window.performance && performance.now) ? performance.now() : Date.now();
-    var counterShown = 0;
-    // sin MVHERO (WebGL no disponible) no hay cometa que esperar: abre en T_MIN
-    var cometPainted = !window.MVHERO || !!window.MVHERO.painted;
-    var assemblyKicked = false;
-    var forceReady = false; // solo si WebGL falla de verdad
-    if (!cometPainted) window.addEventListener("mvhero:painted", function () { cometPainted = true; }, { once: true });
-    // fallback DEBE ser mayor que T_MIN, si no cortaría la espera antes de tiempo
-    window.addEventListener("load", function () { setTimeout(function () { forceReady = true; }, 8000); });
-
-    var settleAndReveal = function () {
-      // garantía: deja el cometa en su estado de reposo ANTES de abrir, así las
-      // partículas YA están al revelar (no dependemos de que el easing por frame
-      // haya terminado bajo la carga). Luego abre.
-      if (window.MVHERO) {
-        if (typeof syncFx === "function") syncFx();              // fija el target del reposo
-        if (window.MVHERO.settleNow) window.MVHERO.settleNow();  // clava shown = target
+  var fake = { v: 0 };
+  var fakeTween = gsap.to(fake, {
+    v: 92, duration: 2.2, ease: "power2.out",
+    onUpdate: function () { if (preCount) preCount.textContent = String(Math.round(fake.v)).padStart(2, "0"); maybeShowScroll(fake.v); }
+  });
+  var finishPreloader = function () {
+    if (preDone || !pre) return;
+    if (fakeTween) fakeTween.kill();
+    gsap.to(fake, {
+      v: 100, duration: 0.4, ease: "power1.in",
+      onUpdate: function () { if (preCount) preCount.textContent = String(Math.round(fake.v)); },
+      onComplete: function () {
+        if (preDone) return;
+        preDone = true;
+        // celular: abrir con las partículas ya en reposo (no espera nada: syncFx fija
+        // el objetivo según el scroll y settleNow clava shown = target en este instante)
+        if (phoneMode && window.MVHERO && window.MVHERO.settleNow) { syncFx(); window.MVHERO.settleNow(); }
+        pre.classList.add("is-done");
+        announceReveal();
+        setTimeout(introHero, 250);
       }
-      revealHero(false);
-    };
-    var counterTick = function () {
-      if (preDone) return;
-      if (cometPainted && !assemblyKicked && typeof syncFx === "function") { syncFx(); assemblyKicked = true; }
-      var now = (window.performance && performance.now) ? performance.now() : Date.now();
-      var byTime = Math.min(100, ((now - preT0) / 1000 / T_MIN) * 100);
-      // listo = el cometa ya pintó al menos un frame (puede renderizar) + pasó el
-      // ritmo mínimo. Al abrir clavamos el reposo, así las partículas YA están.
-      var cap = forceReady ? 100 : (!cometPainted ? 90 : 100);
-      var target = Math.min(byTime, cap);
-      var nv = counterShown + (target - counterShown) * 0.14;
-      if (nv > counterShown) counterShown = nv;   // monótono: nunca baja
-      maybeShowScroll(counterShown);
-      if (forceReady || (cometPainted && byTime >= 99.5)) { settleAndReveal(); return; }
-      if (preCount) preCount.textContent = String(Math.round(counterShown)).padStart(2, "0");
-      requestAnimationFrame(counterTick);
-    };
-    requestAnimationFrame(counterTick);
-  }
+    });
+  };
+  // sin MVHERO (WebGL no disponible) no hay cometa que esperar
+  if (!window.MVHERO || window.MVHERO.painted) { setTimeout(finishPreloader, 150); }
+  else { window.addEventListener("mvhero:painted", function () { setTimeout(finishPreloader, 150); }, { once: true }); }
+  window.addEventListener("load", function () { setTimeout(finishPreloader, 3000); }); // red de seguridad
 
   /* ---------- Hero: intro + scrub de ensamble ---------- */
   var heroTitleWords = wordSets.length ? wordSets[0].words : [];
@@ -549,9 +500,7 @@
       document.fonts.ready.then(function () { ScrollTrigger.refresh(); });
     }
     // seguro extra: layouts tardíos (fuentes, restauración de scroll)
-    if (window.MV_DBG !== "norefresh") {
-      setTimeout(function () { ScrollTrigger.refresh(); }, 1500);
-      setTimeout(function () { ScrollTrigger.refresh(); }, 3500);
-    }
+    setTimeout(function () { ScrollTrigger.refresh(); }, 1500);
+    setTimeout(function () { ScrollTrigger.refresh(); }, 3500);
   });
 })();

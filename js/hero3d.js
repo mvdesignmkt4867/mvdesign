@@ -14,19 +14,6 @@
 (function () {
   "use strict";
 
-  /* Diagnóstico (solo con ?debug): la sonda (js/probe.js) elige una condición por
-     recarga para aislar la causa del congelamiento. Sin ?debug nunca actúa. */
-  var DBG = "";
-  if (/[?&]debug=/.test(location.search)) {
-    var dm = location.search.match(/[?&]cond=([a-z0-9]+)/);
-    if (dm) DBG = dm[1];
-    else if (/[?&]debug=auto/.test(location.search)) {
-      try { DBG = localStorage.getItem("mv-probe-cond") || "base"; } catch (e) { DBG = "base"; }
-    }
-  }
-  window.MV_DBG = DBG;
-  if (DBG === "fx0") return; // sin partículas WebGL: ¿el congelamiento sigue?
-
   if (typeof THREE === "undefined") return;
   var mountBack  = document.querySelector("[data-fx-back]");
   var mountFront = document.querySelector("[data-fx-front]");

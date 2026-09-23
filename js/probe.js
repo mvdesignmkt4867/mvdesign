@@ -1,30 +1,23 @@
 /* ============================================================
    MV DESIGN · Sonda de arranque (solo con ?debug=…)
-   ?debug=1            mide el modo actual (con &legacy=1, el anterior a la 2a)
-   ?debug=auto         bisección: cada corrida limpia pasa a otra condición
-   ?debug=1&cond=X     fuerza una condición (ver PLAN)
-   &reset=1            borra el historial y reinicia la ronda
+   ?debug=1            mide el modo actual (con &legacy=1, el canvas anterior a la 2a)
+   &reset=1            borra el historial (una sola vez; se quita de la URL)
+   Con esta sonda se encontró la causa del congelamiento en iPhone (22-sep-2026):
+   el filter: blur(70px) de .cosmos, repintado al esconderse la barra de Safari.
    Prueba: recargar, NO tocar hasta ver el título, deslizar una vez, esperar ~3 s.
    Un congelamiento de 1-3 s aparece como un hueco de 1000-3000 ms entre cuadros.
    ============================================================ */
 (function () {
   "use strict";
 
-  var KEY = "mv-probe-v1", CKEY = "mv-probe-cond";
-  var PLAN = ["base", "fx0", "noblur", "norefresh", "nocosmos", "nolenis"];
-  var LABEL = {
-    base: "normal (2a)", fx0: "SIN partículas", noblur: "nav sin blur",
-    norefresh: "sin refresh tardíos", nocosmos: "sin nebulosas", nolenis: "sin Lenis"
-  };
+  var KEY = "mv-probe-v1";
   var now = function () { return performance.now(); };
   var qs = location.search;
   var legacy = /[?&]legacy=1/.test(qs);
-  var auto = /[?&]debug=auto/.test(qs);
-  var cond = window.MV_DBG || "base";   // la eligió hero3d.js al cargar (antes que todo)
-  var mode = auto ? "auto" : (legacy ? "legacy" : "2a");
+  var mode = legacy ? "legacy" : "v3"; // v3: sin blur en .cosmos y sin espera forzada
 
   if (/[?&](debug=reset|reset=1)/.test(qs)) {
-    try { localStorage.removeItem(KEY); localStorage.removeItem(CKEY); } catch (e) {}
+    try { localStorage.removeItem(KEY); } catch (e) {}
     // el reset es de UNA vez: se quita de la URL para que ↻ no vuelva a borrar la ronda
     try {
       var q2 = qs.replace(/([?&])reset=1(&|$)/, function (m, p1, p2) { return p2 ? p1 : ""; }).replace("debug=reset", "debug=1");
@@ -36,17 +29,6 @@
     if (window.ScrollTrigger && ScrollTrigger.clearScrollMemory) ScrollTrigger.clearScrollMemory("manual");
     else if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
   } catch (e) {}
-
-  // condiciones que son solo CSS: se aplican aquí (antes del reveal)
-  var CSS = {
-    noblur: ".nav,.nav *{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}",
-    nocosmos: ".cosmos{display:none!important}"
-  };
-  if (CSS[cond]) {
-    var st = document.createElement("style");
-    st.textContent = CSS[cond];
-    document.head.appendChild(st);
-  }
 
   /* ---------- Registro ---------- */
   var revealAt = null, y0 = null, firstScrollAt = null, gestureAt = null, touchDelay = null;
@@ -66,6 +48,11 @@
   window.addEventListener("mv:reveal", function () {
     if (revealAt === null) { revealAt = now(); y0 = Math.round(window.scrollY || 0); }
   });
+  // la carga ya es rápida: si la sonda llegó tarde, toma la hora del reveal que dejó main.js
+  var lateAttach = false;
+  if (revealAt === null && window.MV_REVEAL_AT != null) {
+    revealAt = window.MV_REVEAL_AT; y0 = Math.round(window.scrollY || 0); lateAttach = true;
+  }
   window.addEventListener("scroll", function () {
     if (lastGesture === null) return;                       // restaurado/programático
     if (revealAt === null) { scrollBeforeReveal = true; return; }
@@ -140,7 +127,6 @@
     var d = (t - revealAt) / 1000;
     return (d >= 0 ? "+" : "") + d.toFixed(2) + "s";
   }
-  function pad(s, n) { s = String(s); while (s.length < n) s += " "; return s; }
 
   function history() {
     try { return JSON.parse(localStorage.getItem(KEY) || "[]"); } catch (e) { return []; }
@@ -153,7 +139,6 @@
     } catch (e) {}
   }
   function isClean(r) { return !r.sb && !r.y0 && r.sg != null; }
-  function nextCond(c) { var i = PLAN.indexOf(c); return PLAN[(i < 0 ? 0 : i + 1) % PLAN.length]; }
 
   var box = document.createElement("div");
   box.setAttribute("aria-hidden", "true");
@@ -186,7 +171,7 @@
         ((gestureAt !== null && t > gestureAt + 2500) || t > revealAt + 12000)) {
       recorded = true;
       var run = {
-        m: mode, c: cond, rg: Math.round(rv ? rv.ms : 0), sg: sc ? Math.round(sc.ms) : null,
+        m: mode, rg: Math.round(rv ? rv.ms : 0), sg: sc ? Math.round(sc.ms) : null,
         sb: scrollBeforeReveal, y0: y0, w: Math.round(worst),
         fs: (sc && sc.ms) ? Math.round(sc.start - revealAt) : null,
         td: touchDelay == null ? null : Math.round(touchDelay),
@@ -194,13 +179,10 @@
         hf: hf == null ? null : Math.round(hf), rf: rf == null ? null : Math.round(rf)
       };
       record(run);
-      // bisección: solo una corrida LIMPIA avanza a la siguiente condición
-      if (auto) { try { localStorage.setItem(CKEY, isClean(run) ? nextCond(cond) : cond); } catch (e) {} }
     }
 
     var L = [];
-    L.push("MV sonda · " + (auto ? "BISECCIÓN · " + (LABEL[cond] || cond)
-      : "modo " + (legacy ? "LEGACY (antes)" : "2a") + (cond !== "base" ? " · " + cond : "")));
+    L.push("MV sonda · modo " + (legacy ? "LEGACY (antes)" : "v3") + (lateAttach ? " · (sonda cargó tras el reveal)" : ""));
     L.push("reveal " + (revealAt === null ? "—" : (revealAt / 1000).toFixed(2) + " s") +
       (scrollBeforeReveal ? "  ⚠ scroll ANTES del reveal (no cuenta)" : (y0 ? "  ⚠ no empezó arriba (no cuenta)" : "")));
     L.push("reveal:     " + (rv ? ms(rv.ms) + "  " + verdict(rv.ms) : "—"));
@@ -216,24 +198,12 @@
       " · refresh: " + (refreshes.length ? refreshes.map(function (r) { return rel(r[0] - r[1]) + "(" + Math.round(r[1]) + ")"; }).join(" ") : "—"));
 
     var h = history();
-    if (auto) {
-      L.push("── ronda (corridas limpias) ──");
-      PLAN.forEach(function (c) {
-        var rs = h.filter(function (r) { return r.m === "auto" && r.c === c && isClean(r); });
-        var fz = rs.filter(function (r) { return Math.max(r.rg || 0, r.sg || 0) >= 1000; }).length;
-        var pk = rs.reduce(function (x, r) { return Math.max(x, r.rg || 0, r.sg || 0); }, 0);
-        L.push(pad(LABEL[c], 20) + (rs.length ? rs.length + " · " + fz + " congel · peor " + pk : "pendiente"));
-      });
-      var nx = null; try { nx = localStorage.getItem(CKEY); } catch (e) {}
-      L.push(recorded ? "✓ guardada. Recarga → " + (LABEL[nx] || nx) : "…recarga cuando diga ✓ guardada");
-    } else {
-      var runs = h.filter(function (r) { return r.m === mode; });
-      var clean = runs.filter(isClean);
-      var fz2 = clean.filter(function (r) { return Math.max(r.rg || 0, r.sg || 0) >= 1000; }).length;
-      var pk2 = clean.reduce(function (x, r) { return Math.max(x, r.rg || 0, r.sg || 0); }, 0);
-      L.push("HISTORIAL " + mode + ": " + runs.length + " corridas · " + clean.length + " limpias · " +
-        fz2 + " congel. (en limpias) · peor " + ms(pk2));
-    }
+    var runs = h.filter(function (r) { return r.m === mode; });
+    var clean = runs.filter(isClean);
+    var fz2 = clean.filter(function (r) { return Math.max(r.rg || 0, r.sg || 0) >= 1000; }).length;
+    var pk2 = clean.reduce(function (x, r) { return Math.max(x, r.rg || 0, r.sg || 0); }, 0);
+    L.push("HISTORIAL " + mode + ": " + runs.length + " corridas · " + clean.length + " limpias · " +
+      fz2 + " congel. (en limpias) · peor " + ms(pk2));
     box.textContent = L.join("\n");
   }
   setInterval(render, 400);
