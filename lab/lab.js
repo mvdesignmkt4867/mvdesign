@@ -243,6 +243,60 @@ const dust = new THREE.Points(dustGeo, new THREE.ShaderMaterial({
 dust.frustumCulled = false;
 scene.add(dust);
 
+/* ---------- Polvo cósmico de fondo: diminuto, en todo el recorrido, reacciona al cursor ---------- */
+const AMB = mobile ? 5000 : 14000;
+const ambGeo = new THREE.BufferGeometry();
+const ap = new Float32Array(AMB * 3), aseed = new Float32Array(AMB), atint = new Float32Array(AMB * 3);
+const tints = [[0.78, 0.82, 1.0], [0.78, 0.82, 1.0], [0.78, 0.82, 1.0], [0.62, 0.35, 0.95], [0.3, 0.85, 0.95]];   // casi blanco, con toques de marca
+for (let i = 0; i < AMB; i++) {
+  ap[i * 3] = (Math.random() - 0.5) * (Math.random() < 0.7 ? 16 : 28);   // más densas cerca del camino de la cámara
+  ap[i * 3 + 1] = 0.3 + Math.random() * 7.2;
+  ap[i * 3 + 2] = 9 - Math.random() * 62;                       // del hero (z +9) al cierre (z -53)
+  aseed[i] = Math.random();
+  atint.set(tints[Math.floor(Math.random() * tints.length)], i * 3);
+}
+ambGeo.setAttribute("position", new THREE.BufferAttribute(ap, 3));
+ambGeo.setAttribute("aSeed", new THREE.BufferAttribute(aseed, 1));
+ambGeo.setAttribute("aTint", new THREE.BufferAttribute(atint, 3));
+const AU = {
+  uTime: { value: 0 }, uPx: { value: DPR }, uSpeed: { value: 0 },
+  uRayO: { value: new THREE.Vector3() }, uRayD: { value: new THREE.Vector3(0, 0, -1) }, uMouse: { value: 0 }
+};
+const ambient = new THREE.Points(ambGeo, new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false, uniforms: AU,
+  // suma color pero no toca el alfa: no altera la máscara (fotos de los casos y color exacto de la M)
+  blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor,
+  blendEquationAlpha: THREE.AddEquation, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor,
+  vertexShader: `
+    uniform float uTime, uPx, uSpeed, uMouse; uniform vec3 uRayO, uRayD;
+    attribute float aSeed; attribute vec3 aTint; varying vec3 vC; varying float vA;
+    void main(){
+      vec3 p = position;
+      // deriva lenta, cada una a su ritmo
+      p += vec3(sin(uTime * (.11 + aSeed * .09) + aSeed * 40.), cos(uTime * (.09 + aSeed * .07) + aSeed * 23.), sin(uTime * (.07 + aSeed * .06) + aSeed * 61.)) * .45;
+      // el cursor las aparta en remolino y las enciende
+      vec3 w = p - uRayO; float tr = dot(w, uRayD);
+      vec3 perp = w - uRayD * tr; float d = length(perp);
+      float f = uMouse * smoothstep(1.7, 0., d) * step(0., tr);
+      vec3 n = perp / max(d, 1e-3);
+      p += n * f * .95 + cross(uRayD, n) * f * .7;
+      vec4 mv = modelViewMatrix * vec4(p, 1.);
+      float z = -mv.z;
+      gl_PointSize = clamp((.8 + aSeed * 1.5) * uPx * (12. / max(z, .1)), 1., 5.5);
+      float tw = .55 + .45 * sin(uTime * (.8 + aSeed * 1.7) + aSeed * 90.);
+      vA = tw * smoothstep(.6, 2.5, z) * (1. - smoothstep(18., 34., z)) * (.55 + f * 2.6 + uSpeed * .5);
+      vC = aTint;
+      gl_Position = projectionMatrix * mv;
+    }`,
+  fragmentShader: `
+    varying vec3 vC; varying float vA;
+    void main(){ float d = length(gl_PointCoord - .5); float a = smoothstep(.5, 0., d);
+      if (a * vA < .01) discard;
+      gl_FragColor = vec4(vC * a * vA * .95, 1.); }`
+}));
+ambient.frustumCulled = false;
+scene.add(ambient);
+
 /* ---------- La M: se muestrea del SVG oficial y se vuelve partículas ---------- */
 const GRADS = [ // [desde, hasta, color A, color B] en coordenadas del SVG (283.46²)
   [[88.59, 41.38], [194.36, 142.22], "#4892d9", "#2bccd9"],   // chevrón azul
@@ -515,6 +569,7 @@ function applyDpr(v) {
   composer.setSize(innerWidth, innerHeight);
   if (particles) particles.px = v * (mobile ? 0.8 : 1);
   dust.material.uniforms.uPx.value = v;
+  AU.uPx.value = v;
 }
 // mide 60 cuadros EN REPOSO (no durante transiciones) y decide con la mediana:
 // baja la resolución si va lento, la sube si sobra. Cambiarla reasigna búferes, así que es poco frecuente.
@@ -723,6 +778,7 @@ function frame() {
     raycaster.setFromCamera(smooth, camera);
     U.uRayO.value.copy(raycaster.ray.origin); U.uRayD.value.copy(raycaster.ray.direction);
     U.uMouse.value = mouseAmt;
+    AU.uRayO.value.copy(raycaster.ray.origin); AU.uRayD.value.copy(raycaster.ray.direction); AU.uMouse.value = mouseAmt;
     const fi = Math.min(LAST - 1, Math.floor(p)), ff = p - fi;
     particles.focus = THREE.MathUtils.lerp(FOCUS[fi], FOCUS[fi + 1], ff);
     particles.reflect = Math.max(studio, endStudio);
@@ -787,6 +843,8 @@ function frame() {
 
   beam.material.uniforms.uTime.value = t;
   dust.material.uniforms.uTime.value = reduced ? 0 : t;
+  AU.uTime.value = reduced ? 0 : t;
+  AU.uSpeed.value = kick;
   finalPass.uniforms.uTime.value = t;
 
   composer.render();
