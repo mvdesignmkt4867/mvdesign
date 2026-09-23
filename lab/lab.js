@@ -466,6 +466,20 @@ function loadSvg(url) {
   }).catch(() => null));
   return svgCache.get(url);
 }
+// los logos publicados son tinta negra: para la ficha oscura se tiñen de blanco (una vez por logo)
+const whiteCache = new WeakMap();
+function whiteOf(im) {
+  if (!whiteCache.has(im)) {
+    const s = Math.min(1, 360 / Math.max(im.width, im.height));
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(im.width * s)); c.height = Math.max(1, Math.round(im.height * s));
+    const g = c.getContext("2d");
+    g.drawImage(im, 0, 0, c.width, c.height);
+    g.globalCompositeOperation = "source-in"; g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
+    whiteCache.set(im, c);
+  }
+  return whiteCache.get(im);
+}
 // la ficha de un rubro: vidrio oscuro, número, nombre grande, subrayado de marca y la fila de logos de sus proyectos
 const TEX_W = 1024, TEX_H = Math.round(TEX_W / CARD_AR);
 function drawRubroCard(c, j, logos) {
@@ -499,7 +513,7 @@ function drawRubroCard(c, j, logos) {
   g.fillStyle = "rgba(255,255,255,.66)"; g.font = '500 28px "JetBrains Mono", monospace';
   g.fillText(r.full, pad, y + 94);
   // logos de sus proyectos, en fila abajo (blancos, un poco atenuados)
-  const row = logos.filter(Boolean).slice(0, 5), slots = 5;
+  const row = logos.filter(Boolean).slice(0, 5).map(whiteOf), slots = 5;
   const boxW = (TEX_W - pad * 2) / slots, boxH = 78, by = TEX_H - pad - boxH;
   g.globalAlpha = 0.88;
   row.forEach((im, k) => {

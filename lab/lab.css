@@ -177,6 +177,7 @@ html:not(.is-3d) .rpanel { display: none; }
   border-bottom: 1px solid var(--line);
 }
 .sub__logo img { position: absolute; left: 17%; top: 20%; width: 66%; height: 60%; object-fit: contain; }   /* todas del mismo alto, sin importar la forma del logo */
+.sub__logo img, .det__media--logo img { filter: brightness(0) invert(1); }   /* los logos publicados son tinta negra: aquí van en blanco */
 .sub__word { font: 700 clamp(15px, 1.5vw, 20px)/1.1 "Montserrat", sans-serif; letter-spacing: -.02em; text-align: center; color: #fff; }
 .sub__name { font: 600 14px/1.25 "Montserrat", sans-serif; color: #fff; padding: 12px 14px 3px; }
 .sub__meta { font-size: 10.5px; color: var(--fg-3); padding: 0 14px 13px; letter-spacing: .04em; }
