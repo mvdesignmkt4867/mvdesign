@@ -62,6 +62,9 @@ scene.background = new THREE.Color("#07070B");
 scene.fog = new THREE.FogExp2("#0B0A16", 0.035);
 
 const camera = new THREE.PerspectiveCamera(28, innerWidth / innerHeight, 0.1, 200);
+// los textos se dibujan con su propia cámara: el mismo recorrido, sin vaivén, sin cursor y sin cambio de lente.
+// Así quedan derechos, centrados y a 1:1 (nítidos), y el mundo conserva su movimiento detrás
+const cssCam = new THREE.PerspectiveCamera(28, innerWidth / innerHeight, 0.1, 200);
 camera.position.set(0, 2, 19);
 
 /* ---------- Ciclorama: piso espejo que sube en curva a la pared ---------- */
@@ -919,7 +922,7 @@ function buildPath() {
   el3.style.display = "";
   const hh = el3.querySelector(".cases-head").offsetHeight, ch = el3.querySelector(".orbit-cap").offsetHeight, lh = el3.offsetHeight;
   el3.style.display = prev3;
-  const top3 = narrow ? 112 : 96, bot3 = narrow ? 24 : 40, half3 = lh / 2;
+  const top3 = (narrow ? 112 : 96) + SAFE_T, bot3 = (narrow ? 24 : 40) + SAFE_B, half3 = lh / 2;
   const cy3 = clamp(H / 2, top3 + half3, Math.max(top3 + half3, H - bot3 - half3));   // (igual que el ancla de su texto)
   const bandTop = cy3 - half3 + hh + 16, bandBot = cy3 + half3 - ch - 16;
   const bandH = Math.max(70, bandBot - bandTop), bandC = (bandTop + bandBot) / 2;
@@ -981,7 +984,7 @@ function buildPath() {
     el.style.display = "";
     const h = el.offsetHeight;
     el.style.display = prevD;
-    const top = narrow ? (i === 3 ? 112 : 76) : 96, bottom = narrow ? (i === LAST || i === 3 ? 24 : 96) : 40;
+    const top = (narrow ? (i === 3 ? 112 : 76) : 96) + SAFE_T, bottom = (narrow ? (i === LAST || i === 3 ? 24 : 96) : 40) + SAFE_B;
     // con anillo: centrado exacto y sin achicar (su tamaño ya sale del anillo), así texto, disco y anillo son concéntricos
     const fit = ring ? 1 : h > 0 ? Math.min(1, (H - top - bottom) / h) : 1;   // si no cabe, se achica un poco
     const half = (h * fit) / 2;
@@ -994,8 +997,15 @@ function buildPath() {
   });
 }
 
+// zonas seguras (muesca, barra de inicio): CSS las conoce con env(); JS las lee de una sonda
+const saProbe = Object.assign(document.createElement("div"), { ariaHidden: "true" });
+saProbe.style.cssText = "position:fixed;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)";
+document.body.append(saProbe);
+let SAFE_T = 0, SAFE_B = 0;
 function resize() {
   const w = innerWidth, h = innerHeight;
+  const ps = getComputedStyle(saProbe);
+  SAFE_T = parseFloat(ps.paddingTop) || 0; SAFE_B = parseFloat(ps.paddingBottom) || 0;
   portrait = w / h < 0.8;
   // el zoom del navegador cambia devicePixelRatio: sin esto, al alejar el búfer crece al cuádruple
   const dprNow = Math.min(devicePixelRatio || 1, mobile ? 1.5 : 1.75);
@@ -1003,6 +1013,7 @@ function resize() {
   camera.aspect = w / h;
   BASE_FOV = portrait ? 40 : 28;
   camera.fov = BASE_FOV; camera.updateProjectionMatrix();
+  cssCam.aspect = w / h; cssCam.fov = BASE_FOV; cssCam.updateProjectionMatrix();
   renderer.setSize(w, h, false);
   composer.setSize(w, h);
   css.setSize(w, h);
@@ -1042,15 +1053,26 @@ function adaptDpr(raw, moving) {
 /* ---------- Navegación: un gesto = una estación (escena o rubro), y cada transición llega y se asienta ---------- */
 let from = 0, to = 0, tStart = 0, dur = 0, prog = 0, lockUntil = 0, v0 = 0, progVel = 0;
 const now = () => performance.now();
-// posición y velocidad del tramo actual: desde reposo, curva cubic in-out; si ya venía en
-// movimiento, un tramo Hermite que arranca con esa velocidad (sin frenar en seco)
+// curva del viaje: cubic-bezier(.45, 0, .1, 1). El gesto se nota desde el primer cuadro
+// (al 25 % del tiempo ya va ~23 % del tramo) y la llegada frena largo y se asienta. Tabla de 65 muestras
+const EASE_T = (() => {
+  const B = (s, a, b) => 3 * a * s * (1 - s) * (1 - s) + 3 * b * s * s * (1 - s) + s * s * s;
+  const out = new Float32Array(65);
+  for (let i = 0; i <= 64; i++) {
+    const x = i / 64; let lo = 0, hi = 1;
+    for (let k = 0; k < 40; k++) { const m = (lo + hi) / 2; if (B(m, 0.45, 0.1) < x) lo = m; else hi = m; }
+    out[i] = B((lo + hi) / 2, 0, 1);
+  }
+  return out;
+})();
+const easeTab = (x) => { const f = clamp(x, 0, 1) * 64, i = Math.min(63, Math.floor(f)); return EASE_T[i] + (EASE_T[i + 1] - EASE_T[i]) * (f - i); };
+const easeTabD = (x) => { const f = clamp(x, 0, 1) * 64, i = Math.min(63, Math.floor(f)); return (EASE_T[i + 1] - EASE_T[i]) * 64; };
+// posición y velocidad del tramo actual: desde reposo, esa curva; si ya venía en movimiento,
+// un tramo Hermite que arranca con esa velocidad (sin frenar en seco)
 function tween(kt) {
   const D = to - from;
   if (dur <= 0) return [to, 0];
-  if (v0 === 0) {
-    const e = easeInOut(kt), de = kt < 0.5 ? 12 * kt * kt : 3 * Math.pow(2 - 2 * kt, 2);
-    return [from + D * e, (D * de) / dur];
-  }
+  if (v0 === 0) return [from + D * easeTab(kt), (D * easeTabD(kt)) / dur];
   const s = kt, s2 = s * s, s3 = s2 * s, m0 = v0 * dur;
   const pos = (2 * s3 - 3 * s2 + 1) * from + (s3 - 2 * s2 + s) * m0 + (-2 * s3 + 3 * s2) * to;
   const dpos = (6 * s2 - 6 * s) * from + (3 * s2 - 4 * s + 1) * m0 + (-6 * s2 + 6 * s) * to;
@@ -1064,9 +1086,14 @@ function goQ(i) {
   const moving = prog !== to;
   from = prog; to = i; tStart = now();
   v0 = moving && !reduced ? progVel : 0;
-  const inSpiral = (x) => x >= Q0 && x <= Q0 + NR - 1, n = Math.abs(to - from);
-  // de rubro a rubro es más ágil; saltos largos (índice) no se eternizan
-  dur = reduced ? 0 : inSpiral(from) && inSpiral(to) ? 1.25 + 0.18 * Math.max(0, n - 1) : Math.min(3.4, 1.55 + 0.3 * Math.max(0, n - 1));
+  // la duración sigue a la distancia real de la cámara: tramos cortos ágiles, largos sin prisa (ni eternos)
+  const n = Math.abs(to - from);
+  let arc = 0;
+  for (let s = 0, a = posCurve.getPoint(from / QLAST, tmp2); s < 24; s++) {
+    const b = posCurve.getPoint((from + (to - from) * (s + 1) / 24) / QLAST, tmp3);
+    arc += a.distanceTo(b); a.copy(b);
+  }
+  dur = reduced ? 0 : n <= 1.01 ? clamp(1.05 + 0.04 * arc, 1.15, 1.85) : clamp(1.3 + 0.025 * arc, 1.6, 2.6);
   lockUntil = tStart + (reduced ? 350 : Math.max(800, dur * 1000 * 0.72));
 }
 const goTo = (s) => goQ(stationOf(clamp(s, 0, LAST)));   // por escena (índice, "volver al inicio")
@@ -1149,21 +1176,24 @@ function setActive(a) {
 }
 
 /* ---------- Cursor: rayo en el mundo para empujar partículas ---------- */
-const ndc = new THREE.Vector2(), smooth = new THREE.Vector2();
+const ndc = new THREE.Vector2(), smooth = new THREE.Vector2(), swayT = new THREE.Vector2();
 let pointerOn = 0, lastMove = 0, overUI = false;
 addEventListener("pointermove", (e) => {
   ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  if (e.pointerType === "mouse") swayT.copy(ndc);                      // el dedo mueve partículas, nunca la cámara
   pointerOn = 1; lastMove = now();
   overUI = !!(e.target.closest && e.target.closest(".orbit-cap, .hud, .wa, a, button, [data-rpanel]"));
 }, { passive: true });
-document.documentElement.addEventListener("pointerleave", () => { pointerOn = 0; });
+document.documentElement.addEventListener("pointerleave", () => { pointerOn = 0; swayT.set(0, 0); });
 addEventListener("touchend", () => { pointerOn = 0; }, { passive: true });
 
 /* ---------- Loop ---------- */
 const easeOut = (t) => 1 - Math.pow(1 - t, 4);
 const clock = new THREE.Clock();
 const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), tmp3 = new THREE.Vector3(), camFwd = new THREE.Vector3();
-let t0 = null, lastT = 0, vel = 0, mouseAmt = 0;
+const railPos = new THREE.Vector3(), cssFwd = new THREE.Vector3();
+let t0 = null, lastT = 0, mouseAmt = 0, camSpd = 0, railInit = false;
+
 
 function frame() {
   const t = clock.getElapsedTime();
@@ -1172,12 +1202,11 @@ function frame() {
   adaptDpr(raw, prog !== to);
   const intro = reduced ? 1 : Math.min(1, (t - t0) / 4.2);
   const k = easeOut(intro);
-  smooth.lerp(ndc, 0.06);
+  smooth.lerp(swayT, 0.06);
 
   // transición: de una escena a la otra con llegada suave
   const kt = dur > 0 ? clamp((now() - tStart) / (dur * 1000), 0, 1) : 1;
   [prog, progVel] = kt >= 1 ? [to, 0] : tween(kt);
-  vel = THREE.MathUtils.lerp(vel, progVel, 0.25);
   const q = prog, p = sceneP(q);                       // q: estación (con rubros) · p: escena para los efectos (0..4)
   setActive(Math.round(p));
   if (progEl) progEl.style.transform = `scaleX(${q / QLAST})`;
@@ -1185,7 +1214,15 @@ function frame() {
   // cámara sobre la curva + entrada en dolly + deriva con el cursor
   posCurve.getPoint(q / QLAST, camPos);
   lookCurve.getPoint(q / QLAST, camLook);
+  // velocidad real de la cámara sobre su riel (u/s): de aquí sale el efecto de velocidad
+  if (railInit && dt > 0) camSpd += (camPos.distanceTo(railPos) / dt - camSpd) * (1 - Math.exp(-dt * 10));
+  railPos.copy(camPos); railInit = true;
   const heroW = 1 - sm(0, 0.6, p), endW = sm(3.4, 4, p);
+  if (heroW > 0 && k < 1) {                                               // dolly de entrada (también para los textos)
+    tmp.copy(camPos).sub(camLook).normalize().multiplyScalar(7 * (1 - k) * heroW);
+    camPos.add(tmp); camPos.y += (1 - k) * 1.0 * heroW;
+  }
+  cssCam.position.copy(camPos); cssCam.lookAt(camLook); cssCam.getWorldDirection(cssFwd);
   if (!reduced) {
     const orbit = (Math.sin(t * 0.11) * (portrait ? 0.018 : 0.05) + smooth.x * 0.06) * Math.max(heroW, endW);   // en celular casi quieta: los botones no se corren
     tmp.copy(camPos).sub(camLook).applyAxisAngle(THREE.Object3D.DEFAULT_UP, orbit);
@@ -1193,21 +1230,17 @@ function frame() {
     camPos.x += smooth.x * 0.1 * (1 - Math.max(heroW, endW));
     camPos.y += smooth.y * 0.12;
   }
-  if (heroW > 0 && k < 1) {
-    tmp.copy(camPos).sub(camLook).normalize().multiplyScalar(7 * (1 - k) * heroW);
-    camPos.add(tmp); camPos.y += (1 - k) * 1.0 * heroW;
-  }
   camera.position.copy(camPos);
   camera.lookAt(camLook);
-  const kick = reduced ? 0 : Math.min(Math.abs(vel), 2.5);
-  camera.fov = BASE_FOV + kick * 2;
+  const kick = reduced ? 0 : sm(2, 14, camSpd);                          // 0..1 según la velocidad real
+  camera.fov = BASE_FOV + kick * 3.5;
   camera.updateProjectionMatrix();
   // con un rubro abierto, la vista se corre (sin cambiar la perspectiva): la espiral queda a la izquierda
   // en horizontal, o arriba en vertical, y el panel ocupa el espacio libre
   rpView += ((rp.open >= 0 ? 1 : 0) - rpView) * (1 - Math.exp(-dt * (reduced ? 60 : 4.5)));
   setView(rpView);
   camera.getWorldDirection(camFwd);
-  finalPass.uniforms.uCA.value = BASE_CA + kick * 0.0015;
+  finalPass.uniforms.uCA.value = BASE_CA + kick * 0.003;
 
   // el estudio del inicio se apaga al salir; el del final se enciende al llegar
   const studio = 1 - sm(0.2, 0.9, p), endStudio = sm(3.4, 4, p);
@@ -1298,11 +1331,17 @@ function frame() {
   });
 
   // textos: aparecen al acercarte, la cámara los atraviesa al seguir
+  const jumpA = Math.round(sceneP(from)), jumpB = Math.round(sceneP(to));
   labels.forEach((o, i) => {
-    // Servicios vive a 3 unidades de los casos y la cámara no lo cruza: sale rápido al avanzar para no encimarse
-    const vis = i === 2 && p > 2 ? 1 - sm(0.04, 0.18, p - 2) : 1 - sm(0.45, 0.85, Math.abs(p - i));
+    // un texto a la vez: el que sale se va en el primer tramo y el que llega aparece al final, con su objeto ya formado.
+    // Servicios vive a 3 unidades de los casos y la cámara no lo cruza: sale aún antes al avanzar.
+    // Contacto espera a que la M esté armada. En saltos largos (índice) los intermedios no aparecen
+    let vis = i === 2 && p > 2 ? 1 - sm(0.04, 0.18, p - 2)
+      : i === 4 && p < 4 ? sm(3.72, 3.95, p)
+      : 1 - sm(0.12, 0.4, Math.abs(p - i));
+    if (jumpA !== jumpB && Math.abs(jumpB - jumpA) >= 2 && i !== jumpA && i !== jumpB) vis = 0;
     if (i === 3) { o.position.copy(o.userData.base); o.position.y -= SPI.drop * sIn; }   // baja con la cámara de rubro en rubro
-    const ratio = tmp.copy(o.position).sub(camera.position).dot(camFwd) / o.userData.d;   // 1 = a 1:1; 0.5 = al doble
+    const ratio = tmp.copy(o.position).sub(cssCam.position).dot(cssFwd) / o.userData.d;   // 1 = a 1:1; 0.5 = al doble
     const op = vis * sm(0.5, 0.78, ratio) * (i === 3 ? 1 - rpView : 1);   // con un rubro abierto manda el panel
     const on = (i === 3 ? op / Math.max(0.001, 1 - rpView) : op) > 0.01;   // (casos: se desvanece, no se quita del DOM)
     if (o.visible !== on) o.visible = on;
@@ -1320,11 +1359,11 @@ function frame() {
     BLAST.uBlastP.value[i] = BLAST.uBlastT.value[i];
     BLAST.uBlastT.value[i] = Math.min(99, BLAST.uBlastT.value[i] + dt);
   }
-  AU.uSpeed.value = kick;
+  AU.uSpeed.value = kick * 2;
   finalPass.uniforms.uTime.value = t;
 
   composer.render();
-  css.render(cssScene, camera);
+  css.render(cssScene, cssCam);
   requestAnimationFrame(frame);
 }
 

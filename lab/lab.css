@@ -22,7 +22,16 @@ ol, ul { list-style: none; }
 /* capa CSS3D: los textos viven en el mismo espacio que la cámara */
 .world { position: fixed !important; inset: 0; z-index: 4; pointer-events: none; }
 
-.hud { position: fixed; z-index: 5; padding: var(--pad); pointer-events: none; }
+.hud {
+  position: fixed; z-index: 5; pointer-events: none;
+  padding: calc(var(--pad) + env(safe-area-inset-top, 0px)) calc(var(--pad) + env(safe-area-inset-right, 0px))
+           calc(var(--pad) + env(safe-area-inset-bottom, 0px)) calc(var(--pad) + env(safe-area-inset-left, 0px));
+}
+/* degradado sutil arriba y abajo: el HUD se lee sobre cualquier brillo del 3D (entre el lienzo y los textos) */
+body::after {
+  content: ""; position: fixed; inset: 0; z-index: 3; pointer-events: none;
+  background: linear-gradient(180deg, rgba(7,7,11,.55), rgba(7,7,11,0) 130px), linear-gradient(0deg, rgba(7,7,11,.45), rgba(7,7,11,0) 110px);
+}
 .hud a, .hud button { pointer-events: auto; }
 .hud--tl { top: 0; left: 0; }
 .hud--tr { top: 0; right: 0; text-align: right; }
@@ -38,10 +47,10 @@ ol, ul { list-style: none; }
 .idx ol { display: flex; gap: 22px; }
 .idx button {
   position: relative; display: inline-flex; align-items: center; gap: 10px; padding: 6px 0;
-  font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--fg-3); white-space: nowrap;
+  font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: #9DA1B0; white-space: nowrap;
   transition: color .4s ease;
 }
-.idx button span { opacity: .6; }
+.idx button::before { content: ""; position: absolute; inset: -8px -7px; }   /* área táctil ≥ 44 px sin mover el diseño */
 .idx button::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--grad); transform: scaleX(0); transform-origin: 0 50%; transition: transform .6s var(--ease); }
 .idx button:hover, .idx button[aria-current] { color: #fff; }
 .idx button[aria-current]::after { transform: none; }
@@ -57,7 +66,7 @@ ol, ul { list-style: none; }
 html.is-3d .scene--hero .title { font-size: max(clamp(40px, 6.4vw, 108px), min(calc(var(--h, 100vh) * .108), 11.6vw)); }   /* la firma, más grande */
 .scene--hero::before { inset: -30% 4%; background: radial-gradient(closest-side, rgba(7,7,11,.45), rgba(7,7,11,0)); }
 .scene a, .scene button { pointer-events: auto; }
-.kicker { color: var(--fg-3); margin-bottom: 18px; letter-spacing: .14em; text-transform: uppercase; font-size: 11px; }
+.kicker { color: #B4B8C6; margin-bottom: 18px; letter-spacing: .14em; text-transform: uppercase; font-size: 11px; }   /* ≈5:1 sobre el resplandor */
 .title {
   font: 700 clamp(40px, 6vw, 104px)/.92 "Montserrat", sans-serif; letter-spacing: -.045em;
   color: #fff;   /* sin text-shadow: un blur grande en texto 3D se re-pinta en cada cuadro del vuelo */
@@ -146,7 +155,7 @@ html.is-3d .orbit-cap { display: flex; align-items: center; gap: 18px; pointer-e
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .orbit-cap__txt .mono { color: var(--fg-3); font-size: 11px; letter-spacing: .08em; }
 .orbit-cap__txt b { font: 600 clamp(18px, 1.9vw, 26px)/1.15 "Montserrat", sans-serif; letter-spacing: -.02em; color: #fff; }
-.arrow { width: 42px; height: 42px; border-radius: 50%; border: 1px solid rgba(255,255,255,.28); background: rgba(7,7,11,.62); font-size: 15px; color: #fff; transition: background .3s, border-color .3s; flex: none; }
+.arrow { width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255,255,255,.28); background: rgba(7,7,11,.62); font-size: 15px; color: #fff; transition: background .3s, border-color .3s; flex: none; }
 .arrow:hover { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.3); }
 
 /* ---------- panel de un rubro: en horizontal vive en el espacio libre de la derecha (la espiral se corre a la izquierda) ---------- */
@@ -163,7 +172,7 @@ html:not(.is-3d) .rpanel { display: none; }
 .rpanel.is-closing, .rpanel.is-closing > * { pointer-events: none; }
 .rp-fly { position: fixed; inset: 0; z-index: 7; pointer-events: none; }   /* las subfichas vuelan aquí, sin recorte */
 .rpanel__head { margin-bottom: 24px; transition: opacity .35s ease; }
-.rpanel__close { color: var(--fg-2); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; padding: 8px 0; margin-bottom: 14px; transition: color .3s; }
+.rpanel__close { color: var(--fg-2); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; padding: 14px 12px 14px 0; margin-bottom: 4px; transition: color .3s; }
 .rpanel__close:hover { color: #fff; }
 .rpanel .kicker { margin-bottom: 10px; }
 .rpanel__title { font: 700 clamp(34px, 3.6vw, 58px)/1 "Montserrat", sans-serif; letter-spacing: -.045em; color: #fff; outline: none; }
@@ -193,7 +202,7 @@ html:not(.is-3d) .rpanel { display: none; }
 }
 .rpanel__detail[hidden] { display: none; }
 .rpanel__back {
-  position: absolute; top: 14px; left: 14px; z-index: 2; padding: 9px 15px; border-radius: 999px;
+  position: absolute; top: 12px; left: 12px; z-index: 2; min-height: 44px; padding: 12px 17px; border-radius: 999px;
   border: 1px solid rgba(255,255,255,.3); background: rgba(7,7,11,.72); color: #fff;
   font-size: 11px; letter-spacing: .08em; text-transform: uppercase; transition: background .3s;
 }
@@ -228,7 +237,7 @@ body.rp-open .hud--tr { opacity: 0; }
 .pill--light { background: #fff; color: #07070B; }   /* sin sombras difusas: viven dentro del 3D */
 .pill--ghost { border: 1px solid rgba(255,255,255,.22); color: #fff; padding-left: 22px; }
 .pill--ghost:hover { background: rgba(255,255,255,.07); }
-.restart { margin-top: 22px; color: var(--fg-3); letter-spacing: .08em; text-transform: uppercase; font-size: 11px; }
+.restart { margin-top: 12px; padding: 14px 16px; color: #9DA1B0; letter-spacing: .08em; text-transform: uppercase; font-size: 11px; }
 .restart:hover { color: #fff; }
 
 /* ---------- HUD inferior ---------- */
@@ -241,9 +250,9 @@ body:not([data-scene="0"]) .scroll-cue { opacity: 0; }
 .progress span { display: block; height: 100%; background: var(--grad); transform-origin: 0 50%; transform: scaleX(0); }
 
 .wa {
-  position: fixed; z-index: 6; right: var(--pad); bottom: var(--pad);
-  display: inline-flex; align-items: center; gap: 12px;
-  padding: 14px 22px 14px 18px; border-radius: 999px;
+  position: fixed; z-index: 6; right: calc(var(--pad) + env(safe-area-inset-right, 0px)); bottom: calc(var(--pad) + env(safe-area-inset-bottom, 0px));
+  display: inline-flex; align-items: center; gap: 12px; min-height: 46px;
+  padding: 15px 22px 15px 18px; border-radius: 999px;
   background: #fff; color: #07070B; font: 600 13px/1 "Montserrat", sans-serif; letter-spacing: .06em; text-transform: uppercase;
   box-shadow: 0 30px 60px -20px rgba(98,92,217,.45), 0 8px 24px -12px rgba(43,204,217,.4);
   transition: opacity .5s ease, transform .5s var(--ease);
@@ -288,8 +297,8 @@ html:not(.is-3d) .idx, html:not(.is-3d) .restart, html:not(.is-3d) .scroll-cue {
   body[data-scene="3"] .wa { opacity: 0; transform: translateY(12px); pointer-events: none; }
   .ctas { flex-direction: column; align-items: stretch; }
   .pill { justify-content: center; }
-  .wa { left: var(--pad); right: var(--pad); justify-content: center; }
-  .hud--bl { padding-bottom: 88px; }
+  .wa { left: calc(var(--pad) + env(safe-area-inset-left, 0px)); right: calc(var(--pad) + env(safe-area-inset-right, 0px)); justify-content: center; }
+  .hud--bl { padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
   body[data-scene="4"] .hud--bl, body[data-scene="3"] .hud--bl { opacity: 0; }
   .scroll-cue { display: none; }
 }
@@ -303,7 +312,7 @@ html:not(.is-3d) .idx, html:not(.is-3d) .restart, html:not(.is-3d) .scroll-cue {
   .rpanel.is-open { pointer-events: auto; }
   .rpanel {
     top: auto; left: 0; width: auto; height: 60vh; height: 60svh;
-    padding: 20px 16px calc(28px + env(safe-area-inset-bottom));
+    padding: 20px calc(16px + env(safe-area-inset-right, 0px)) calc(28px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px));
     border-radius: 22px 22px 0 0; border-top: 1px solid rgba(255,255,255,.18); background: rgba(9,9,15,.95);
   }
   .rpanel__head { margin-bottom: 16px; }
