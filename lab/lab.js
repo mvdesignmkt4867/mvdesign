@@ -18,7 +18,7 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { CSS3DRenderer, CSS3DObject } from "three/addons/renderers/CSS3DRenderer.js";
-import { createParticles, BLAST_GLSL, BLAST_N } from "./particles.js?v=20";
+import { createParticles, BLAST_GLSL, BLAST_N } from "./particles.js?v=21";
 
 const canvas = document.querySelector("[data-gl]");
 const curtain = document.querySelector("[data-curtain]");
@@ -406,7 +406,9 @@ const RUBROS = [...document.querySelectorAll("[data-rubro]")].map((el) => ({
   full: el.querySelector(".rubro__full").textContent.trim(),
   projects: [...el.querySelectorAll(".proj")].map((li) => ({
     name: li.querySelector(".proj__name").textContent.trim(),
-    logo: li.dataset.logo || "", img: li.dataset.img || "", alt: li.dataset.alt || "", url: li.dataset.url || "",
+    logo: li.dataset.logo || "",
+    img: li.querySelector(".proj__img")?.getAttribute("src") || "", alt: li.querySelector(".proj__img")?.getAttribute("alt") || "",
+    url: li.querySelector(".proj__url")?.getAttribute("href") || "",
     sector: li.querySelector(".proj__sector")?.textContent.trim() || "",
     chip: li.querySelector(".proj__chip")?.textContent.trim() || "",
     desc: li.querySelector(".proj__desc")?.textContent.trim() || ""
@@ -531,20 +533,20 @@ let rubroTexAsked = false;
 async function loadRubroTextures() {
   if (rubroTexAsked) return; rubroTexAsked = true;
   try { await Promise.all([document.fonts.load("700 120px Montserrat"), document.fonts.load('500 26px "JetBrains Mono"')]); } catch (e) {}
-  cards.forEach(async (m, j) => {
+  const nextFrame = () => new Promise((r) => requestAnimationFrame(r));
+  for (const [j, m] of cards.entries()) {            // una ficha por cuadro: sin tirones
     const ud = m.userData;
     ud.canvas = document.createElement("canvas"); ud.canvas.width = TEX_W; ud.canvas.height = TEX_H;
     const tx = new THREE.CanvasTexture(ud.canvas);
     tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = 8;
-    const paint = (logos) => { drawRubroCard(ud.canvas, j, logos); tx.needsUpdate = true; };
-    paint([]);                                         // el nombre ya se ve; los logos llegan después
+    const paint = (logos) => { drawRubroCard(ud.canvas, j, logos); tx.needsUpdate = true; renderer.initTexture(tx); };   // se sube ya, no a medio vuelo
+    paint([]);                                       // el nombre ya se ve; los logos llegan después
     ud.u.uMap.value = tx; ud.ready = true;
-    renderer.initTexture(tx);
-    const logos = await Promise.all(RUBROS[j].projects.map((pr) => (pr.logo ? loadSvg(pr.logo) : null)));
-    paint(logos);
-  });
+    Promise.all(RUBROS[j].projects.map((pr) => (pr.logo ? loadSvg(pr.logo) : null))).then(async (logos) => { await nextFrame(); paint(logos); });
+    await nextFrame();
+  }
 }
-setTimeout(loadRubroTextures, 2500);
+setTimeout(loadRubroTextures, 4600);                 // después de la intro (antes si ya vas camino a casos)
 
 /* pie de la espiral: el rubro al frente, flechas y "ver proyectos" */
 const capMeta = document.querySelector("[data-cap-meta]"), capName = document.querySelector("[data-cap-name]");
@@ -567,9 +569,10 @@ function showRubro(j) {
   if (capLive && active === 3) capLive.textContent = `${r.name}. ${r.projects.length} proyectos.`;
 }
 const stationRubro = () => clamp(Math.round(prog - Q0), 0, NR - 1);
+const settledRubro = () => (prog === to && to >= Q0 && to <= Q0 + NR - 1 ? to - Q0 : -1);   // -1 = en camino: no se abre nada
 capPrev?.addEventListener("click", () => step(-1));
 capNext?.addEventListener("click", () => step(1));
-capOpen?.addEventListener("click", () => openRubro(stationRubro(), capOpen));
+capOpen?.addEventListener("click", () => { const j = settledRubro(); if (j >= 0) openRubro(j, capOpen); });
 
 /* ---------- Panel de un rubro: subfichas (logo + nombre) y la ficha del caso ---------- */
 const rpEl = document.querySelector("[data-rpanel]");
@@ -579,10 +582,21 @@ const EASE = "cubic-bezier(.16,1,.3,1)";
 const WA_URL = "https://wa.me/5214427146255?text=";
 const tmpV = new THREE.Vector3();
 function mk(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
-// dónde está la ficha j en pantalla (de ahí salen y ahí regresan las subfichas)
-function cardRect(j) {
+// corrimiento de la vista (sin cambiar la perspectiva). En vertical la ficha se centra en la franja libre
+// entre el HUD (~60 px) y la hoja (que empieza en 0.4H)
+function setView(v) {
+  if (v > 0.0005) {
+    const W = innerWidth, H = innerHeight;
+    if (portrait) camera.setViewOffset(W, H, 0, v * Math.max(0, 0.3 * H - 30), W, H);
+    else camera.setViewOffset(W, H, v * W * 0.23, 0, W, H);
+  } else if (camera.view && camera.view.enabled) camera.clearViewOffset();
+}
+// dónde está la ficha j en pantalla (de ahí salen y ahí regresan las subfichas).
+// `view`: medir con la vista ya corrida (1) o centrada (0), que es donde estará cuando lleguen
+function cardRect(j, view = rpView) {
   const m = cards[j];
   if (!m || !m.visible) return null;
+  setView(view);
   m.updateMatrixWorld();
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const [x, y] of [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]) {
@@ -590,6 +604,7 @@ function cardRect(j) {
     const sx = (tmpV.x + 1) / 2 * innerWidth, sy = (1 - tmpV.y) / 2 * innerHeight;
     x0 = Math.min(x0, sx); x1 = Math.max(x1, sx); y0 = Math.min(y0, sy); y1 = Math.max(y1, sy);
   }
+  setView(rpView);
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 function flipKeys(elm, rect, tilt) {
@@ -610,6 +625,29 @@ function flipOut(elm, rect, { delay = 0, dur = 460 } = {}) {
   const to = flipKeys(elm, rect, false);
   if (!to) return elm.animate([{ opacity: 1 }, { opacity: 0 }], { duration: dur, delay, fill: "forwards" });
   return elm.animate([{ transform: "none", opacity: 1 }, { transform: to, opacity: 0 }], { duration: dur, delay, easing: "cubic-bezier(.55,0,.75,.2)", fill: "forwards" });
+}
+// capa de vuelo: las subfichas viajan como clones fuera del panel (su scroll las recortaría)
+const flyLayer = mk("div", "rp-fly");
+flyLayer.setAttribute("aria-hidden", "true");
+document.body.append(flyLayer);
+function fly(el, from, to, { delay = 0, dur = 850, out = false, tilt = false } = {}) {
+  const b = el.getBoundingClientRect();
+  if (!from || !to || !b.width) return null;
+  const c = el.cloneNode(true);
+  c.removeAttribute("id"); c.tabIndex = -1;
+  Object.assign(c.style, { position: "fixed", left: `${b.left}px`, top: `${b.top}px`, width: `${b.width}px`, height: `${b.height}px`, margin: "0" });
+  flyLayer.append(c);
+  el.style.visibility = "hidden";
+  const k = (r) => {
+    const dx = r.x + r.w / 2 - (b.left + b.width / 2), dy = r.y + r.h / 2 - (b.top + b.height / 2);
+    const s = Math.max(0.06, Math.min(r.w / b.width, r.h / b.height));
+    return `translate(${dx}px, ${dy}px) scale(${s})${tilt ? " perspective(900px) rotateY(-32deg)" : ""}`;
+  };
+  const frames = out ? [{ transform: "none", opacity: 1 }, { transform: k(to), opacity: 0 }] : [{ transform: k(from), opacity: 0 }, { transform: "none", opacity: 1 }];
+  const a = c.animate(frames, { duration: dur, delay, easing: out ? "cubic-bezier(.55,0,.75,.2)" : EASE, fill: "both" });
+  const end = () => { c.remove(); if (!out) el.style.visibility = ""; };
+  a.onfinish = end; a.oncancel = end;
+  return a;
 }
 function buildPanel(j) {
   const r = RUBROS[j];
@@ -645,12 +683,17 @@ function openRubro(j, opener) {
   rpEl.classList.add("is-open");
   document.body.classList.add("rp-open");
   rpEl.inert = false; rpEl.setAttribute("aria-hidden", "false");
+  if (waFloat) waFloat.inert = true;                   // oculto con el panel: tampoco se tabula
   rpEl.scrollTop = 0;
+  rp.openedAt = performance.now();                    // el clic sintético de un toque no debe abrir un caso
   if (!reduced) {
-    const from = cardRect(j);
+    const from = cardRect(j, 1);                     // donde queda la ficha con la vista ya corrida
     rpEl.querySelector(".rpanel__head").animate([{ opacity: 0, transform: "translateY(14px)" }, { opacity: 1, transform: "none" }],
       { duration: 700, delay: 160, easing: EASE, fill: "backwards" });
-    rpEl.querySelectorAll(".sub").forEach((b, k) => flipIn(b, from, { delay: 80 + k * 50, dur: 900, tilt: true }));
+    rpEl.querySelectorAll(".sub").forEach((b, k) => {
+      const r = b.getBoundingClientRect();
+      fly(b, from, { x: r.left, y: r.top, w: r.width, h: r.height }, { delay: 80 + k * 50, dur: 900, tilt: true });
+    });
   }
   rpEl.querySelector("#rpanel-title")?.focus({ preventScroll: true });
   if (capLive) capLive.textContent = `${RUBROS[j].name}: ${RUBROS[j].projects.length} proyectos.`;
@@ -660,29 +703,40 @@ function closeRubro(instant = false) {
   const j = rp.open;
   rp.open = -1; rp.detail = -1; rp.tile = null;
   document.body.classList.remove("rp-open");
+  if (waFloat) waFloat.inert = active === LAST || (active === 3 && narrowMQ.matches);
   const hadFocus = rpEl.contains(document.activeElement);
   const done = () => {
     if (rp.open >= 0) return;                        // ya se abrió otro rubro
     rpEl.classList.remove("is-open", "has-detail", "is-closing");
-    rpEl.inert = true; rpEl.setAttribute("aria-hidden", "true");
+    rpEl.setAttribute("aria-hidden", "true");
     rpEl.textContent = "";
   };
+  rpEl.inert = true;                                 // lo que se desvanece ya no se tabula ni se lee
   if (instant || reduced) done();
   else {
-    const to = cardRect(j), subs = [...rpEl.querySelectorAll(".sub")];
+    const to = cardRect(j, 0), subs = [...rpEl.querySelectorAll(".sub")];   // la ficha regresa al centro
     rpEl.classList.add("is-closing");
     rpEl.querySelectorAll(".rpanel__head, .rpanel__detail:not([hidden])").forEach((e) => e.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, fill: "forwards" }));
-    subs.forEach((b, k) => flipOut(b, to, { delay: k * 22 }));
+    subs.forEach((b, k) => {
+      const r = b.getBoundingClientRect();
+      if (r.bottom < 0 || r.top > innerHeight) { b.style.visibility = "hidden"; return; }   // fuera de vista: no vuelan
+      fly(b, { x: r.left, y: r.top, w: r.width, h: r.height }, to, { delay: k * 22, dur: 460, out: true });
+    });
     rp.closeTimer = setTimeout(done, 480 + subs.length * 22);
   }
-  const o = rp.opener; rp.opener = null;
-  if (hadFocus && o && o.isConnected) o.focus({ preventScroll: true });
+  // el foco regresa al pie de la espiral: se libera ya (el loop lo tenía inert mientras el panel estaba abierto)
+  const o = rp.opener && rp.opener.isConnected ? rp.opener : capOpen;
+  rp.opener = null;
+  if (hadFocus && o) { sections[3].inert = false; labels[3].visible = true; sections[3].style.display = ""; o.focus({ preventScroll: true }); }
 }
 function openDetail(k, tile) {
   const r = RUBROS[rp.open], pr = r && r.projects[k];
-  if (!pr) return;
+  if (!pr || performance.now() - (rp.openedAt || 0) < 400) return;   // (clic sintético de un toque que abrió el rubro)
+  const tb = tile.getBoundingClientRect();           // antes de ocultar la rejilla y de mover el scroll
+  rp.scroll = rpEl.scrollTop;
   rp.detail = k; rp.tile = tile;
   const det = rpEl.querySelector(".rpanel__detail");
+  det.getAnimations().forEach((a) => a.cancel());    // la salida anterior (fill forwards) no debe seguir aplicada
   det.textContent = "";
   const back = mk("button", "rpanel__back mono", `← ${r.name}`);
   back.type = "button"; back.setAttribute("aria-label", `Volver a los proyectos de ${r.name}`);
@@ -705,21 +759,25 @@ function openDetail(k, tile) {
   det.append(back, media, body);
   det.hidden = false;
   rpEl.classList.add("has-detail");
+  rpEl.querySelectorAll(".rpanel__head, .rpanel__grid").forEach((e) => { e.inert = true; });
+  clearTimeout(rp.hideTimer);
+  rp.hideTimer = setTimeout(() => { if (rp.detail >= 0) rpEl.querySelectorAll(".rpanel__head, .rpanel__grid").forEach((e) => { e.style.display = "none"; }); }, reduced ? 0 : 360);
   rpEl.scrollTop = 0;
-  if (!reduced) {
-    const b = tile.getBoundingClientRect();
-    flipIn(det, { x: b.left, y: b.top, w: b.width, h: b.height }, { dur: 760 });
-  }
+  if (!reduced) flipIn(det, { x: tb.left, y: tb.top, w: tb.width, h: tb.height }, { dur: 760 });
   name.focus({ preventScroll: true });
 }
 function closeDetail() {
   const det = rpEl.querySelector(".rpanel__detail"), tile = rp.tile;
   if (!det || rp.detail < 0) return;
   rp.detail = -1; rp.tile = null;
+  clearTimeout(rp.hideTimer);
+  rpEl.querySelectorAll(".rpanel__head, .rpanel__grid").forEach((e) => { e.inert = false; e.style.display = ""; });
   rpEl.classList.remove("has-detail");
-  const finish = () => { if (rp.detail < 0) { det.hidden = true; det.textContent = ""; } };
+  rpEl.scrollTop = rp.scroll || 0;                   // la lista vuelve a donde estaba
+  const finish = () => { det.getAnimations().forEach((a) => a.cancel()); if (rp.detail < 0) { det.hidden = true; det.textContent = ""; } };
   if (!reduced && tile && tile.isConnected) {
     const b = tile.getBoundingClientRect();
+    rpEl.querySelector(".rpanel__grid")?.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 380, easing: "ease-out" });
     flipOut(det, { x: b.left, y: b.top, w: b.width, h: b.height }, { dur: 420 }).onfinish = finish;
   } else finish();
   if (tile && tile.isConnected) tile.focus({ preventScroll: true });
@@ -747,7 +805,7 @@ addEventListener("pointerup", (e) => {
     const j = hit.object.userData.i;
     if (rp.open === j) closeRubro();
     else if (rp.open >= 0) { closeRubro(); goQ(Q0 + j); }
-    else if (j === stationRubro() && prog === to) openRubro(j);
+    else if (j === settledRubro()) openRubro(j);
     else goQ(Q0 + j);
   } else if (rp.open >= 0) closeRubro();             // clic en el espacio: de vuelta a la espiral
 }, { passive: true });
@@ -855,8 +913,33 @@ function buildPath() {
   SPI.yTop = AXIS_Y;
   SPI.yM = SPI.yTop - (NR - 1) * SPI.drop - (portrait ? 2.8 : 2.5);    // la M del cierre, al pie de la espiral
   const cardH = SPI.cardW / CARD_AR;
-  SPI.camD = portrait ? SPI.cardW / (0.78 * 2 * tanH * aspect)
-    : Math.max(cardH / (0.34 * 2 * tanH), SPI.cardW / (0.46 * 2 * tanH * aspect));
+  // la ficha del frente vive en la franja libre entre el título de casos y su pie (medidos en px):
+  // cabe en ella (con aire) y se centra ahí, en cualquier pantalla
+  const el3 = sections[3], prev3 = el3.style.display;
+  el3.style.display = "";
+  const hh = el3.querySelector(".cases-head").offsetHeight, ch = el3.querySelector(".orbit-cap").offsetHeight, lh = el3.offsetHeight;
+  el3.style.display = prev3;
+  const top3 = narrow ? 112 : 96, bot3 = narrow ? 24 : 40, half3 = lh / 2;
+  const cy3 = clamp(H / 2, top3 + half3, Math.max(top3 + half3, H - bot3 - half3));   // (igual que el ancla de su texto)
+  const bandTop = cy3 - half3 + hh + 16, bandBot = cy3 + half3 - ch - 16;
+  const bandH = Math.max(70, bandBot - bandTop), bandC = (bandTop + bandBot) / 2;
+  SPI.camD = Math.max(
+    SPI.cardW / ((portrait ? 0.78 : 0.46) * 2 * tanH * aspect),     // ancho
+    cardH * H / (bandH * 2 * tanH),                                 // cabe en la franja
+    portrait ? 0 : cardH / (0.34 * 2 * tanH)                        // en horizontal, no más de ~1/3 del alto
+  );
+  // altura de cámara para que el centro de la ficha caiga en el centro de la franja (una corrección lineal basta)
+  const probe = new THREE.PerspectiveCamera(BASE_FOV, aspect, 0.1, 200), pv = new THREE.Vector3();
+  const pitch = 1.6;                                                // mira un poco hacia abajo: se ve la espiral que sigue
+  const cardY = (lift) => {
+    probe.position.set(0, SPI.yTop + lift, END_Z + SPI.R + SPI.camD);
+    probe.lookAt(0, SPI.yTop + lift - pitch, END_Z);
+    probe.updateMatrixWorld();
+    pv.set(0, SPI.yTop, END_Z + SPI.R).project(probe);
+    return (1 - pv.y) / 2 * H;
+  };
+  const d0 = cardY(1.1);
+  const camLift = 1.1 + (bandC - d0) * (2 * SPI.camD * tanH) / H;
   floorEnd.position.y = SPI.yM - AXIS_Y;                                 // el piso del cierre, bajo la M
   const yM = SPI.yM;
   // estaciones: inicio, manifiesto, servicios, un rubro cada una (bajando), contacto
@@ -865,8 +948,8 @@ function buildPath() {
   FOCUS = [k0, dSun, dTun];
   for (let j = 0; j < NR; j++) {
     const y = SPI.yTop - j * SPI.drop;
-    KEYS.pos.push(V(0, y + 1.1, E + SPI.R + SPI.camD));
-    KEYS.look.push(V(0, y - 0.5, E));
+    KEYS.pos.push(V(0, y + camLift, E + SPI.R + SPI.camD));
+    KEYS.look.push(V(0, y + camLift - pitch, E));
     FOCUS.push(SPI.camD);
   }
   if (portrait) { KEYS.pos.push(V(0, yM + 0.6, E + 20.5)); KEYS.look.push(V(0, yM - 1.55, E)); FOCUS.push(20.5); }
@@ -992,7 +1075,10 @@ const step = (dirn) => goQ(to + dirn);
 let wheelAcc = 0, lastWheel = 0, gestureUsed = false, wheelAvg = 0;
 addEventListener("wheel", (e) => {
   if (e.ctrlKey) return;                               // pellizco para zoom: se respeta
-  if (rp.open >= 0 && e.target.closest && e.target.closest("[data-rpanel]")) return;   // dentro del panel: scroll normal
+  if (rp.open >= 0 && e.target.closest && e.target.closest("[data-rpanel]")) {        // dentro del panel: scroll normal…
+    const canUp = rpEl.scrollTop > 0, canDown = rpEl.scrollTop + rpEl.clientHeight < rpEl.scrollHeight - 1;
+    if ((e.deltaY < 0 && canUp) || (e.deltaY > 0 && canDown)) return;                  // …si hay para dónde; si no, cuenta como gesto
+  }
   e.preventDefault();
   const t = now();
   let d = e.deltaY; if (e.deltaMode === 1) d *= 16; else if (e.deltaMode === 2) d *= innerHeight;
@@ -1023,6 +1109,10 @@ addEventListener("keydown", (e) => {
   if (e.target.closest && e.target.closest("input, textarea, select")) return;
   if (e.key === "Escape" && rp.open >= 0) { e.preventDefault(); if (rp.detail >= 0) closeDetail(); else closeRubro(); return; }
   if (rp.open >= 0 && e.target.closest && e.target.closest("[data-rpanel]")) return;   // dentro del panel: Tab, Enter y flechas normales
+  if (rp.open >= 0) {                                                                  // foco fuera (p. ej. tras clic en texto): desplazan el panel
+    const dy = { ArrowDown: 60, ArrowUp: -60, PageDown: rpEl.clientHeight * 0.85, PageUp: -rpEl.clientHeight * 0.85, " ": (e.shiftKey ? -1 : 1) * rpEl.clientHeight * 0.85 }[e.key];
+    if (dy !== undefined) { e.preventDefault(); rpEl.scrollBy({ top: dy, behavior: reduced ? "auto" : "smooth" }); return; }
+  }
   if (e.key === " " && e.target.closest && e.target.closest("button, a, [tabindex], summary")) return;   // Espacio activa el botón enfocado
   if (e.repeat) { if ([" ", "ArrowDown", "ArrowUp", "PageDown", "PageUp"].includes(e.key)) e.preventDefault(); return; }
   if (active === 3 && (e.key === "ArrowRight" || e.key === "ArrowLeft")) { e.preventDefault(); step(e.key === "ArrowRight" ? 1 : -1); return; }
@@ -1115,11 +1205,7 @@ function frame() {
   // con un rubro abierto, la vista se corre (sin cambiar la perspectiva): la espiral queda a la izquierda
   // en horizontal, o arriba en vertical, y el panel ocupa el espacio libre
   rpView += ((rp.open >= 0 ? 1 : 0) - rpView) * (1 - Math.exp(-dt * (reduced ? 60 : 4.5)));
-  if (rpView > 0.0005) {
-    const W = innerWidth, H = innerHeight;
-    if (portrait) camera.setViewOffset(W, H, 0, rpView * H * 0.27, W, H);
-    else camera.setViewOffset(W, H, rpView * W * 0.23, 0, W, H);
-  } else if (camera.view && camera.view.enabled) camera.clearViewOffset();
+  setView(rpView);
   camera.getWorldDirection(camFwd);
   finalPass.uniforms.uCA.value = BASE_CA + kick * 0.0015;
 
@@ -1180,7 +1266,7 @@ function frame() {
   const cIn = sm(2.3, 2.95, p), cOut = sm(3.2, 3.62, p), cVis = cIn * (1 - cOut);
   if (p > 1.4) loadRubroTextures();
   const cur = Math.round(sIn);
-  if (cVis > 0.01) showRubro(cur);
+  if (cVis > 0.01) showRubro(to >= Q0 && to <= Q0 + NR - 1 ? to - Q0 : cur);   // en camino: el rubro al que vas
   // hover (sólo con mouse y fuera de la interfaz): la ficha se acerca un poco y se enciende su filo
   let hov = -1;
   if (cVis > 0.5 && hoverCapable && pointerOn && !overUI) {
@@ -1201,12 +1287,14 @@ function frame() {
     const bob = reduced ? 0 : Math.sin(t * 0.7 + j * 1.9) * 0.05;
     m.position.set(Math.sin(th) * R, SPI.yTop - j * SPI.drop + bob, END_Z + Math.cos(th) * R);
     m.rotation.set(0, th, 0);                                              // mira hacia afuera del eje
-    const sc = SPI.cardW * (0.7 + 0.3 * cIn) * (1 + 0.05 * ud.hover);
-    m.scale.set(sc, sc / CARD_AR, 1);
-    let b = (0.28 + 0.72 * sm(-0.2, 1, face)) * (j === cur ? 1 : 0.62);
+    const fade = sm(0, 0.35, cVis);                                        // al entrar y salir de la espiral, crecen y se encienden
+    const sc = SPI.cardW * (0.7 + 0.3 * cIn) * (1 + 0.05 * ud.hover) * fade;
+    m.scale.set(Math.max(1e-3, sc), Math.max(1e-3, sc / CARD_AR), 1);
+    const wc = clamp(1 - Math.abs(sIn - j), 0, 1);                         // qué tan "del frente" es (continuo: sin brincos)
+    let b = (0.28 + 0.72 * sm(-0.2, 1, face)) * (0.62 + 0.38 * wc) * fade;
     if (j !== rp.open) b *= 1 - 0.97 * rpView;                            // con un rubro abierto, las demás se retiran
     ud.u.uBright.value = b;
-    ud.u.uEdge.value = 0.3 + 0.7 * Math.max(ud.hover, j === cur ? 0.55 : 0, j === rp.open ? 1 : 0);
+    ud.u.uEdge.value = (0.3 + 0.7 * Math.max(ud.hover, 0.55 * wc, j === rp.open ? 1 : 0)) * fade;
   });
 
   // textos: aparecen al acercarte, la cámara los atraviesa al seguir
@@ -1216,7 +1304,7 @@ function frame() {
     if (i === 3) { o.position.copy(o.userData.base); o.position.y -= SPI.drop * sIn; }   // baja con la cámara de rubro en rubro
     const ratio = tmp.copy(o.position).sub(camera.position).dot(camFwd) / o.userData.d;   // 1 = a 1:1; 0.5 = al doble
     const op = vis * sm(0.5, 0.78, ratio) * (i === 3 ? 1 - rpView : 1);   // con un rubro abierto manda el panel
-    const on = op > 0.01;
+    const on = (i === 3 ? op / Math.max(0.001, 1 - rpView) : op) > 0.01;   // (casos: se desvanece, no se quita del DOM)
     if (o.visible !== on) o.visible = on;
     const el = sections[i];
     const opS = op.toFixed(3);

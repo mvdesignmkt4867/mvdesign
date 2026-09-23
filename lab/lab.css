@@ -124,6 +124,8 @@ html.is-3d .scene--ring.is-compact .svc-grid b { font-size: calc(var(--u) * 3.5)
 .proj__name { font: 600 15px/1.25 "Montserrat", sans-serif; color: #fff; }
 .proj__sector, .proj__chip { font-size: 11px; color: var(--fg-3); }
 .proj__desc { flex-basis: 100%; font-size: 12px; line-height: 1.55; color: var(--fg-2); }
+.proj__img { flex-basis: 100%; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 12px; border: 1px solid var(--line); margin-bottom: 6px; }
+.proj__url { font-size: 11px; color: #fff; text-decoration: underline; text-underline-offset: 3px; pointer-events: auto; }
 .chip { margin-top: 4px; padding: 6px 11px; border: 1px solid rgba(255,255,255,.25); border-radius: 999px; font-size: 10.5px; color: #fff; background: rgba(7,7,11,.35); }
 .chip--cta { padding: 9px 16px; font-size: 11px; letter-spacing: .06em; border-color: rgba(255,255,255,.4); transition: background .3s, border-color .3s, transform .4s var(--ease); }
 .chip--cta:hover { background: rgba(255,255,255,.1); border-color: #fff; transform: translateY(-1px); }
@@ -155,8 +157,11 @@ html.is-3d .orbit-cap { display: flex; align-items: center; gap: 18px; pointer-e
 }
 .rpanel::-webkit-scrollbar { display: none; }
 html:not(.is-3d) .rpanel { display: none; }
-.rpanel.is-open { visibility: visible; pointer-events: auto; }
-.rpanel.is-closing { pointer-events: none; }
+/* en horizontal la caja del panel es transparente: su espacio vacío deja pasar clics y rueda (índice, espiral) */
+.rpanel.is-open { visibility: visible; }
+.rpanel.is-open > * { pointer-events: auto; }
+.rpanel.is-closing, .rpanel.is-closing > * { pointer-events: none; }
+.rp-fly { position: fixed; inset: 0; z-index: 7; pointer-events: none; }   /* las subfichas vuelan aquí, sin recorte */
 .rpanel__head { margin-bottom: 24px; transition: opacity .35s ease; }
 .rpanel__close { color: var(--fg-2); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; padding: 8px 0; margin-bottom: 14px; transition: color .3s; }
 .rpanel__close:hover { color: #fff; }
@@ -209,7 +214,7 @@ html:not(.is-3d) .rpanel { display: none; }
 body.rp-open .wa { opacity: 0; transform: translateY(12px); pointer-events: none; }
 body.rp-open .hud--tr { opacity: 0; }
 .hud--tl .mono { transition: opacity .5s ease; }
-@media (max-aspect-ratio: 4/5) { body.rp-open .hud--tl .mono, body.rp-open .hud--bl { opacity: 0; } }
+@media (max-aspect-ratio: 799/1000) { body.rp-open .hud--tl .mono, body.rp-open .hud--bl { opacity: 0; } }
 .hud--tr { transition: opacity .5s ease; }
 
 /* ---------- contacto ---------- */
@@ -293,8 +298,9 @@ html:not(.is-3d) .idx, html:not(.is-3d) .restart, html:not(.is-3d) .scroll-cue {
   .scroll-cue i::after { animation: none; }
 }
 
-/* vertical (mismo corte que lab.js: ancho/alto < 0.8): el panel es una hoja que sube desde abajo */
-@media (max-aspect-ratio: 4/5) {
+/* vertical (mismo corte que lab.js: ancho/alto < 0.8, estricto): el panel es una hoja sólida que sube desde abajo */
+@media (max-aspect-ratio: 799/1000) {
+  .rpanel.is-open { pointer-events: auto; }
   .rpanel {
     top: auto; left: 0; width: auto; height: 60vh; height: 60svh;
     padding: 20px 16px calc(28px + env(safe-area-inset-bottom));

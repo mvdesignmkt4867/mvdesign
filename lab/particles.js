@@ -37,11 +37,11 @@ vec4 mvTarget(vec2 u){
   vec3 t = mix(mix(mix(mp + uStart, ring, eA), helix, eC), mp + uEnd, eB);
   // casos: TODAS forman la cinta de la espiral de rubros (por dentro de las fichas: no les pasan encima)
   // y giran con ella; al pasar al cierre se sueltan en cascada y arman la M al pie de la espiral
-  float dsel = mvStag(uPlanet, fract(seed * 7.13)) * eB;
+  float dsel = mvStag(uPlanet, fract(seed * 7.13)) * smoothstep(0., .25, uB);
   // posición a lo largo (la semilla, así llegan en orden), ancho y grosor de la cinta con azar independiente
   // (de la misma semilla saldrían líneas, no una banda)
   float along = fract(seed * 7.13) * (uSpiralK.y + .9) - .7;                  // en rubros: un poco antes del primero y después del último
-  float sa = along * uSpiralK.x + uSpiral.w + uTime * .04 + (fract(rg.x * .15915) - .5) * .32;
+  float sa = along * uSpiralK.x + uSpiral.w + sin(uTime * .15 + along) * .06 + (fract(rg.x * .15915) - .5) * .32;   // en fase con las fichas
   float sr = uSpiral.z * (.52 + .38 * rg.w);
   vec3 spiral = vec3(uEnd.x + sin(sa) * sr, uSpiral.x - along * uSpiral.y + rg.z * 1.7, uEnd.z + cos(sa) * sr);
   t = mix(t, spiral, dsel);
