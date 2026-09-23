@@ -140,7 +140,7 @@ void main(){
   float rim = 0.;
   float k = (core + rim) * vA;
   if (k < .015) discard;
-  gl_FragColor = vec4(vC * k, .5);   // alfa .5 = "color exacto con brillo" (lo lee el paso de salida)
+  gl_FragColor = vec4(vC * k, 1. - .5 * smoothstep(.03, .3, k));   // .5 = color exacto; se funde suave con la escena
 }
 `;
 
@@ -254,8 +254,11 @@ export function createParticles({ renderer, geos, holderMatrix, mobile, reduced,
   const mk = (mirror) => {
     const pts = new THREE.Points(geo, new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, blending: THREE.CustomBlending,
-      blendEquation: THREE.MaxEquation, blendEquationAlpha: THREE.AddEquation,
-      blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor, blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.ZeroFactor,
+      blendEquation: THREE.MaxEquation,
+      // la M: alfa = mínimo (las fichas guardan su 0); el reflejo bajo el piso no toca la máscara
+      blendEquationAlpha: mirror ? THREE.AddEquation : THREE.MinEquation,
+      blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor,
+      blendSrcAlpha: mirror ? THREE.ZeroFactor : THREE.OneFactor, blendDstAlpha: mirror ? THREE.OneFactor : THREE.OneFactor,
       uniforms: renderUniforms(mirror), vertexShader: RENDER_VERT, fragmentShader: RENDER_FRAG
     }));
     pts.frustumCulled = false;

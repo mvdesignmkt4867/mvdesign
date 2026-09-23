@@ -10,7 +10,7 @@
   <link rel="icon" type="image/svg+xml" href="../assets/logos/mv-design-mark-color.svg" />
   <link rel="preload" href="../assets/fonts/montserrat-latin.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="preload" href="../assets/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
-  <link rel="stylesheet" href="lab.css?v=16" />
+  <link rel="stylesheet" href="lab.css?v=17" />
   <noscript><style>.curtain { display: none; }</style></noscript>
   <script type="importmap">
   {
@@ -111,12 +111,13 @@
           <div class="g-cap"><span class="mono">Manzanas gourmet</span><b>Manzzani</b><span class="chip mono">Shopify + redes</span></div>
         </li>
       </ul>
-      <div class="orbit-cap" aria-live="polite">
+      <p class="sr-only" aria-live="polite" data-cap-live></p>
+      <div class="orbit-cap">
         <button type="button" class="arrow" data-case-prev aria-label="Caso anterior">←</button>
         <p class="orbit-cap__txt">
-          <span class="mono" data-cap-meta>Pasa el cursor por una ficha</span>
+          <span class="mono" data-cap-meta>Pasa el cursor o elige una ficha</span>
           <b data-cap-name>Cinco marcas en órbita</b>
-          <span class="chip mono" data-cap-chip hidden></span>
+          <span class="chip mono is-empty" data-cap-chip>—</span>
         </p>
         <button type="button" class="arrow" data-case-next aria-label="Caso siguiente">→</button>
       </div>
@@ -157,6 +158,6 @@
       setTimeout(function () { if (!document.documentElement.classList.contains("is-3d")) off(); }, 4000);
     })();
   </script>
-  <script type="module" src="lab.js?v=45"></script>
+  <script type="module" src="lab.js?v=48"></script>
 </body>
 </html>

@@ -18,7 +18,7 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { CSS3DRenderer, CSS3DObject } from "three/addons/renderers/CSS3DRenderer.js";
-import { createParticles } from "./particles.js?v=15";
+import { createParticles } from "./particles.js?v=16";
 
 const canvas = document.querySelector("[data-gl]");
 const curtain = document.querySelector("[data-curtain]");
@@ -351,6 +351,14 @@ async function buildM() {
   scene.add(particles.points);
   scene.add(particles.reflection);                  // la reflexión se voltea en su propio shader
   geos.forEach((g) => g.dispose());
+  try {   // precompila todo (fichas incluidas) contra el búfer del composer
+    cards.forEach((m) => { m.visible = true; });
+    renderer.setRenderTarget(composer.readBuffer);
+    renderer.compile(scene, camera);
+  } catch (e) {} finally {
+    renderer.setRenderTarget(null);
+    cards.forEach((m) => { m.visible = false; });
+  }
 }
 
 const raycaster = new THREE.Raycaster();
@@ -405,35 +413,39 @@ function loadCaseTextures() {
   }));
 }
 setTimeout(loadCaseTextures, 3000);
-let orbitBase = 0, orbitSpeed = 0.14, orbitSel = -1, orbitFocus = -2;
+let orbitBase = 0, orbitSpeed = 0.2, orbitSel = -1, orbitFocus = -2;
 const capMeta = document.querySelector("[data-cap-meta]"), capName = document.querySelector("[data-cap-name]"), capChip = document.querySelector("[data-cap-chip]");
+const capLive = document.querySelector("[data-cap-live]");
 const hoverCapable = matchMedia("(hover: hover)").matches;
 function showCaption(i) {
   if (i === orbitFocus) return;
   orbitFocus = i;
   const cs = CASES[i];
-  if (capMeta) capMeta.textContent = cs ? `${String(i + 1).padStart(2, "0")} / 05 · ${cs.sector}` : (hoverCapable ? "Pasa el cursor por una ficha" : "Toca una ficha");
+  if (capMeta) capMeta.textContent = cs ? `${String(i + 1).padStart(2, "0")} / 05 · ${cs.sector}` : (hoverCapable ? "Pasa el cursor o elige una ficha" : "Toca una ficha");
   if (capName) capName.textContent = cs ? cs.name : "Cinco marcas en órbita";
-  if (capChip) { capChip.textContent = cs ? cs.chip : ""; capChip.hidden = !cs; }
+  if (capChip) { capChip.textContent = cs ? cs.chip : ""; capChip.classList.toggle("is-empty", !cs); }
+}
+// elegir (clic, toque, flechas): la ficha vuela al centro de la órbita y se presenta grande.
+// Sólo las elecciones explícitas se anuncian al lector de pantalla (el hover no).
+function select(i) {
+  orbitSel = i;
+  if (capLive) capLive.textContent = i >= 0 ? `${CASES[i].name}. ${CASES[i].sector}. ${CASES[i].chip}.` : "";
 }
 // la ficha más al frente de la órbita ahora mismo
 const frontCard = () => cards.reduce((best, m, i) => (Math.sin(orbitBase + i * TAU / 5) > Math.sin(orbitBase + best * TAU / 5) ? i : best), 0);
-function selectCase(dirn) {
-  const start = orbitSel >= 0 ? orbitSel : frontCard() - (dirn > 0 ? 1 : -1) + 5;
-  orbitSel = (((start + dirn) % 5) + 5) % 5;
-}
+const selectCase = (dirn) => select(orbitSel < 0 ? frontCard() : (orbitSel + dirn + 5) % 5);
 document.querySelector("[data-case-prev]")?.addEventListener("click", () => selectCase(-1));
 document.querySelector("[data-case-next]")?.addEventListener("click", () => selectCase(1));
-// tocar / hacer clic en una ficha la trae al frente; tocar fuera la suelta
+// tocar / hacer clic en una ficha la presenta; tocar la presentada o fuera la regresa a la órbita
 let downX = 0, downY = 0, downT = 0;
 addEventListener("pointerdown", (e) => { downX = e.clientX; downY = e.clientY; downT = performance.now(); }, { passive: true });
 addEventListener("pointerup", (e) => {
-  if (active !== 3 || (e.target.closest && e.target.closest("button, a"))) return;
+  if (active !== 3 || (e.target.closest && e.target.closest("button, a, .orbit-cap, .hud"))) return;
   if (Math.hypot(e.clientX - downX, e.clientY - downY) > 10 || performance.now() - downT > 450) return;
   const pt = new THREE.Vector2(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
   raycaster.setFromCamera(pt, camera);
   const hit = raycaster.intersectObjects(cards.filter((m) => m.visible), false)[0];
-  orbitSel = hit ? (orbitSel === hit.object.userData.i ? -1 : hit.object.userData.i) : -1;
+  select(hit && orbitSel !== hit.object.userData.i ? hit.object.userData.i : -1);
 }, { passive: true });
 
 /* ---------- Posproceso ---------- */
@@ -466,7 +478,7 @@ const outputPass = new ShaderPass({
     vec3 toSRGB(vec3 c){ c = clamp(c, 0., 1.); return mix(c * 12.92, 1.055 * pow(c, vec3(1. / 2.4)) - .055, step(vec3(.0031308), c)); }
     void main(){
       vec4 t = texture2D(tDiffuse, vUv);
-      vec3 c = t.a > .75 ? aces(t.rgb) : t.rgb;
+      vec3 c = mix(t.rgb, aces(t.rgb), smoothstep(.5, 1., t.a));
       gl_FragColor = vec4(toSRGB(c), 1.);
     }`
 });
@@ -497,6 +509,7 @@ const sections = [...document.querySelectorAll(".scene[data-scene]")];
 const labels = sections.map((el) => {
   const o = new CSS3DObject(el);
   el.style.userSelect = ""; el.style.webkitUserSelect = "";           // correo y teléfonos se pueden copiar
+  el.style.pointerEvents = "";                                         // sólo botones y enlaces reciben clics
   cssScene.add(o); return o;
 });
 
@@ -513,7 +526,7 @@ function buildPath() {
   const E = END_Z;
   if (portrait) {
     KEYS.pos = [V(0, 2.1, 13.5), V(0, 1.9, 12.5), V(0, AXIS_Y, -9), V(0, AXIS_Y + 4.2, E + 16.5), V(0, 2.1, E + 13.5)];
-    KEYS.look = [V(0, 0.75, 0), V(0, 1.6, -4.2), V(0, AXIS_Y, -24), V(0, AXIS_Y + 1.2, E), V(0, 1.15, E)];
+    KEYS.look = [V(0, 0.75, 0), V(0, 1.6, -4.2), V(0, AXIS_Y, -24), V(0, AXIS_Y + 0.6, E), V(0, 1.15, E)];
     FOCUS = [13.6, 16.7, 9, 17, 13.6];
   } else {
     KEYS.pos = [V(0, 1.9, 12), V(0, AXIS_Y, 9.8), V(0, AXIS_Y, -9), V(0, AXIS_Y + 1.5, E + 15.4), V(0, 1.9, E + 12)];
@@ -679,10 +692,11 @@ function setActive(a) {
 
 /* ---------- Cursor: rayo en el mundo para empujar partículas ---------- */
 const ndc = new THREE.Vector2(), smooth = new THREE.Vector2();
-let pointerOn = 0, lastMove = 0;
+let pointerOn = 0, lastMove = 0, overUI = false;
 addEventListener("pointermove", (e) => {
   ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
   pointerOn = 1; lastMove = now();
+  overUI = !!(e.target.closest && e.target.closest(".orbit-cap, .hud, .wa, a, button"));
 }, { passive: true });
 document.documentElement.addEventListener("pointerleave", () => { pointerOn = 0; });
 addEventListener("touchend", () => { pointerOn = 0; }, { passive: true });
@@ -690,7 +704,7 @@ addEventListener("touchend", () => { pointerOn = 0; }, { passive: true });
 /* ---------- Loop ---------- */
 const easeOut = (t) => 1 - Math.pow(1 - t, 4);
 const clock = new THREE.Clock();
-const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), camFwd = new THREE.Vector3();
+const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), tmp3 = new THREE.Vector3(), camFwd = new THREE.Vector3();
 let t0 = null, lastT = 0, vel = 0, mouseAmt = 0;
 
 function frame() {
@@ -753,7 +767,8 @@ function frame() {
   tunnel.forEach((r) => ringDim(r, 0.6 * sm(1.25, 1.9, p) * (1 - sm(2.45, 2.9, p))));   // al salir del túnel se apagan
   ringTime.value = t;
 
-  // órbita de casos: inclinación viva del anillo (precesión suave)
+  // órbita de casos: inclinación viva del anillo (precesión suave) y tamaño según el alto disponible
+  const orbitFit = portrait ? 1 : clamp((innerHeight - 330) / 570, 0.55, 1);
   const orbitTilt = (portrait ? 0.38 : 0.12) + (reduced ? 0 : Math.sin(t * 0.21) * 0.03);
 
   // partículas: armar → anillo → túnel → armar de nuevo al final
@@ -766,7 +781,7 @@ function frame() {
     // casos: las partículas son el anillo de la órbita; en el cierre vuelven y arman la M
     U.uPlanet.value = sm(2.2, 2.7, p) * (1 - sm(3.25, 3.85, p));
     U.uTilt.value = orbitTilt;
-    U.uDust.value.set(portrait ? 1.45 : 2.9, portrait ? 3.0 : 5.8);
+    U.uDust.value.set(portrait ? 1.45 : 2.9 * orbitFit, portrait ? 3.0 : 5.8 * orbitFit);
     const bob = reduced ? 0 : Math.sin(t * 0.6) * 0.04;
     U.uStart.value.set(0, AXIS_Y + bob, 0);
     U.uEnd.value.set(0, AXIS_Y + bob, END_Z);
@@ -786,24 +801,28 @@ function frame() {
   // casos: las fichas orbitan la M; entran girando, se detienen con el cursor y se van al pasar al contacto
   const cIn = sm(2.3, 2.95, p), cOut = sm(3.2, 3.62, p), cVis = cIn * (1 - cOut);
   if (p > 1.4) loadCaseTextures();
-  if (active !== 3) orbitSel = -1;
+  if (active !== 3 && orbitSel >= 0) select(-1);
+  // hover (sólo con mouse, fuera de la interfaz y si no hay una ficha presentada): pausa la órbita
   let hov = -1;
-  if (cVis > 0.5 && hoverCapable && pointerOn) {
+  if (cVis > 0.5 && hoverCapable && pointerOn && !overUI && orbitSel < 0) {
     raycaster.setFromCamera(ndc, camera);
     const hit = raycaster.intersectObjects(cards.filter((m) => m.visible), false)[0];
     if (hit) hov = hit.object.userData.i;
   }
-  const focus = hov >= 0 ? hov : orbitSel;
+  const focus = orbitSel >= 0 ? orbitSel : hov;                          // lo elegido manda sobre el hover
   if (cVis > 0.01) showCaption(focus);
-  document.body.style.cursor = hov >= 0 ? "pointer" : "";
+  const wantCursor = hov >= 0 ? "pointer" : "";
+  if (document.body.style.cursor !== wantCursor) document.body.style.cursor = wantCursor;
   orbitSpeed += ((focus >= 0 || reduced ? 0 : 0.2) - orbitSpeed) * (1 - Math.exp(-dt * 3));
-  if (orbitSel >= 0 && hov < 0) {   // la elegida viene al frente
-    let dA = (Math.PI / 2 - orbitSel * TAU / 5) - orbitBase;
-    dA = Math.atan2(Math.sin(dA), Math.cos(dA));
-    orbitBase += dA * (1 - Math.exp(-dt * (reduced ? 60 : 3.5)));
-  } else orbitBase += orbitSpeed * dt;
-  const ORB_R = portrait ? 2.2 : 4.3, CARD_W = portrait ? 1.3 : 2.05, TILT = orbitTilt;
+  orbitBase += orbitSpeed * dt;
+  // la órbita cabe en el cuadro: más chica en pantallas bajas o angostas
+  const fitH = orbitFit;
+  const CARD_W = (portrait ? 1.3 : 2.05) * fitH;
+  const halfW = Math.tan(THREE.MathUtils.degToRad(BASE_FOV / 2)) * 15.4 * camera.aspect;
+  const ORB_R = portrait ? 2.2 : Math.max(2.4, Math.min(4.3 * fitH, halfW * 0.92 - CARD_W / 2));
+  const TILT = orbitTilt, PRES = portrait ? 3.3 : 1.75;
   const C = tmp2.set(0, AXIS_Y + (reduced ? 0 : Math.sin(t * 0.6) * 0.04), END_Z);
+  const presPos = tmp3.copy(C).addScaledVector(camFwd, -2.2);           // al centro, un poco hacia ti
   cards.forEach((m) => {
     const ud = m.userData, i = ud.i;
     m.visible = cVis > 0.01 && ud.ready;
@@ -813,16 +832,20 @@ function frame() {
     const x = Math.cos(th) * R, z = Math.sin(th) * R;
     const bob = reduced ? 0 : Math.sin(t * 0.8 + i * 1.7) * 0.09;           // flotan, cada una a su ritmo
     m.position.set(C.x + x, C.y + bob - z * Math.sin(TILT), C.z + z * Math.cos(TILT));
-    ud.lift += ((i === focus ? 1 : 0) - ud.lift) * (1 - Math.exp(-dt * 7));
-    m.position.addScaledVector(camFwd, -1.1 * ud.lift);                     // la enfocada se acerca
-    const sc = CARD_W * cVis * (1 + 0.42 * ud.lift);
+    const k = reduced ? 60 : 5;
+    ud.lift += ((i === orbitSel ? 1 : 0) - ud.lift) * (1 - Math.exp(-dt * k));
+    ud.hover = (ud.hover || 0) + ((i === hov ? 1 : 0) - (ud.hover || 0)) * (1 - Math.exp(-dt * 8));
+    const e = ud.lift * ud.lift * (3 - 2 * ud.lift);
+    m.position.lerp(presPos, e);                                           // la elegida vuela al centro
+    m.position.addScaledVector(camFwd, -0.35 * ud.hover);                  // la del hover apenas se acerca
+    const sc = CARD_W * cVis * (1 + (PRES - 1) * e + 0.1 * ud.hover);
     m.scale.set(sc, sc / CARD_AR, 1);
     m.quaternion.copy(camera.quaternion);                                  // siempre de frente
     const near = (Math.sin(th) + 1) / 2;
     let b = 0.5 + 0.5 * near;
-    if (focus >= 0) b = i === focus ? 1.05 : b * 0.55;
+    if (focus >= 0) b = i === focus ? 1.05 : b * 0.5;
     ud.u.uBright.value = b;
-    ud.u.uEdge.value = 0.35 + 0.65 * ud.lift;
+    ud.u.uEdge.value = 0.35 + 0.65 * Math.max(e, ud.hover);
   });
 
   // textos: aparecen al acercarte, la cámara los atraviesa al seguir

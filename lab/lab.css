@@ -125,7 +125,9 @@ html.is-3d .scene--cases .gallery {   /* en 3D la lista sólo existe para lector
 }
 .orbit-cap { display: none; }
 html.is-3d .orbit-cap { display: flex; align-items: center; gap: 18px; pointer-events: auto; }
-.orbit-cap__txt { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: min(360px, 56vw); }
+.orbit-cap__txt { display: flex; flex-direction: column; align-items: center; gap: 6px; width: min(380px, 58vw); min-height: 92px; }   /* tamaño fijo: las flechas no brincan */
+.orbit-cap .chip.is-empty { visibility: hidden; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .orbit-cap__txt .mono { color: var(--fg-3); font-size: 11px; letter-spacing: .08em; }
 .orbit-cap__txt b { font: 600 clamp(18px, 1.9vw, 26px)/1.15 "Montserrat", sans-serif; letter-spacing: -.02em; color: #fff; }
 .arrow { width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); font-size: 15px; color: #fff; transition: background .3s, border-color .3s; flex: none; }
@@ -182,6 +184,9 @@ html:not(.is-3d) .idx, html:not(.is-3d) .restart, html:not(.is-3d) .scroll-cue {
 html:not(.is-3d) .g-cap { opacity: 1; transform: none; }
 html:not(.is-3d) .g-item::before { opacity: 1; }
 html:not(.is-3d) .g-item::after { opacity: 0; }
+html:not(.is-3d) .gallery { height: auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+html:not(.is-3d) .g-item { flex: none; aspect-ratio: 4 / 3; }
+html:not(.is-3d) .g-cap b { white-space: normal; }
 
 @media (max-width: 1180px) {
   .hud--tr { display: none; }
