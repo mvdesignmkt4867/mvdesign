@@ -18,7 +18,7 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { CSS3DRenderer, CSS3DObject } from "three/addons/renderers/CSS3DRenderer.js";
-import { createParticles, BLAST_GLSL } from "./particles.js?v=18";
+import { createParticles, BLAST_GLSL, BLAST_N } from "./particles.js?v=19";
 
 const canvas = document.querySelector("[data-gl]");
 const curtain = document.querySelector("[data-curtain]");
@@ -29,7 +29,7 @@ const END_Z = -40;     // donde la M se vuelve a armar: el planeta de los casos 
 const AXIS_Y = 1.9;    // centro de la M, del eclipse y del túnel
 const RING_Z = -7;     // el eclipse: más atrás y más grande (el manifiesto vive dentro)
 const RING_S = 1.55;   // radio del eclipse ≈ 3.57
-const M_S = 1.3;       // la M, más grande
+const M_S = 1.3;       // la M, más grande (mínimo; buildPath la ajusta según la distancia de la cámara)
 const TUNNEL_STEP = 6, TUNNEL_N = 5, TUNNEL_END = RING_Z - TUNNEL_STEP * TUNNEL_N;   // servicios vive dentro del último anillo
 const RING_R = 2.304;                                   // radio del anillo a escala 1 (plano de 7.2, filo en r = .64)
 const SUN_R = RING_R * RING_S, TUN_R = RING_R * RING_S * (1 + TUNNEL_N * 0.03);
@@ -38,7 +38,7 @@ const sm = (a, b, v) => { const t = clamp((v - a) / (b - a), 0, 1); return t * t
 const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
 // resolución adaptable: arranca moderada y se ajusta sola según lo que aguante el equipo
-const DPR_MAX = Math.min(devicePixelRatio || 1, mobile ? 1.5 : 1.75);
+let DPR_MAX = Math.min(devicePixelRatio || 1, mobile ? 1.5 : 1.75);   // se vuelve a leer al cambiar el zoom (resize)
 let DPR = Math.min(DPR_MAX, mobile ? 1.25 : 1.5);
 
 /* ---------- Renderer ---------- */
@@ -268,17 +268,22 @@ ambGeo.setAttribute("aSeed", new THREE.BufferAttribute(aseed, 1));
 ambGeo.setAttribute("aTint", new THREE.BufferAttribute(atint, 3));
 // clic = explosión invisible (ver BLAST_GLSL): la comparten las partículas de la M y el polvo de fondo
 const BLAST = {
-  uBlastO: { value: [new THREE.Vector3(), new THREE.Vector3()] }, uBlastD: { value: [new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 0, -1)] },
-  uBlastT: { value: [99, 99] }, uBlastP: { value: [99, 99] }, uBlastK: { value: reduced ? 0 : 1 }
+  uBlastO: { value: Array.from({ length: BLAST_N }, () => new THREE.Vector3()) },
+  uBlastD: { value: Array.from({ length: BLAST_N }, () => new THREE.Vector3(0, 0, -1)) },
+  uBlastT: { value: new Array(BLAST_N).fill(99) }, uBlastP: { value: new Array(BLAST_N).fill(99) }, uBlastK: { value: reduced ? 0 : 1 }
 };
-let blastSlot = 0;
+const blastRay = new THREE.Raycaster(), blastPt = new THREE.Vector2();
 function fireBlast(x, y) {
   if (reduced) return;
-  blastSlot = 1 - blastSlot;
-  raycaster.setFromCamera(new THREE.Vector2(x / innerWidth * 2 - 1, -(y / innerHeight) * 2 + 1), camera);
-  BLAST.uBlastO.value[blastSlot].copy(raycaster.ray.origin);
-  BLAST.uBlastD.value[blastSlot].copy(raycaster.ray.direction);
-  BLAST.uBlastT.value[blastSlot] = BLAST.uBlastP.value[blastSlot] = 0;
+  // la ranura más vieja; si hasta esa sigue visible (< 0.9 s), se ignora el clic: nunca se corta una onda en pantalla
+  const T = BLAST.uBlastT.value;
+  let s = 0;
+  for (let i = 1; i < BLAST_N; i++) if (T[i] > T[s]) s = i;
+  if (T[s] < 0.9) return;
+  blastRay.setFromCamera(blastPt.set(x / innerWidth * 2 - 1, -(y / innerHeight) * 2 + 1), camera);
+  BLAST.uBlastO.value[s].copy(blastRay.ray.origin);
+  BLAST.uBlastD.value[s].copy(blastRay.ray.direction);
+  T[s] = 0; BLAST.uBlastP.value[s] = -1;          // previo detrás del frente: el primer cuadro entrega el impulso completo
 }
 const AU = {
   uTime: { value: 0 }, uPx: { value: DPR }, uSpeed: { value: 0 },
@@ -478,7 +483,7 @@ addEventListener("pointerup", (e) => {
   if (onUI(e)) return;
   if (Math.hypot(e.clientX - downX, e.clientY - downY) > 10 || performance.now() - downT > 450) return;
   const hit = cardAt(e.clientX, e.clientY);
-  if (e.pointerType !== "mouse" && !hit) fireBlast(e.clientX, e.clientY);
+  if (e.pointerType !== "mouse" && e.button === 0 && !hit) fireBlast(e.clientX, e.clientY);   // (el botón lateral del lápiz no)
   if (active === 3) select(hit && orbitSel !== hit.object.userData.i ? hit.object.userData.i : -1);
 }, { passive: true });
 
@@ -554,11 +559,14 @@ const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const KEYS = { pos: [], look: [] };
 // ancla de cada texto: distancia frente a la cámara de su escena y desplazamiento vertical (fracción de pantalla)
 // (manifiesto y servicios se anclan en el plano de su anillo: ver buildPath)
-const TEXT_DESK = [{ d: 11, oy: 0.28 }, { oy: 0 }, { oy: 0 }, { d: 9.5, oy: 0 }, { d: 13.5, oy: 0.27 }];
+// (en las de anillo, oy es fracción del diámetro del anillo: servicios sube un poco porque su base es más ancha)
+const TEXT_DESK = [{ d: 11, oy: 0.28 }, { oy: 0 }, { oy: -0.04 }, { d: 9.5, oy: 0 }, { d: 13.5, oy: 0.27 }];
 const TEXT_PORT = [{ d: 14, oy: 0.17 }, { oy: 0 }, { oy: 0 }, { d: 9.5, oy: 0 }, { d: 17.5, oy: 0.25 }];
 // qué tanto del lado corto de la pantalla ocupa el anillo cuando llegas a su escena
 const RING_FILL = { land: 0.84, port: 0.96 };
 const mLook = new THREE.Matrix4(), qTmp = new THREE.Quaternion();
+// escala de la M y ventana lejana de los anillos: dependen del encuadre (buildPath)
+let mScale = M_S, FAR_SUN = 20, FAR_TUN = 20, mouseRef = 12;
 function buildPath() {
   const E = END_Z;
   const tanH = Math.tan(THREE.MathUtils.degToRad(BASE_FOV / 2));
@@ -568,7 +576,12 @@ function buildPath() {
   const view = (R) => R / (fill * tanH * Math.min(1, innerWidth / innerHeight));
   const dSun = view(SUN_R), dTun = view(TUN_R);
   const k1 = RING_Z + dSun;                        // manifiesto: frente al eclipse
-  const k0 = k1 + (portrait ? 6 : 6.5);            // el inicio, más atrás: el viaje al manifiesto se siente
+  const k0 = k1 + (portrait ? 3.5 : 5);            // el inicio, más atrás: el viaje al manifiesto se siente
+  // la M crece con la distancia: se ve ~12 % más grande que antes (cámara a 12 / 13.5) sin tocar el piso
+  mScale = clamp(1.12 * k0 / (portrait ? 13.5 : 12), M_S, portrait ? 1.5 : 1.45);
+  mouseRef = portrait ? 13.5 : 12;
+  FAR_SUN = k0 - RING_Z + 8;                       // el eclipse nunca se apaga por lejanía en su encuadre (ni en el dolly de entrada)
+  FAR_TUN = Math.max(20, dTun + 2);
   if (portrait) {
     KEYS.pos = [V(0, 2.3, k0), V(0, AXIS_Y, k1), V(0, AXIS_Y, TUNNEL_END + dTun), V(0, AXIS_Y + 4.2, E + 16.5), V(0, 2.5, E + 20.5)];
     KEYS.look = [V(0, 0.75, 0), V(0, AXIS_Y, RING_Z), V(0, AXIS_Y, TUNNEL_END), V(0, AXIS_Y + 0.6, E), V(0, 0.35, E)];
@@ -587,15 +600,17 @@ function buildPath() {
   const RING_AT = { 1: [SUN_R, dSun], 2: [TUN_R, dTun] };
   labels.forEach((o, i) => {
     const ring = RING_AT[i];
+    let ringD = 0;
     const d = ring ? ring[1] : T[i].d, oy = T[i].oy;
     mLook.lookAt(KEYS.pos[i], KEYS.look[i], THREE.Object3D.DEFAULT_UP);
     qTmp.setFromRotationMatrix(mLook);
     const s = (2 * d * tanH) / H;                   // unidades de mundo por píxel CSS a esa distancia
     const el = sections[i];
     if (ring) {
-      const D = (2 * ring[0]) / s;                  // diámetro del anillo en px
+      const D = ringD = (2 * ring[0]) / s;          // diámetro del anillo en px
       el.style.setProperty("--ring", D.toFixed(1) + "px");
-      el.classList.toggle("is-compact", portrait || D < 540);   // anillo chico: sólo lo esencial
+      el.style.setProperty("--ring-oy", (-oy * D).toFixed(1) + "px");   // el disco oscuro se queda en el centro del anillo
+      el.classList.toggle("is-compact", portrait || D < 600);   // anillo chico: sólo lo esencial (la letra secundaria no baja de ~10 px)
     }
     // mide el bloque (el renderer oculta con display:none las escenas lejanas)
     const prevD = el.style.display;
@@ -603,9 +618,10 @@ function buildPath() {
     const h = el.offsetHeight;
     el.style.display = prevD;
     const top = narrow ? (i === 3 ? 112 : 76) : 96, bottom = narrow ? (i === LAST || i === 3 ? 24 : 96) : 40;
-    const fit = h > 0 ? Math.min(1, (H - top - bottom) / h) : 1;   // si no cabe, se achica un poco
+    // con anillo: centrado exacto y sin achicar (su tamaño ya sale del anillo), así texto, disco y anillo son concéntricos
+    const fit = ring ? 1 : h > 0 ? Math.min(1, (H - top - bottom) / h) : 1;   // si no cabe, se achica un poco
     const half = (h * fit) / 2;
-    const cy = clamp(H / 2 + oy * H, top + half, Math.max(top + half, H - bottom - half));
+    const cy = ring ? H / 2 + oy * ringD : clamp(H / 2 + oy * H, top + half, Math.max(top + half, H - bottom - half));
     o.position.set(0, -(cy - H / 2) * s, -d).applyQuaternion(qTmp).add(KEYS.pos[i]);
     o.quaternion.copy(qTmp);
     o.scale.setScalar(s * fit);
@@ -616,6 +632,9 @@ function buildPath() {
 function resize() {
   const w = innerWidth, h = innerHeight;
   portrait = w / h < 0.8;
+  // el zoom del navegador cambia devicePixelRatio: sin esto, al alejar el búfer crece al cuádruple
+  const dprNow = Math.min(devicePixelRatio || 1, mobile ? 1.5 : 1.75);
+  if (dprNow !== DPR_MAX) { DPR_MAX = dprNow; if (DPR > DPR_MAX) applyDpr(DPR_MAX); }
   camera.aspect = w / h;
   BASE_FOV = portrait ? 40 : 28;
   camera.fov = BASE_FOV; camera.updateProjectionMatrix();
@@ -811,14 +830,14 @@ function frame() {
   sunMirror.material.uniforms.uDim.value = 0.3 * studio; sunMirror.visible = studio > 0.001;
 
   // anillos: se encienden al acercarse y se apagan al cruzarlos
-  const ringDim = (r, gate) => {
+  const ringDim = (r, gate, far) => {
     const ahead = camera.position.z - r.position.z;
-    r.material.uniforms.uDim.value = gate * sm(0.2, 2.6, ahead) * (1 - sm(20, 34, ahead));
+    r.material.uniforms.uDim.value = gate * sm(0.2, 2.6, ahead) * (1 - sm(far, far + 14, ahead));
     r.visible = r.material.uniforms.uDim.value > 0.001;
   };
-  ringDim(sun, 1);
+  ringDim(sun, 1, FAR_SUN);
   sun.material.uniforms.uClip.value = studio > 0.02 ? 1 : 0;
-  tunnel.forEach((r) => ringDim(r, 0.6 * sm(1.25, 1.9, p) * (1 - sm(2.45, 2.9, p))));   // al salir del túnel se apagan
+  tunnel.forEach((r) => ringDim(r, 0.6 * sm(1.25, 1.9, p) * (1 - sm(2.45, 2.9, p)), FAR_TUN));   // al salir del túnel se apagan
   ringTime.value = t;
 
   // órbita de casos: inclinación viva del anillo (precesión suave) y tamaño según el alto disponible
@@ -831,7 +850,8 @@ function frame() {
     U.uA.value = sm(0.05, 1.3, p);
     U.uC.value = sm(1.15, 2.1, p);
     U.uB.value = sm(2.2, 2.95, p);         // al salir del túnel la M se construye: es el planeta de los casos
-    U.uMScale.value = M_S; U.uRingS.value = RING_S; U.uRingZ.value = RING_Z;
+    U.uMScale.value = mScale; U.uRingS.value = RING_S; U.uRingZ.value = RING_Z;
+    U.uMouseK.value = clamp(camera.position.distanceTo(camLook) / mouseRef, 1, 1.7);   // el remolino del cursor sigue a la distancia
     U.uRot.value = reduced ? 0 : Math.sin(t * 0.23) * 0.22 + smooth.x * 0.1;
     // casos: las partículas son el anillo de la órbita; en el cierre vuelven y arman la M
     U.uPlanet.value = sm(2.2, 2.7, p) * (1 - sm(3.25, 3.85, p));
@@ -905,7 +925,8 @@ function frame() {
 
   // textos: aparecen al acercarte, la cámara los atraviesa al seguir
   labels.forEach((o, i) => {
-    const vis = 1 - sm(0.45, 0.85, Math.abs(p - i));
+    // Servicios vive a 3 unidades de los casos y la cámara no lo cruza: sale rápido al avanzar para no encimarse
+    const vis = i === 2 && p > 2 ? 1 - sm(0.04, 0.18, p - 2) : 1 - sm(0.45, 0.85, Math.abs(p - i));
     const ratio = tmp.copy(o.position).sub(camera.position).dot(camFwd) / o.userData.d;   // 1 = a 1:1; 0.5 = al doble
     const op = vis * sm(0.5, 0.78, ratio);
     const on = op > 0.01;
@@ -920,7 +941,7 @@ function frame() {
   beam.material.uniforms.uTime.value = t;
   dust.material.uniforms.uTime.value = reduced ? 0 : t;
   AU.uTime.value = reduced ? 0 : t;
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < BLAST_N; i++) {
     BLAST.uBlastP.value[i] = BLAST.uBlastT.value[i];
     BLAST.uBlastT.value[i] = Math.min(99, BLAST.uBlastT.value[i] + dt);
   }
