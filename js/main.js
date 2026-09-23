@@ -14,7 +14,7 @@
   if (/[?&]debug=/.test(location.search)) {
     var probe = document.createElement("script");
     probe.async = false;
-    probe.src = "js/probe.js?v=4";
+    probe.src = "js/probe.js?v=6";
     document.head.appendChild(probe);
   }
   function announceReveal() {
@@ -75,23 +75,32 @@
   }
 
   /* ---------- Split de palabras (preserva .grad) ---------- */
-  function splitWords(el) {
+  // inner = true: cada palabra lleva un .wi adentro que se desliza dentro de la
+  // máscara estática del .w (máscara de línea en CSS, ver el h1 del hero)
+  function splitWords(el, inner) {
     var nodes = Array.prototype.slice.call(el.childNodes);
     el.textContent = "";
+    var n = 0;
+    function word(content) {
+      var w = document.createElement("span");
+      w.className = "w";
+      var host = w;
+      if (inner) {
+        host = document.createElement("span"); host.className = "wi";
+        w.appendChild(host); w.style.setProperty("--i", n);
+      }
+      if (typeof content === "string") host.textContent = content; else host.appendChild(content);
+      el.appendChild(w); n++;
+    }
     nodes.forEach(function (node) {
       if (node.nodeType === 3) {
         node.textContent.split(/(\s+)/).forEach(function (chunk) {
           if (!chunk) return;
           if (/^\s+$/.test(chunk)) { el.appendChild(document.createTextNode(" ")); return; }
-          var w = document.createElement("span");
-          w.className = "w"; w.textContent = chunk;
-          el.appendChild(w);
+          word(chunk);
         });
       } else if (node.nodeType === 1) {
-        var w2 = document.createElement("span");
-        w2.className = "w";
-        w2.appendChild(node);
-        el.appendChild(w2);
+        word(node);
       }
     });
     return el.querySelectorAll(".w");
@@ -99,14 +108,15 @@
 
   var wordSets = [];
   document.querySelectorAll("[data-words]").forEach(function (el) {
-    wordSets.push({ el: el, words: splitWords(el) });
+    wordSets.push({ el: el, words: splitWords(el, el.classList.contains("hero__title")) });
   });
+  docEl.classList.add("mv-split"); // el h1 ya está partido: el CSS deja de ocultarlo
 
   /* ---------- Sin GSAP (o reduced): todo visible y fuera ----------
      OJO: aquí 'pre' todavía no existe (se declara más abajo) e introHero necesita
      GSAP, así que no se llama introHero: se quita el velo directo. Antes el velo
      se quedaba encima y bloqueaba TODOS los clics, incluido WhatsApp. */
-  if (typeof gsap === "undefined" || reduced) {
+  if (typeof gsap === "undefined" || typeof ScrollTrigger === "undefined" || reduced) {
     docEl.classList.add("no-motion"); // títulos y reveals visibles por CSS aunque falte GSAP
     document.querySelectorAll("[data-reveal]").forEach(function (el) { el.classList.add("is-in"); });
     if (window.MVHERO) window.MVHERO.setProgress(1);
@@ -160,8 +170,10 @@
      La M se escribe en CSS (~1 s, index.html + components.css). El velo se va en
      cuanto el cometa pintó su primer cuadro Y el trazo terminó; cualquier toque,
      tecla o scroll lo termina antes. Sin espera forzada: el mínimo de 5 s del
-     celular era un parche contra el congelamiento (causa real: el blur de .cosmos,
-     fase 2c). Los shaders igual se compilan antes (readPixels en hero3d.js). */
+     celular era un parche contra el congelamiento (causa real: el blur de .cosmos).
+     Los shaders se compilan en el setup de hero3d.js (compile + primer render) y
+     'mvhero:painted' espera a que la GPU termine ese cuadro (fence WebGL2, tope
+     1.5 s; sin WebGL2 avisa en el primer frame). */
   var pre = document.querySelector("[data-preloader]");
   var preDone = false;
   var phoneMode = !!(window.matchMedia && window.matchMedia("(max-width: 760px)").matches);
@@ -201,14 +213,12 @@
   INTRO_INPUTS.forEach(function (ev) { window.addEventListener(ev, onIntroInput, { passive: true, capture: true }); });
 
   /* ---------- Hero: intro + scrub de ensamble ---------- */
-  var heroTitleWords = wordSets.length ? wordSets[0].words : [];
 
   function introHero(instant) {
-    var d = instant ? 0 : 0.9;
-    var hv = { y: 0, duration: instant ? 0 : d, ease: EASE, stagger: instant ? 0 : 0.07, delay: instant ? 0 : 0.05 };
-    // móvil: reveal por opacity (compositor); desktop: el wipe original con clip-path
-    if (phoneMode) { hv.opacity = 1; } else { hv.clipPath = "inset(0 0 -10% 0)"; }
-    gsap.to(heroTitleWords, hv);
+    // el h1 entra en CSS (keyframes de transform en el compositor, fase 2f): aunque
+    // el hilo principal se trabe, el título no se congela. Mismo gesto en celular y desktop.
+    var h1 = document.querySelector(".hero__title");
+    if (h1) h1.classList.add(instant ? "is-instant" : "is-in");
     gsap.to(".hero [data-reveal]", {
       opacity: 1, y: 0, duration: instant ? 0 : 0.8, ease: EASE, stagger: 0.12, delay: instant ? 0 : 0.35
     });
@@ -360,14 +370,18 @@
     var dist = svcTrack.scrollWidth - window.innerWidth;
     if (dist <= 0) return null;
     return gsap.to(svcTrack, {
-      x: -dist, ease: "none",
+      x: function () { return -(svcTrack.scrollWidth - window.innerWidth); }, ease: "none",
       scrollTrigger: {
         trigger: svcSection,
         start: "top top",
-        end: "+=" + dist,
+        end: function () { return "+=" + (svcTrack.scrollWidth - window.innerWidth); },
         scrub: 0.6,
         pin: svcPin,
         anticipatePin: 1,
+        // enciende el orden por posición en cada refresh: los triggers de más abajo
+        // (Proceso, Casos, Paquetes, Contacto) suman el espacio del pin. Sin esto sus
+        // entradas ocurrían ~2,150 px antes, fuera de pantalla (desktop)
+        refreshPriority: 0,
         invalidateOnRefresh: true,
         onUpdate: function (st) {
           if (svcBar) svcBar.style.transform = "scaleX(" + st.progress + ")";
@@ -413,27 +427,31 @@
     });
   });
 
-  /* ---------- Casos: video de fondo — play/pause por viewport (no competir
-       con el WebGL del cometa) y respeto a prefers-reduced-motion ---------- */
+  /* ---------- Casos: video de fondo diferido (fase 2c) ----------
+     Sin autoplay ni precarga: nadie descarga los MB del video hasta acercarse a
+     Casos (a 400 px empieza a bajar; se reproduce con el 15% a la vista y se pausa
+     al salir). Con "reducir movimiento" o sin JS se queda el póster. */
   (function () {
     var vids = document.querySelectorAll(".case__video");
     if (!vids.length) return;
-    var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) {
-      vids.forEach(function (v) { v.removeAttribute("autoplay"); v.pause(); });
-      return; // se queda el poster fijo
-    }
     if (!("IntersectionObserver" in window)) {
-      vids.forEach(function (v) { v.play().catch(function () {}); });
+      vids.forEach(function (v) { v.preload = "auto"; v.play().catch(function () {}); });
       return;
     }
+    var near = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        e.target.preload = "auto"; // pasar de none a auto ya inicia la descarga
+        near.unobserve(e.target);
+      });
+    }, { rootMargin: "400px 0px" });
     var io = new IntersectionObserver(function (entries) {
       entries.forEach(function (e) {
         if (e.isIntersecting) { e.target.play().catch(function () {}); }
         else { e.target.pause(); }
       });
     }, { threshold: 0.15 });
-    vids.forEach(function (v) { io.observe(v); });
+    vids.forEach(function (v) { near.observe(v); io.observe(v); });
   })();
 
   /* ---------- Brandstrip (logos): solo corre cuando está en viewport ----------
@@ -497,16 +515,34 @@
     if (deepLink || (nav && nav.type === "back_forward")) finishPreloader(true);
   })();
 
-  /* ---------- Recalcular triggers con el layout FINAL ----------
-     El pin de servicios agrega ~2400px de spacer; los triggers creados
-     antes guardan posiciones viejas si no se refresca explícitamente. */
-  window.addEventListener("load", function () {
-    ScrollTrigger.refresh();
-    if (document.fonts && document.fonts.ready) {
-      document.fonts.ready.then(function () { ScrollTrigger.refresh(); });
+  /* ---------- Recalcular triggers solo cuando el layout cambia (fase 2b) ----------
+     Antes: refresh en load + fuentes + a los 1.5 y 3.5 s "por si acaso" (5 en los
+     primeros segundos, y los tardíos podían caer con el usuario ya scrolleando).
+     Ahora ScrollTrigger hace su refresh propio en load y, después, solo se
+     recalcula si el alto de la página cambió de verdad (fuentes, imágenes),
+     nunca con un scroll en curso y como máximo uno cada 2 s. */
+  (function () {
+    var mainEl = document.querySelector("main") || document.body;
+    var lastRefresh = 0, timer = null, lastScrollAt = 0, hAtRefresh = -1, force = false, fontsAt = -1;
+    window.addEventListener("scroll", function () { lastScrollAt = performance.now(); }, { passive: true });
+    function run() {
+      if (force && lastRefresh > fontsAt) force = false; // un refresh posterior ya midió con las fuentes
+      // otro refresh ya midió este layout (el del pin, el de load, el de resize): nada que hacer
+      if (!force && mainEl.offsetHeight === hAtRefresh) { timer = null; return; }
+      var now = performance.now();
+      // 700 ms > el scrub más largo (0.6 s): no se interrumpe un scrub en curso
+      if (now - lastScrollAt < 700 || now - lastRefresh < 2000) { timer = setTimeout(run, 250); return; }
+      timer = null; force = false; lastRefresh = now;
+      ScrollTrigger.refresh();
     }
-    // seguro extra: layouts tardíos (fuentes, restauración de scroll)
-    setTimeout(function () { ScrollTrigger.refresh(); }, 1500);
-    setTimeout(function () { ScrollTrigger.refresh(); }, 3500);
-  });
+    function safeRefresh(forced) { if (forced) force = true; if (!timer) timer = setTimeout(run, 250); }
+    ScrollTrigger.addEventListener("refresh", function () { lastRefresh = performance.now(); hAtRefresh = mainEl.offsetHeight; });
+    if ("ResizeObserver" in window) {
+      new ResizeObserver(function () { safeRefresh(false); }).observe(mainEl);
+    }
+    // si las fuentes terminaron DESPUÉS del último refresh, pueden cambiar anchos sin cambiar el alto
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(function () { fontsAt = performance.now(); safeRefresh(true); });
+    }
+  })();
 })();

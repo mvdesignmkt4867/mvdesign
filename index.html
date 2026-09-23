@@ -45,13 +45,13 @@
   <link rel="apple-touch-icon" sizes="180x180" href="assets/logos/apple-touch-icon.png" />
   <link rel="manifest" href="site.webmanifest" />
 
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,600;0,700;1,600;1,700&family=Plus+Jakarta+Sans:wght@400;500&family=JetBrains+Mono:wght@500&display=swap" />
+  <!-- Fuentes propias (fase 2e, SIL OFL): sin Google Fonts. Se precargan las 2 del h1 -->
+  <link rel="preload" href="assets/fonts/montserrat-latin.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="assets/fonts/montserrat-italic-latin.woff2" as="font" type="font/woff2" crossorigin />
 
-  <link rel="stylesheet" href="css/tokens.css?v=4" />
-  <link rel="stylesheet" href="css/base.css?v=4" />
-  <link rel="stylesheet" href="css/components.css?v=4" />
+  <link rel="stylesheet" href="css/tokens.css?v=6" />
+  <link rel="stylesheet" href="css/base.css?v=6" />
+  <link rel="stylesheet" href="css/components.css?v=6" />
 
   <script type="application/ld+json">
   {
@@ -413,7 +413,7 @@
         <div class="work__grid">
           <article class="case case--wide" data-reveal>
             <div class="case__media case__media--video" data-parallax>
-              <video class="case__video" autoplay muted loop playsinline preload="metadata"
+              <video class="case__video" muted loop playsinline preload="none"
                      poster="assets/img/case-gu-poster.jpg">
                 <source src="assets/vid/case-gu.mp4" type="video/mp4" />
               </video>
@@ -679,8 +679,8 @@
   <script src="vendor/gsap.min.js" defer></script>
   <script src="vendor/ScrollTrigger.min.js" defer></script>
   <script src="vendor/lenis.min.js" defer></script>
-  <script src="js/hero3d.js?v=4" defer></script>
-  <script src="js/main.js?v=4" defer></script>
+  <script src="js/hero3d.js?v=6" defer></script>
+  <script src="js/main.js?v=6" defer></script>
 
   <!-- Conversiones: WhatsApp = Lead (principal) · correo = Contact. Envia a Meta Pixel Y a GA4 -->
   <script>

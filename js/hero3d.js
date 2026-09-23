@@ -276,19 +276,13 @@
     resize();
 
     // Pre-compila los shaders y hace un primer draw AHORA (en el setup, detrás
-    // del preloader). En iOS, con el canvas ocluido por el preloader opaco,
-    // Safari DIFIERE la compilación GPU hasta el composite (al hacerse visible)
-    // → eso causaba el freeze de 2-3s justo al revelar el hero. `gl.readPixels`
-    // OBLIGA al GPU a terminar compile+draw de forma SÍNCRONA aquí mismo (aunque
-    // el canvas esté tapado), así el trabajo pesado ocurre detrás del loader.
+    // del preloader). El link de los shaders sigue siendo síncrono en ese primer
+    // render; lo que ya no bloquea es esperar a que la GPU termine el cuadro
+    // (antes readPixels, ahora fenceSync, fase 2g). Chequeo de shaders solo con ?debug.
+    renderer.debug.checkShaderErrors = /[?&]debug=/.test(location.search);
     try {
       renderer.compile(scene, camera);
       renderer.render(scene, camera);
-      var _gl = renderer.getContext();
-      if (_gl && _gl.readPixels) {
-        var _px = new Uint8Array(4);
-        _gl.readPixels(0, 0, 1, 1, _gl.RGBA, _gl.UNSIGNED_BYTE, _px);
-      }
     } catch (e) {}
 
     sys.scene = scene; sys.camera = camera; sys.renderer = renderer;
@@ -302,7 +296,9 @@
   });
   if (!back) return;
 
-  var front = (!reduced && mountFront) ? createSystem(mountFront, {
+  // Celular: un solo canvas (fase 2g). 600 puntos al frente no justifican un
+  // segundo contexto WebGL en el teléfono; en desktop la capa frontal se queda.
+  var front = (!reduced && mountFront && !MOBILE) ? createSystem(mountFront, {
     count: MOBILE ? 600 : 2400, ambient: 0.1,
     size: MOBILE ? 40 : 58, spreadX: 2.1, zSpread: 1.6, zBias: 2.4, dim: 0.62
   }) : null;
@@ -434,6 +430,19 @@
     if (window.MVHERO) window.MVHERO.painted = true;
     try { window.dispatchEvent(new Event("mvhero:painted")); } catch (e) {}
   }
+  // "Pintado" = la GPU terminó de compilar y dibujar el primer cuadro. Se pregunta
+  // con un fence de WebGL2 en cada frame (no bloquea). Sin WebGL2 o si tarda más
+  // de 1.5 s, se avisa igual (main.js tiene además su red de seguridad).
+  var gpuFence = null, fenceT0 = 0, glc = back.renderer.getContext();
+  function checkGpuDone() {
+    if (firstPaintDone) return;
+    if (!glc.fenceSync) { signalPaint(); return; }
+    var now = performance.now();
+    if (!gpuFence) { gpuFence = glc.fenceSync(glc.SYNC_GPU_COMMANDS_COMPLETE, 0); glc.flush(); fenceT0 = now; return; }
+    if (glc.getSyncParameter(gpuFence, glc.SYNC_STATUS) === glc.SIGNALED || now - fenceT0 > 1500) {
+      glc.deleteSync(gpuFence); gpuFence = null; signalPaint();
+    }
+  }
 
   function applySystem(sys, t, asm, spn, wv, rf, rp, headNorm, isFront) {
     var u = sys.uniforms;
@@ -457,7 +466,9 @@
     } else {
       u.uProgress.value = Math.max(asm, rf * 0.999);
       u.uWave.value = streamMode;
-      u.uDim.value = 1.0 - streamMode * 0.62 * (1.0 - backW);
+      // el "sándwich" (atrás se apaga mientras el frente lo releva) solo si hay capa
+      // frontal; en celular (un solo canvas) el cometa se queda encendido
+      u.uDim.value = front ? 1.0 - streamMode * 0.62 * (1.0 - backW) : 1.0;
     }
 
     // el M en coordenadas de MUNDO (uniforms): hero ↔ ancla real del CTA
@@ -505,7 +516,7 @@
     }
     applySystem(back, t, asm, spn, wv, rf, rp, headNorm, false);
     if (front) applySystem(front, t, asm, spn, wv, rf, rp, headNorm, true);
-    signalPaint();
+    checkGpuDone();
 
     var fd = performance.now() - f0; // costo JS+GL de este frame (para la sonda)
     if (fd > 50) { stats.slow.push([performance.now(), fd]); if (stats.slow.length > 30) stats.slow.shift(); }

@@ -242,6 +242,36 @@ main, .footer { position: relative; z-index: 2; }
   color: var(--fg-on-dark-1);
   max-width: 11ch;
 }
+/* Fase 2f · el h1 entra con máscara de línea en CSS (gesto de firma 1 del DS):
+   cada palabra (.w) es una máscara estática y su contenido (.wi) sube desde abajo
+   con transform en el compositor. El padding con margen negativo agranda la
+   máscara para no cortar la itálica de "vendes" ni la cola de la "q". */
+.js .hero__title .w {
+  clip-path: none; opacity: 1; transform: none; will-change: auto;
+  overflow: hidden; overflow: clip; vertical-align: top;
+  padding: 0.04em 0.1em 0.16em 0.04em;
+  margin: -0.04em -0.1em -0.16em -0.04em;
+}
+/* hasta que main.js parta el h1 no se asoma detrás del velo semitransparente; si
+   algo falla, a los 12 s aparece solo (igual que la salida de emergencia del velo) */
+html.js:not(.mv-split) .hero__title { opacity: 0; animation: mv-h1-failsafe 1ms linear 12s forwards; }
+@keyframes mv-h1-failsafe { to { opacity: 1; } }
+.js .hero__title .wi {
+  display: inline-block; transform: translate3d(0, 118%, 0);
+  animation: mv-line-failsafe 900ms cubic-bezier(.2, .8, .25, 1) 12s both; /* red de seguridad */
+}
+@keyframes mv-line-failsafe { from { transform: translate3d(0, 118%, 0); } to { transform: none; } }
+.js .hero__title.is-in .wi {
+  animation: mv-line-in 900ms cubic-bezier(.2, .8, .25, 1) both;
+  animation-delay: calc(50ms + var(--i, 0) * 70ms);
+}
+.js .hero__title.is-instant .wi,
+.js.no-motion .hero__title .wi { transform: none; animation: none; }
+@keyframes mv-line-in { from { transform: translate3d(0, 118%, 0); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .js .hero__title .wi { transform: none; animation: none; }
+  html.js:not(.mv-split) .hero__title { opacity: 1; animation: none; }
+}
 .hero__lead {
   font: var(--t-lead); color: var(--fg-on-dark-2);
   max-width: 47ch; margin-top: var(--s-7);

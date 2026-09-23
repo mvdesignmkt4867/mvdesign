@@ -3,10 +3,27 @@
    "Impulsando Proyectos"
    ============================================================ */
 
-/* --------- Webfonts --------- */
-/* Las fuentes se cargan vía <link> en el <head> del HTML (en paralelo con el
-   CSS, NO encadenadas con @import) y solo con los pesos que se usan.
-   Montserrat = sustituto libre del wordmark geométrico original. */
+/* --------- Webfonts (fase 2e) --------- */
+/* Auto-hospedadas en assets/fonts (SIL OFL, subset latino: ñ, acentos, ¿¡).
+   Son variables: un archivo por familia/estilo cubre los pesos que se usan.
+   Montserrat = sustituto libre del wordmark geométrico original. Las 2 de
+   Montserrat se precargan en el <head> (h1 del hero). */
+@font-face {
+  font-family: "Montserrat"; font-style: normal; font-weight: 600 700; font-display: swap;
+  src: url("../assets/fonts/montserrat-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Montserrat"; font-style: italic; font-weight: 600 700; font-display: swap;
+  src: url("../assets/fonts/montserrat-italic-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Plus Jakarta Sans"; font-style: normal; font-weight: 400 500; font-display: swap;
+  src: url("../assets/fonts/plus-jakarta-sans-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono"; font-style: normal; font-weight: 500; font-display: swap;
+  src: url("../assets/fonts/jetbrains-mono-latin.woff2") format("woff2");
+}
 
 :root {
   /* ----- Brand color stops (from logo SVG) ----- */
