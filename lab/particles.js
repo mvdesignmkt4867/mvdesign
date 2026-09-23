@@ -71,7 +71,7 @@ void main(){
   vec3 dv = w - uRayD * tr; float dist = length(dv);
   float fm = uMouse * smoothstep(uMouseR, 0., dist) * step(0., tr);
   vec3 dn = dv / max(dist, 1e-3);
-  acc += dn * fm * 55. + cross(uRayD, dn) * fm * 24.;
+  acc += dn * fm * 30. + cross(uRayD, dn) * fm * 11.;
   vel += acc * uDt;
   vel *= exp(-uDt * mix(3.2, 7.2, rel));                                     // amortiguado: un poco de rebote
   gl_FragColor = vec4(vel, 1.);
@@ -104,7 +104,7 @@ void main(){
   float sp = length(v);
   // luz del cursor: las cercanas a su rayo se encienden
   vec3 w = p - uRayO; float tr = dot(w, uRayD);
-  float near = uMouse * smoothstep(.9, 0., length(w - uRayD * tr)) * step(0., tr);
+  float near = uMouse * smoothstep(.45, 0., length(w - uRayD * tr)) * step(0., tr);
   if (uMirror > .5) p.y = -p.y;
   vec4 mv = modelViewMatrix * vec4(p, 1.);
   float z = -mv.z;
@@ -113,12 +113,13 @@ void main(){
   float calm = mvStag(uC, rgs.w) * (1. - mvStag(uB, 1. - aSeed));             // 1 = viajando por el túnel
   float base = (1.2 + aSeed * 2.2) * uPx * (19. / max(z, .1)) * mix(1., .55, calm);
   gl_PointSize = clamp(base * (1. + coc * 1.8), 1., 36.) * smoothstep(.8, 2.2, z);   // pegadas a la cámara: sin costo
-  float tw = .72 + .28 * sin(uTime * (1.3 + aSeed * 2.1) + aSeed * 50.);
-  float glint = pow(max(0., sin(uTime * .55 + aSeed * 173.)), 60.) * 3.;      // destellos ocasionales
-  vA = (tw + glint) / (1. + coc * coc * 5.) * smoothstep(1., 3.5, z) * uAlpha * mix(1., .55, calm);
+  gl_PointSize *= 1. + .18 * max(1. - mvStag(uA, aSeed), mvStag(uB, 1. - aSeed));    // la M armada, más llena
+  float asmW = max(1. - mvStag(uA, aSeed), mvStag(uB, 1. - aSeed));            // 1 = forma la M
+  float tw = mix(.72 + .28 * sin(uTime * (1.3 + aSeed * 2.1) + aSeed * 50.), 1., asmW * .75);
+  vA = tw / (1. + coc * coc * 5.) * smoothstep(1., 3.5, z) * uAlpha * mix(1., .55, calm);
   if (uMirror > .5) vA *= .7 * smoothstep(-1.8, 0., p.y) * uReflect;
-  vec3 hot = mix(aCol, vec3(.86, .95, 1.), clamp(sp * .1 + near * .45, 0., .75));   // energía y cursor
-  vC = hot * (1.7 + clamp(sp * .25, 0., 1.4) + near * 1.2);
+  vec3 hot = mix(aCol, vec3(.86, .95, 1.), clamp(sp * .05, 0., .35) * (1. - asmW));   // sólo en vuelo se encienden
+  vC = hot * (mix(1.6, 1.3, asmW) + clamp(sp * .12, 0., .6) + near * .3);
   vCoc = coc;
   gl_Position = projectionMatrix * mv;
 }
@@ -130,7 +131,9 @@ void main(){
   if (d > 1.) discard;
   float core = exp(-d * d * mix(6.5, 2.4, vCoc));                             // nítida → bokeh
   float rim = smoothstep(1., .84, d) * smoothstep(.5, .95, d) * vCoc * .35;   // borde del bokeh
-  gl_FragColor = vec4(vC * (core + rim) * vA, 1.);
+  float k = (core + rim) * vA;
+  if (k < .015) discard;
+  gl_FragColor = vec4(vC * k, .5);   // alfa .5 = "color exacto con brillo" (lo lee el paso de salida)
 }
 `;
 
@@ -199,7 +202,7 @@ export function createParticles({ renderer, geos, holderMatrix, mobile, reduced 
       gpu.setVariableDependencies(posVar, [posVar, velVar]);
       const sim = { uDt: { value: 0 }, uSnap: { value: reduced ? 1 : 0 } };
       Object.assign(velVar.material.uniforms, shared, sim, {
-        uIntro: { value: 0 }, uFlowAmt: { value: reduced ? 0 : 1 }, uMouseR: { value: 0.48 }
+        uIntro: { value: 0 }, uFlowAmt: { value: reduced ? 0 : 1 }, uMouseR: { value: 0.3 }
       });
       Object.assign(posVar.material.uniforms, shared, sim);
       const err = gpu.init();
@@ -223,7 +226,9 @@ export function createParticles({ renderer, geos, holderMatrix, mobile, reduced 
   });
   const mk = (mirror) => {
     const pts = new THREE.Points(geo, new THREE.ShaderMaterial({
-      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      transparent: true, depthWrite: false, blending: THREE.CustomBlending,
+      blendEquation: THREE.MaxEquation, blendEquationAlpha: THREE.AddEquation,
+      blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor, blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.ZeroFactor,
       uniforms: renderUniforms(mirror), vertexShader: RENDER_VERT, fragmentShader: RENDER_FRAG
     }));
     pts.frustumCulled = false;

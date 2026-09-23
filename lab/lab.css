@@ -113,6 +113,24 @@ ol, ul { list-style: none; }
 .g-item.is-open::after, .g-item:focus-visible::after { opacity: 0; }
 .g-item.is-open::before, .g-item.is-open .g-cap, .g-item:focus-visible::before, .g-item:focus-visible .g-cap { opacity: 1; transform: none; }
 
+/* ---------- casos en órbita: título arriba, el planeta en medio, el pie con el caso abajo ---------- */
+html.is-3d .scene--cases {
+  height: calc(100vh - 150px); height: calc(100svh - 150px);
+  display: flex; flex-direction: column; justify-content: space-between; align-items: center;
+}
+html.is-3d .scene--cases::before { display: none; }
+html.is-3d .scene--cases, html.is-3d .scene--cases .cases-head { pointer-events: none; }
+html.is-3d .scene--cases .gallery {   /* en 3D la lista sólo existe para lectores de pantalla */
+  position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
+.orbit-cap { display: none; }
+html.is-3d .orbit-cap { display: flex; align-items: center; gap: 18px; pointer-events: auto; }
+.orbit-cap__txt { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: min(360px, 56vw); }
+.orbit-cap__txt .mono { color: var(--fg-3); font-size: 11px; letter-spacing: .08em; }
+.orbit-cap__txt b { font: 600 clamp(18px, 1.9vw, 26px)/1.15 "Montserrat", sans-serif; letter-spacing: -.02em; color: #fff; }
+.arrow { width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); font-size: 15px; color: #fff; transition: background .3s, border-color .3s; flex: none; }
+.arrow:hover { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.3); }
+
 /* ---------- contacto ---------- */
 .ctas { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 30px; }
 .pill {
@@ -183,6 +201,8 @@ html:not(.is-3d) .g-item::after { opacity: 0; }
   .svc-grid b { font-size: 14px; }
   .svc-grid i { display: none; }
   .gallery { flex-direction: column; height: min(50vh, 480px); height: min(50svh, 480px); width: 86vw; gap: 8px; margin-top: 20px; }
+  html.is-3d .scene--cases { height: calc(100vh - 140px); height: calc(100svh - 140px); }
+  .orbit-cap { gap: 10px; }
   body[data-scene="3"] .wa { opacity: 0; transform: translateY(12px); pointer-events: none; }
   .g-item { border-radius: 14px; }
   .g-cap { left: 16px; bottom: 14px; }

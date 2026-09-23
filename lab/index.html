@@ -10,7 +10,7 @@
   <link rel="icon" type="image/svg+xml" href="../assets/logos/mv-design-mark-color.svg" />
   <link rel="preload" href="../assets/fonts/montserrat-latin.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="preload" href="../assets/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
-  <link rel="stylesheet" href="lab.css?v=14" />
+  <link rel="stylesheet" href="lab.css?v=16" />
   <noscript><style>.curtain { display: none; }</style></noscript>
   <script type="importmap">
   {
@@ -78,36 +78,48 @@
       </ol>
     </section>
 
-    <section class="scene" data-scene="3" aria-label="Casos">
-      <p class="kicker mono">04 / 05 · Casos</p>
-      <h2 class="title title--2">Marcas que hoy se ven como lo que <em class="grad">son</em>.</h2>
+    <section class="scene scene--cases" data-scene="3" aria-label="Casos">
+      <div class="cases-head">
+        <p class="kicker mono">04 / 05 · Casos</p>
+        <h2 class="title title--2">Marcas que hoy se ven como lo que <em class="grad">son</em>.</h2>
+      </div>
+      <!-- con 3D, las fichas orbitan la M en WebGL; esta lista queda para lectores de pantalla y como respaldo -->
       <ul class="gallery" data-gallery>
-        <li class="g-item" tabindex="0">
+        <li class="g-item">
           <img src="../assets/img/case-gu-poster.jpg" alt="Web 3D inmersiva de GU · Gestión Urbanística" decoding="async" fetchpriority="low" />
           <span class="g-num mono">01</span>
           <div class="g-cap"><span class="mono">Inmobiliario · Urbanismo</span><b>GU · Gestión Urbanística</b><span class="chip mono">Web 3D inmersiva</span></div>
         </li>
-        <li class="g-item" tabindex="0">
+        <li class="g-item">
           <img src="../assets/img/case-vistareal.jpg" alt="Sitio web de Vista Real Country Club" decoding="async" fetchpriority="low" />
           <span class="g-num mono">02</span>
           <div class="g-cap"><span class="mono">Club deportivo · Hospitalidad</span><b>Vista Real Country Club</b><span class="chip mono">Web institucional</span></div>
         </li>
-        <li class="g-item" tabindex="0">
+        <li class="g-item">
           <img src="../assets/img/case-blak.jpg" alt="Local de Blak Coffee &amp; Co — café de especialidad" decoding="async" fetchpriority="low" />
           <span class="g-num mono">03</span>
           <div class="g-cap"><span class="mono">Cafetería</span><b>Blak Coffee &amp; Co</b><span class="chip mono">Branding integral</span></div>
         </li>
-        <li class="g-item" tabindex="0">
+        <li class="g-item">
           <img src="../assets/img/case-protect.jpg" alt="Tienda Shopify de Protect Diversity — dermocosmética vegana" decoding="async" fetchpriority="low" />
           <span class="g-num mono">04</span>
           <div class="g-cap"><span class="mono">Dermocosmética vegana</span><b>Protect Diversity</b><span class="chip mono">E-commerce · Shopify</span></div>
         </li>
-        <li class="g-item" tabindex="0">
+        <li class="g-item">
           <img src="../assets/img/case-manzzani.jpg" alt="Tienda en línea Manzzani en Shopify" decoding="async" fetchpriority="low" />
           <span class="g-num mono">05</span>
           <div class="g-cap"><span class="mono">Manzanas gourmet</span><b>Manzzani</b><span class="chip mono">Shopify + redes</span></div>
         </li>
       </ul>
+      <div class="orbit-cap" aria-live="polite">
+        <button type="button" class="arrow" data-case-prev aria-label="Caso anterior">←</button>
+        <p class="orbit-cap__txt">
+          <span class="mono" data-cap-meta>Pasa el cursor por una ficha</span>
+          <b data-cap-name>Cinco marcas en órbita</b>
+          <span class="chip mono" data-cap-chip hidden></span>
+        </p>
+        <button type="button" class="arrow" data-case-next aria-label="Caso siguiente">→</button>
+      </div>
     </section>
 
     <section class="scene scene--contact" data-scene="4" aria-label="Contacto">
@@ -145,6 +157,6 @@
       setTimeout(function () { if (!document.documentElement.classList.contains("is-3d")) off(); }, 4000);
     })();
   </script>
-  <script type="module" src="lab.js?v=34"></script>
+  <script type="module" src="lab.js?v=37"></script>
 </body>
 </html>

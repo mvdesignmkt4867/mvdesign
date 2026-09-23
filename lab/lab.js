@@ -17,16 +17,15 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
-import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { CSS3DRenderer, CSS3DObject } from "three/addons/renderers/CSS3DRenderer.js";
-import { createParticles } from "./particles.js?v=8";
+import { createParticles } from "./particles.js?v=13";
 
 const canvas = document.querySelector("[data-gl]");
 const curtain = document.querySelector("[data-curtain]");
 const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const mobile = matchMedia("(max-width: 760px), (pointer: coarse)").matches;
 const LAST = 4;        // escenas 0..4
-const END_Z = -54;     // donde la M se vuelve a armar
+const END_Z = -40;     // donde la M se vuelve a armar: el planeta de los casos y el cierre
 const AXIS_Y = 1.9;    // centro de la M, del eclipse y del túnel
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const sm = (a, b, v) => { const t = clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
@@ -139,8 +138,8 @@ function makeRing(off = 0, glow = 1, clip = 0) {
         c = mix(c, vec3(.17,.8,.85), smoothstep(.66, 1., g));
         float R = .64;
         float ring = exp(-pow((r - R) / .012, 2.));            // filo de luz
-        float halo = exp(-pow((r - R) / .09, 2.)) * .35;        // resplandor corto
-        float corona = exp(-max(r - R, 0.) * 5.) * step(R, r) * .18;
+        float halo = exp(-pow((r - R) / .05, 2.)) * .22;        // resplandor corto (sin corona ni destellos)
+        float corona = 0.;
         float inner = smoothstep(R, R - .5, r) * .05;           // velo tenue adentro
         float fade = smoothstep(1., .82, r);
         // el eclipse se hunde suave en el piso (+1) y su reflejo sólo existe debajo (-1)
@@ -248,17 +247,19 @@ scene.add(dust);
 const GRADS = [ // [desde, hasta, color A, color B] en coordenadas del SVG (283.46²)
   [[88.59, 41.38], [194.36, 142.22], "#4892d9", "#2bccd9"],   // chevrón azul
   [[157.27, 150.49], [236.51, 71.25], "#9e43b8", "#625cd9"],  // lágrima morada
-  [[46.5, 213.2], [86.6, 173.2], "#9e43b8", "#625cd9"],       // punto morado (degradado a 45°)
+  [[39.02, 193.19], [94.11, 193.19], "#9e43b8", "#625cd9"],   // punto morado (en el SVG su degradado queda horizontal)
   [[189.93, 193.19], [245.02, 193.19], "#4892d9", "#2bccd9"]  // punto azul
 ];
 const Z_OFF = [0, 5, 0, 0]; // la lágrima va un poco al frente del chevrón
+// igual que el SVG: interpola en sRGB y después pasa a lineal (así el color en pantalla es idéntico al logo)
+const srgb = (hex) => [0, 2, 4].map((k) => parseInt(hex.slice(1 + k, 3 + k), 16) / 255);
 function paintGradient(geo, g) {
   const pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
-  const [a, b, ca, cb] = g, A = new THREE.Color(ca), B = new THREE.Color(cb), c = new THREE.Color();
+  const [a, b, ca, cb] = g, A = srgb(ca), B = srgb(cb), c = new THREE.Color();
   const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy;
   for (let i = 0; i < pos.count; i++) {
     const t = Math.min(1, Math.max(0, ((pos.getX(i) - a[0]) * dx + (pos.getY(i) - a[1]) * dy) / L));
-    c.copy(A).lerp(B, t);
+    c.setRGB(A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t, A[2] + (B[2] - A[2]) * t, THREE.SRGBColorSpace);
     col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
   }
   geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
@@ -294,15 +295,125 @@ async function buildM() {
   geos.forEach((g) => g.dispose());
 }
 
+const raycaster = new THREE.Raycaster();
+/* ---------- Casos: fichas en órbita alrededor de la M (el planeta) ---------- */
+// son planos WebGL: las de atrás pasan DETRÁS del logo; se pintan con alfa 0 para salir del bloom y del
+// tono de cámara, así cada foto conserva su color real (sin quemarse)
+const CASES = [
+  { img: "../assets/img/case-gu-poster.jpg", name: "GU · Gestión Urbanística", sector: "Inmobiliario · Urbanismo", chip: "Web 3D inmersiva" },
+  { img: "../assets/img/case-vistareal.jpg", name: "Vista Real Country Club", sector: "Club deportivo · Hospitalidad", chip: "Web institucional" },
+  { img: "../assets/img/case-blak.jpg", name: "Blak Coffee & Co", sector: "Cafetería", chip: "Branding integral" },
+  { img: "../assets/img/case-protect.jpg", name: "Protect Diversity", sector: "Dermocosmética vegana", chip: "E-commerce · Shopify" },
+  { img: "../assets/img/case-manzzani.jpg", name: "Manzzani", sector: "Manzanas gourmet", chip: "Shopify + redes" }
+];
+const CARD_AR = 1.55, TAU = Math.PI * 2;
+const cardGeo = new THREE.PlaneGeometry(1, 1);
+const cards = CASES.map((cs, i) => {
+  const u = {
+    uMap: { value: null }, uCover: { value: new THREE.Vector2(1, 1) }, uAspect: { value: CARD_AR },
+    uBright: { value: 1 }, uEdge: { value: 0.4 }, uTime: ringTime
+  };
+  const m = new THREE.Mesh(cardGeo, new THREE.ShaderMaterial({
+    uniforms: u, fog: false,
+    vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
+    fragmentShader: `
+      uniform sampler2D uMap; uniform vec2 uCover; uniform float uAspect, uBright, uEdge, uTime; varying vec2 vUv;
+      float sdRound(vec2 p, vec2 b, float r){ vec2 q = abs(p) - b + r; return length(max(q, 0.)) + min(max(q.x, q.y), 0.) - r; }
+      void main(){
+        vec2 size = vec2(uAspect, 1.);
+        float d = sdRound((vUv - .5) * size, size * .5, .08);
+        if (d > 0.) discard;                                                   // esquinas redondeadas
+        vec3 c = texture2D(uMap, (vUv - .5) * uCover + .5).rgb * uBright;
+        vec3 bc = mix(vec3(.36, .06, .47), vec3(.02, .6, .69), clamp(vUv.x * .7 + vUv.y * .3 + sin(uTime * .5) * .15, 0., 1.));
+        c = mix(c, bc, smoothstep(.022, .0, -d) * uEdge);                      // filo con el degradado de marca
+        gl_FragColor = vec4(c, 0.);                                            // alfa 0: color exacto, fuera del bloom
+      }`
+  }));
+  m.userData = { i, u, lift: 0, ready: false };
+  m.visible = false;
+  scene.add(m);
+  return m;
+});
+let texturesAsked = false;
+function loadCaseTextures() {
+  if (texturesAsked) return; texturesAsked = true;
+  const loader = new THREE.TextureLoader();
+  cards.forEach((m, i) => loader.load(CASES[i].img, (tx) => {
+    tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = 8;
+    const ia = tx.image.width / tx.image.height;
+    m.userData.u.uCover.value.set(Math.min(1, CARD_AR / ia), Math.min(1, ia / CARD_AR));
+    m.userData.u.uMap.value = tx; m.userData.ready = true;
+    renderer.initTexture(tx);                       // sube a la GPU ya, no a medio vuelo
+  }));
+}
+setTimeout(loadCaseTextures, 3000);
+let orbitBase = 0, orbitSpeed = 0.14, orbitSel = -1, orbitFocus = -2;
+const capMeta = document.querySelector("[data-cap-meta]"), capName = document.querySelector("[data-cap-name]"), capChip = document.querySelector("[data-cap-chip]");
+const hoverCapable = matchMedia("(hover: hover)").matches;
+function showCaption(i) {
+  if (i === orbitFocus) return;
+  orbitFocus = i;
+  const cs = CASES[i];
+  if (capMeta) capMeta.textContent = cs ? `${String(i + 1).padStart(2, "0")} / 05 · ${cs.sector}` : (hoverCapable ? "Pasa el cursor por una ficha" : "Toca una ficha");
+  if (capName) capName.textContent = cs ? cs.name : "Cinco marcas en órbita";
+  if (capChip) { capChip.textContent = cs ? cs.chip : ""; capChip.hidden = !cs; }
+}
+// la ficha más al frente de la órbita ahora mismo
+const frontCard = () => cards.reduce((best, m, i) => (Math.sin(orbitBase + i * TAU / 5) > Math.sin(orbitBase + best * TAU / 5) ? i : best), 0);
+function selectCase(dirn) {
+  const start = orbitSel >= 0 ? orbitSel : frontCard() - (dirn > 0 ? 1 : -1) + 5;
+  orbitSel = (((start + dirn) % 5) + 5) % 5;
+}
+document.querySelector("[data-case-prev]")?.addEventListener("click", () => selectCase(-1));
+document.querySelector("[data-case-next]")?.addEventListener("click", () => selectCase(1));
+// tocar / hacer clic en una ficha la trae al frente; tocar fuera la suelta
+let downX = 0, downY = 0, downT = 0;
+addEventListener("pointerdown", (e) => { downX = e.clientX; downY = e.clientY; downT = performance.now(); }, { passive: true });
+addEventListener("pointerup", (e) => {
+  if (active !== 3 || (e.target.closest && e.target.closest("button, a"))) return;
+  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 10 || performance.now() - downT > 450) return;
+  const pt = new THREE.Vector2(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  raycaster.setFromCamera(pt, camera);
+  const hit = raycaster.intersectObjects(cards.filter((m) => m.visible), false)[0];
+  orbitSel = hit ? (orbitSel === hit.object.userData.i ? -1 : hit.object.userData.i) : -1;
+}, { passive: true });
+
 /* ---------- Posproceso ---------- */
 const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(innerWidth * DPR, innerHeight * DPR, { type: THREE.HalfFloatType }));
 composer.setPixelRatio(DPR);
 composer.setSize(innerWidth, innerHeight);
 composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), mobile ? 0.4 : 0.5, 0.7, 0.82);
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), mobile ? 0.22 : 0.28, 0.45, 0.85);   // brillo contenido, sin flares
+// el bloom ignora lo marcado con alfa < .25 (las fichas) y al mezclarse no toca el alfa (la máscara sobrevive)
+bloom.materialHighPassFilter.fragmentShader = bloom.materialHighPassFilter.fragmentShader
+  .replace("gl_FragColor = mix( outputColor, texel, alpha );", "gl_FragColor = mix( outputColor, texel, alpha * step( .25, texel.a ) );");
+bloom.materialHighPassFilter.needsUpdate = true;
+Object.assign(bloom.blendMaterial, {
+  blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.SrcAlphaFactor, blendDst: THREE.OneFactor,
+  blendEquationAlpha: THREE.AddEquation, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor
+});
 composer.addPass(bloom);
-composer.addPass(new OutputPass());
-const BASE_CA = mobile ? 0.0012 : 0.0018;
+// salida: tono de cámara ACES sólo donde toca; la M y las fichas conservan su color exacto
+const outputPass = new ShaderPass({
+  uniforms: { tDiffuse: { value: null }, uExposure: { value: renderer.toneMappingExposure } },
+  vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }`,
+  fragmentShader: `
+    uniform sampler2D tDiffuse; uniform float uExposure; varying vec2 vUv;
+    vec3 rrt(vec3 v){ vec3 a = v * (v + .0245786) - .000090537; vec3 b = v * (.983729 * v + .4329510) + .238081; return a / b; }
+    vec3 aces(vec3 c){
+      const mat3 I = mat3(vec3(.59719, .07600, .02840), vec3(.35458, .90834, .13383), vec3(.04823, .01566, .83777));
+      const mat3 O = mat3(vec3(1.60475, -.10208, -.00327), vec3(-.53108, 1.10813, -.07276), vec3(-.07367, -.00605, 1.07602));
+      c *= uExposure / .6; c = I * c; c = rrt(c); c = O * c; return clamp(c, 0., 1.);
+    }
+    vec3 toSRGB(vec3 c){ c = clamp(c, 0., 1.); return mix(c * 12.92, 1.055 * pow(c, vec3(1. / 2.4)) - .055, step(vec3(.0031308), c)); }
+    void main(){
+      vec4 t = texture2D(tDiffuse, vUv);
+      vec3 c = t.a > .75 ? aces(t.rgb) : t.rgb;
+      gl_FragColor = vec4(toSRGB(c), 1.);
+    }`
+});
+composer.addPass(outputPass);
+const BASE_CA = 0;   // sin aberración cromática en reposo (sólo un toque al moverse)
 const finalPass = new ShaderPass({
   uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uCA: { value: BASE_CA }, uRes: { value: new THREE.Vector2(innerWidth, innerHeight) } },
   vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }`,
@@ -337,19 +448,19 @@ let posCurve, lookCurve, FOCUS = [];
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const KEYS = { pos: [], look: [] };
 // ancla de cada texto: distancia frente a la cámara de su escena y desplazamiento vertical (fracción de pantalla)
-const TEXT_DESK = [{ d: 8.4, oy: 0.25 }, { d: 13.2, oy: 0 }, { d: 6.5, oy: 0.02 }, { d: 7.5, oy: 0.02 }, { d: 8.4, oy: 0.25 }];
-const TEXT_PORT = [{ d: 9.5, oy: 0.26 }, { d: 15.5, oy: 0.02 }, { d: 6.5, oy: 0.04 }, { d: 7.5, oy: 0.03 }, { d: 9.5, oy: 0.25 }];
+const TEXT_DESK = [{ d: 8.4, oy: 0.25 }, { d: 13.2, oy: 0 }, { d: 6.5, oy: 0.02 }, { d: 9.5, oy: 0 }, { d: 8.4, oy: 0.25 }];
+const TEXT_PORT = [{ d: 9.5, oy: 0.26 }, { d: 15.5, oy: 0.02 }, { d: 6.5, oy: 0.04 }, { d: 9.5, oy: 0 }, { d: 9.5, oy: 0.25 }];
 const mLook = new THREE.Matrix4(), qTmp = new THREE.Quaternion();
 function buildPath() {
   const E = END_Z;
   if (portrait) {
-    KEYS.pos = [V(0, 2.1, 13.5), V(0, 1.9, 12.5), V(0, AXIS_Y, -9), V(0, AXIS_Y, -26), V(0, 2.1, E + 13.5)];
-    KEYS.look = [V(0, 1.15, 0), V(0, 1.6, -4.2), V(0, AXIS_Y, -24), V(0, AXIS_Y, -40), V(0, 1.15, E)];
-    FOCUS = [13.6, 16.7, 9, 8, 13.6];
+    KEYS.pos = [V(0, 2.1, 13.5), V(0, 1.9, 12.5), V(0, AXIS_Y, -9), V(0, AXIS_Y + 4.2, E + 16.5), V(0, 2.1, E + 13.5)];
+    KEYS.look = [V(0, 1.15, 0), V(0, 1.6, -4.2), V(0, AXIS_Y, -24), V(0, AXIS_Y + 1.2, E), V(0, 1.15, E)];
+    FOCUS = [13.6, 16.7, 9, 17, 13.6];
   } else {
-    KEYS.pos = [V(0, 1.9, 12), V(0, AXIS_Y, 9.8), V(0, AXIS_Y, -9), V(0, AXIS_Y, -26), V(0, 1.9, E + 12)];
-    KEYS.look = [V(0, 1.45, 0), V(0, AXIS_Y, -4.2), V(0, AXIS_Y, -24), V(0, AXIS_Y, -40), V(0, 1.45, E)];
-    FOCUS = [12, 14, 9, 8, 12];
+    KEYS.pos = [V(0, 1.9, 12), V(0, AXIS_Y, 9.8), V(0, AXIS_Y, -9), V(0, AXIS_Y + 2.2, E + 15.2), V(0, 1.9, E + 12)];
+    KEYS.look = [V(0, 1.45, 0), V(0, AXIS_Y, -4.2), V(0, AXIS_Y, -24), V(0, AXIS_Y + 0.35, E), V(0, 1.45, E)];
+    FOCUS = [12, 14, 9, 15, 12];
   }
   posCurve = new THREE.CatmullRomCurve3(KEYS.pos, false, "centripetal");
   lookCurve = new THREE.CatmullRomCurve3(KEYS.look, false, "centripetal");
@@ -367,7 +478,7 @@ function buildPath() {
     el.style.display = "";
     const h = el.offsetHeight;
     el.style.display = prevD;
-    const top = narrow ? 76 : 96, bottom = narrow ? (i === LAST || i === 3 ? 24 : 96) : 40;
+    const top = narrow ? (i === 3 ? 112 : 76) : 96, bottom = narrow ? (i === LAST || i === 3 ? 24 : 96) : 40;
     const fit = h > 0 ? Math.min(1, (H - top - bottom) / h) : 1;   // si no cabe, se achica un poco
     const half = (h * fit) / 2;
     const cy = clamp(H / 2 + oy * H, top + half, Math.max(top + half, H - bottom - half));
@@ -475,6 +586,7 @@ addEventListener("keydown", (e) => {
   if (e.target.closest && e.target.closest("input, textarea, select")) return;
   if (e.key === " " && e.target.closest && e.target.closest("button, a, [tabindex], summary")) return;   // Espacio activa el botón enfocado
   if (e.repeat) { if ([" ", "ArrowDown", "ArrowUp", "PageDown", "PageUp"].includes(e.key)) e.preventDefault(); return; }
+  if (active === 3 && (e.key === "ArrowRight" || e.key === "ArrowLeft")) { e.preventDefault(); selectCase(e.key === "ArrowRight" ? 1 : -1); return; }
   if (["ArrowDown", "PageDown"].includes(e.key) || (e.key === " " && !e.shiftKey)) { e.preventDefault(); step(1); }
   else if (["ArrowUp", "PageUp"].includes(e.key) || (e.key === " " && e.shiftKey)) { e.preventDefault(); step(-1); }
   else if (e.key === "Home") { e.preventDefault(); goTo(0); }
@@ -506,22 +618,8 @@ function setActive(a) {
   if (noteEl) noteEl.innerHTML = NOTES[a];
 }
 
-// galería de casos: con mouse se expande al pasar; con el dedo, al tocar
-const gallery = document.querySelector("[data-gallery]");
-if (gallery) {
-  gallery.addEventListener("click", (e) => {
-    if (matchMedia("(hover: hover)").matches) return;
-    const item = e.target.closest(".g-item");
-    if (!item) return;
-    const open = !item.classList.contains("is-open");
-    gallery.querySelectorAll(".g-item").forEach((it) => it.classList.toggle("is-open", open && it === item));
-    gallery.classList.toggle("has-open", open);
-  });
-}
-
 /* ---------- Cursor: rayo en el mundo para empujar partículas ---------- */
 const ndc = new THREE.Vector2(), smooth = new THREE.Vector2();
-const raycaster = new THREE.Raycaster();
 let pointerOn = 0, lastMove = 0;
 addEventListener("pointermove", (e) => {
   ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
@@ -533,7 +631,7 @@ addEventListener("touchend", () => { pointerOn = 0; }, { passive: true });
 /* ---------- Loop ---------- */
 const easeOut = (t) => 1 - Math.pow(1 - t, 4);
 const clock = new THREE.Clock();
-const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), tmp = new THREE.Vector3(), camFwd = new THREE.Vector3();
+const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), camFwd = new THREE.Vector3();
 let t0 = null, lastT = 0, vel = 0, mouseAmt = 0;
 
 function frame() {
@@ -574,7 +672,7 @@ function frame() {
   camera.fov = BASE_FOV + kick * 2;
   camera.updateProjectionMatrix();
   camera.getWorldDirection(camFwd);
-  finalPass.uniforms.uCA.value = BASE_CA + kick * 0.003;
+  finalPass.uniforms.uCA.value = BASE_CA + kick * 0.0015;
 
   // el estudio del inicio se apaga al salir; el del final se enciende al llegar
   const studio = 1 - sm(0.2, 0.9, p), endStudio = sm(3.4, 4, p);
@@ -593,7 +691,7 @@ function frame() {
   };
   ringDim(sun, 1);
   sun.material.uniforms.uClip.value = studio > 0.02 ? 1 : 0;
-  tunnel.forEach((r) => ringDim(r, 0.6 * sm(1.25, 1.9, p)));
+  tunnel.forEach((r) => ringDim(r, 0.6 * sm(1.25, 1.9, p) * (1 - sm(2.45, 2.9, p))));   // al salir del túnel se apagan
   ringTime.value = t;
 
   // partículas: armar → anillo → túnel → armar de nuevo al final
@@ -601,7 +699,7 @@ function frame() {
     const U = particles.shared;
     U.uA.value = sm(0.05, 1.3, p);
     U.uC.value = sm(1.15, 2.1, p);
-    U.uB.value = sm(3.2, 3.95, p);
+    U.uB.value = sm(2.2, 2.95, p);         // al salir del túnel la M se construye: es el planeta de los casos
     U.uRot.value = reduced ? 0 : Math.sin(t * 0.23) * 0.22 + smooth.x * 0.1;
     const bob = reduced ? 0 : Math.sin(t * 0.6) * 0.04;
     U.uStart.value.set(0, AXIS_Y + bob, 0);
@@ -617,6 +715,47 @@ function frame() {
     particles.reflect = Math.max(studio, endStudio);
     particles.update(dt, reduced ? 0 : t);
   }
+
+  // casos: las fichas orbitan la M; entran girando, se detienen con el cursor y se van al pasar al contacto
+  const cIn = sm(2.3, 2.95, p), cOut = sm(3.2, 3.62, p), cVis = cIn * (1 - cOut);
+  if (p > 1.4) loadCaseTextures();
+  if (active !== 3) orbitSel = -1;
+  let hov = -1;
+  if (cVis > 0.5 && hoverCapable && pointerOn) {
+    raycaster.setFromCamera(ndc, camera);
+    const hit = raycaster.intersectObjects(cards.filter((m) => m.visible), false)[0];
+    if (hit) hov = hit.object.userData.i;
+  }
+  const focus = hov >= 0 ? hov : orbitSel;
+  if (cVis > 0.01) showCaption(focus);
+  document.body.style.cursor = hov >= 0 ? "pointer" : "";
+  orbitSpeed += ((focus >= 0 || reduced ? 0 : 0.14) - orbitSpeed) * (1 - Math.exp(-dt * 3));
+  if (orbitSel >= 0 && hov < 0) {   // la elegida viene al frente
+    let dA = (Math.PI / 2 - orbitSel * TAU / 5) - orbitBase;
+    dA = Math.atan2(Math.sin(dA), Math.cos(dA));
+    orbitBase += dA * (1 - Math.exp(-dt * (reduced ? 60 : 3.5)));
+  } else orbitBase += orbitSpeed * dt;
+  const ORB_R = portrait ? 2.2 : 4.3, CARD_W = portrait ? 1.3 : 2.05, TILT = portrait ? 0.38 : 0.15;
+  const C = tmp2.set(0, AXIS_Y + (reduced ? 0 : Math.sin(t * 0.6) * 0.04), END_Z);
+  cards.forEach((m) => {
+    const ud = m.userData, i = ud.i;
+    m.visible = cVis > 0.01 && ud.ready;
+    if (!m.visible) return;
+    const th = orbitBase + i * TAU / 5 + (1 - cIn) * 2.2;
+    const R = ORB_R * (0.45 + 0.55 * cIn) * (1 + cOut * 0.9);
+    const x = Math.cos(th) * R, z = Math.sin(th) * R;
+    m.position.set(C.x + x, C.y - z * Math.sin(TILT), C.z + z * Math.cos(TILT));
+    ud.lift += ((i === focus ? 1 : 0) - ud.lift) * (1 - Math.exp(-dt * 7));
+    m.position.addScaledVector(camFwd, -1.1 * ud.lift);                     // la enfocada se acerca
+    const sc = CARD_W * cVis * (1 + 0.42 * ud.lift);
+    m.scale.set(sc, sc / CARD_AR, 1);
+    m.quaternion.copy(camera.quaternion);                                  // siempre de frente
+    const near = (Math.sin(th) + 1) / 2;
+    let b = 0.5 + 0.5 * near;
+    if (focus >= 0) b = i === focus ? 1.05 : b * 0.55;
+    ud.u.uBright.value = b;
+    ud.u.uEdge.value = 0.35 + 0.65 * ud.lift;
+  });
 
   // textos: aparecen al acercarte, la cámara los atraviesa al seguir
   labels.forEach((o, i) => {
