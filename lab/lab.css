@@ -37,14 +37,16 @@ body::after {
 .hud--tr { top: 0; right: 0; text-align: right; }
 .hud--bl { bottom: 0; left: 0; display: flex; flex-direction: column; gap: 14px; transition: opacity .6s ease; }
 .mono { font-size: 12px; line-height: 1.45; letter-spacing: .02em; color: var(--fg-2); }
-.mono--dim { color: var(--fg-3); margin-bottom: 10px; }
 .manifesto { max-width: 34ch; margin-left: auto; }
 .brand { display: inline-flex; align-items: center; gap: 12px; margin-bottom: 14px; font: 600 15px/1 "Montserrat", sans-serif; letter-spacing: .04em; color: #fff; }
 .brand img { width: 28px; height: 28px; }
 
 /* índice de escenas */
 .idx { top: 0; left: 50%; transform: translateX(-50%); }
-.idx ol { display: flex; gap: 22px; }
+.idx ol {                                             /* cápsula oscura sutil: se lee aunque el filo del eclipse pase detrás */
+  display: flex; gap: 22px; padding: 3px 16px; border-radius: 999px;
+  background: rgba(7,7,11,.55); border: 1px solid rgba(255,255,255,.06);
+}
 .idx button {
   position: relative; display: inline-flex; align-items: center; gap: 10px; padding: 6px 0;
   font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: #9DA1B0; white-space: nowrap;
@@ -66,7 +68,7 @@ body::after {
 html.is-3d .scene--hero .title { font-size: max(clamp(40px, 6.4vw, 108px), min(calc(var(--h, 100vh) * .108), 11.6vw)); }   /* la firma, más grande */
 .scene--hero::before { inset: -30% 4%; background: radial-gradient(closest-side, rgba(7,7,11,.45), rgba(7,7,11,0)); }
 .scene a, .scene button { pointer-events: auto; }
-.kicker { color: #B4B8C6; margin-bottom: 18px; letter-spacing: .14em; text-transform: uppercase; font-size: 11px; }   /* ≈5:1 sobre el resplandor */
+.kicker { color: #C9CCD8; margin-bottom: 18px; letter-spacing: .14em; text-transform: uppercase; font-size: 11px; }   /* ≥ 5:1 sobre el resplandor */
 .title {
   font: 700 clamp(40px, 6vw, 104px)/.92 "Montserrat", sans-serif; letter-spacing: -.045em;
   color: #fff;   /* sin text-shadow: un blur grande en texto 3D se re-pinta en cada cuadro del vuelo */
@@ -142,7 +144,8 @@ html.is-3d .scene--ring.is-compact .svc-grid b { font-size: calc(var(--u) * 3.5)
 
 /* ---------- espiral de rubros: título arriba, la ficha del rubro en medio, el pie abajo ---------- */
 html.is-3d .scene--cases {
-  height: calc(100vh - 150px); height: calc(100svh - 150px);
+  height: calc(100vh - 150px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  height: calc(100svh - 150px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
   display: flex; flex-direction: column; justify-content: space-between; align-items: center;
 }
 html.is-3d .scene--cases::before { display: none; }
@@ -224,6 +227,9 @@ html:not(.is-3d) .rpanel { display: none; }
 body.rp-open .wa { opacity: 0; transform: translateY(12px); pointer-events: none; }
 body.rp-open .hud--tr { opacity: 0; }
 .hud--tl .mono { transition: opacity .5s ease; }
+body:not([data-scene="0"]) .hud-sub { display: none; }
+.hud-note-m { display: none; max-width: 34ch; }
+@media (max-width: 1180px) { body:not([data-scene="0"]) .hud-note-m { display: block; } }
 @media (max-aspect-ratio: 799/1000) { body.rp-open .hud--tl .mono, body.rp-open .hud--bl { opacity: 0; } }
 .hud--tr { transition: opacity .5s ease; }
 
@@ -237,11 +243,16 @@ body.rp-open .hud--tr { opacity: 0; }
 .pill:hover { transform: translateY(-2px); }
 .pill:active, .wa:active, .chip--cta:active, .arrow:active, .sub:active, .rpanel__back:active { transform: scale(.97); transition-duration: .08s; }   /* respuesta al presionar */
 .title:focus { outline: none; }
-.pill--light { background: #fff; color: #07070B; }   /* sin sombras difusas: viven dentro del 3D */
+.pill--light { background: #fff; color: #07070B; }
+.pill--two { padding-top: 11px; padding-bottom: 11px; text-align: left; }
+.pill__txt { display: flex; flex-direction: column; gap: 3px; }
+.pill__txt b { font: 600 14px/1.1 "Montserrat", sans-serif; letter-spacing: -.005em; }
+.pill__txt small { font-size: 11px; letter-spacing: .04em; color: #4a4d5a; }   /* sin sombras difusas: viven dentro del 3D */
 .pill--ghost { border: 1px solid rgba(255,255,255,.22); color: #fff; padding-left: 22px; }
 .pill--ghost:hover { background: rgba(255,255,255,.07); }
-.restart { margin-top: 12px; padding: 14px 16px; color: #9DA1B0; letter-spacing: .08em; text-transform: uppercase; font-size: 11px; }
+.restart { position: relative; margin-top: 22px; color: #9DA1B0; letter-spacing: .08em; text-transform: uppercase; font-size: 11px; }
 .restart:hover { color: #fff; }
+.restart::before { content: ""; position: absolute; inset: -14px -16px; }   /* área táctil ≥ 44 px sin agrandar el bloque (no empuja el texto hacia la M) */
 
 /* ---------- HUD inferior ---------- */
 /* pista de deslizar: abajo al centro (en celular, sobre el botón de WhatsApp) */
@@ -259,10 +270,10 @@ body:not([data-scene="0"]) .swipe-hint, html.hint-done .swipe-hint, html:not(.is
 
 .wa {
   position: fixed; z-index: 6; right: calc(var(--pad) + env(safe-area-inset-right, 0px)); bottom: calc(var(--pad) + env(safe-area-inset-bottom, 0px));
-  display: inline-flex; align-items: center; gap: 12px; min-height: 46px;
+  display: inline-flex; align-items: center; gap: 12px; min-height: 48px;
   padding: 15px 22px 15px 18px; border-radius: 999px;
   background: #fff; color: #07070B; font: 600 13px/1 "Montserrat", sans-serif; letter-spacing: .06em; text-transform: uppercase;
-  box-shadow: 0 30px 60px -20px rgba(98,92,217,.45), 0 8px 24px -12px rgba(43,204,217,.4);
+  box-shadow: 0 12px 30px -14px rgba(0,0,0,.7);           /* sombra neutra: el blanco ya destaca */
   transition: opacity .5s ease, transform .5s var(--ease);
 }
 body[data-scene="4"] .wa { opacity: 0; transform: translateY(12px); pointer-events: none; }
@@ -292,8 +303,9 @@ html:not(.is-3d) .idx, html:not(.is-3d) .restart { display: none; }
 @media (max-width: 1180px) {
   .hud--tr { display: none; }
   .idx { left: auto; right: 0; transform: none; }
-  .idx ol { gap: 14px; }
+  .idx ol { gap: 20px; padding: 3px 14px; }
   .idx button { padding: 8px 2px; }
+  .idx button::before { inset: -8px -12px; }          /* números solos: el área táctil llega a ~44 px */
   .idx__t { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
 @media (max-width: 720px) {
@@ -306,12 +318,16 @@ html:not(.is-3d) .idx, html:not(.is-3d) .restart { display: none; }
   .svc-grid li { padding: 8px 0; }
   .svc-grid b { font-size: 14px; }
   .svc-grid i { display: none; }
-  html.is-3d .scene--cases { height: calc(100vh - 140px); height: calc(100svh - 140px); }
+  html.is-3d .scene--cases {
+    height: calc(100vh - 140px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    height: calc(100svh - 140px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  }
   .orbit-cap { gap: 10px; }
   body[data-scene="3"] .wa { opacity: 0; transform: translateY(12px); pointer-events: none; }
   .ctas { flex-direction: column; align-items: stretch; }
+  .pill--two { min-height: 56px; }
   .pill { justify-content: center; }
-  .wa { left: calc(var(--pad) + env(safe-area-inset-left, 0px)); right: calc(var(--pad) + env(safe-area-inset-right, 0px)); justify-content: center; }
+  .wa { left: 0; right: 0; width: max-content; margin-inline: auto; justify-content: center; }   /* píldora centrada, no barra */
   .hud--bl { padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
   body[data-scene="4"] .hud--bl, body[data-scene="3"] .hud--bl { opacity: 0; }
   .swipe-hint { bottom: calc(var(--pad) + 62px + env(safe-area-inset-bottom, 0px)); }

@@ -18,7 +18,8 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { CSS3DRenderer, CSS3DObject } from "three/addons/renderers/CSS3DRenderer.js";
-import { createParticles, BLAST_GLSL, BLAST_N } from "./particles.js?v=21";
+import { createParticles, BLAST_GLSL, BLAST_N } from "./particles.js?v=22";
+import { ICON_DRAW } from "./rubro-icons.js?v=1";
 
 const canvas = document.querySelector("[data-gl]");
 const curtain = document.querySelector("[data-curtain]");
@@ -133,11 +134,11 @@ const ringTime = { value: 0 };
 function makeRing(off = 0, glow = 1, clip = 0) {
   return new THREE.Mesh(ringGeo, new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, fog: false, toneMapped: false, blending: THREE.AdditiveBlending,
-    uniforms: { uTime: ringTime, uDim: { value: 1 }, uOff: { value: off }, uGlow: { value: glow }, uClip: { value: clip } },
+    uniforms: { uTime: ringTime, uDim: { value: 1 }, uOff: { value: off }, uGlow: { value: glow }, uClip: { value: clip }, uHot: { value: 1 } },
     vertexShader: `varying vec2 vUv; varying float vWY;
       void main(){ vUv = uv; vWY = (modelMatrix * vec4(position, 1.)).y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }`,
     fragmentShader: `
-      uniform float uTime; uniform float uDim; uniform float uOff; uniform float uGlow; uniform float uClip; varying vec2 vUv; varying float vWY;
+      uniform float uTime; uniform float uDim; uniform float uOff; uniform float uGlow; uniform float uClip; uniform float uHot; varying vec2 vUv; varying float vWY;
       void main(){
         vec2 p = (vUv - .5) * 2.;                 // el plano mide 7.2: radio del anillo ≈ 2.3
         float r = length(p);
@@ -149,8 +150,10 @@ function makeRing(off = 0, glow = 1, clip = 0) {
         c = mix(c, vec3(.28,.57,.85), smoothstep(.33, .66, g));
         c = mix(c, vec3(.17,.8,.85), smoothstep(.66, 1., g));
         float R = .64;
-        float ring = exp(-pow((r - R) / .012, 2.));            // filo de luz
-        float halo = exp(-pow((r - R) / .05, 2.)) * .22;        // resplandor corto (sin corona ni destellos)
+        // uHot: 1 = intensidad plena (manifiesto) · 0 = la mitad (el inicio: la M manda y el anillo acompaña,
+        // y el filo conserva su degradado de marca en vez de quemarse a blanco)
+        float ring = exp(-pow((r - R) / mix(.016, .012, uHot), 2.)) * mix(.5, 1., uHot);   // filo de luz
+        float halo = exp(-pow((r - R) / .05, 2.)) * mix(.13, .22, uHot);        // resplandor corto (sin corona ni destellos)
         float corona = 0.;
         float inner = smoothstep(R, R - .5, r) * .05;           // velo tenue adentro
         float fade = smoothstep(1., .82, r);
@@ -462,6 +465,46 @@ const cards = RUBROS.map((r, i) => {
   return m;
 });
 
+// ícono animado del rubro (motion graphic), arriba a la derecha de cada ficha: proporciones respecto al alto de la ficha
+const ICON_K = 0.31, ICON_M = 0.06, ICON_PX = 192;
+const iconGeo = new THREE.PlaneGeometry(1, 1);
+const icons = RUBROS.map((r) => {
+  const c = document.createElement("canvas"); c.width = c.height = ICON_PX;
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const m = new THREE.Mesh(iconGeo, new THREE.ShaderMaterial({
+    uniforms: { uMap: { value: tex }, uBright: { value: 1 } },
+    transparent: true, depthWrite: false, fog: false,
+    // mezcla normal en color; el alfa de destino (0 = color exacto, fuera del bloom) no se toca
+    blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.SrcAlphaFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
+    blendEquationAlpha: THREE.AddEquation, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor,
+    vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
+    fragmentShader: `uniform sampler2D uMap; uniform float uBright; varying vec2 vUv;
+      void main(){ vec4 c = texture2D(uMap, vUv); if (c.a < .01) discard; gl_FragColor = vec4(c.rgb * uBright, c.a); }`
+  }));
+  m.renderOrder = 2; m.visible = false; m.userData = { c, g: c.getContext("2d"), tex, id: r.id };
+  scene.add(m);
+  return m;
+});
+const iconV = new THREE.Vector3();
+function placeIcon(j, card, t, bright) {
+  const ic = icons[j], ud = ic.userData;
+  ic.visible = card.visible && bright > 0.02;
+  if (!ic.visible) return;
+  const draw = ICON_DRAW[ud.id];
+  ud.g.clearRect(0, 0, ICON_PX, ICON_PX);
+  if (draw) { try { ud.g.save(); draw(ud.g, ICON_PX, reduced ? 0.8 : t); } catch (e) {} finally { ud.g.restore(); } }
+  ud.tex.needsUpdate = true;
+  // esquina superior derecha de la ficha (en coordenadas locales de la ficha, que ya viene escalada)
+  const w = card.scale.x, h = card.scale.y, s = ICON_K * h, mg = ICON_M * h;
+  card.updateMatrixWorld();
+  iconV.set(0.5 - (mg + s / 2) / w, 0.5 - (mg + s / 2) / h, 0.004).applyMatrix4(card.matrixWorld);
+  ic.position.copy(iconV);
+  ic.quaternion.copy(card.quaternion);
+  ic.scale.set(s, s, 1);
+  ic.material.uniforms.uBright.value = bright;
+}
+
 // SVG → imagen con tamaño propio (Firefox no dibuja en canvas un SVG sin width/height)
 const svgCache = new Map();
 function loadSvg(url) {
@@ -492,6 +535,7 @@ function whiteOf(im) {
 }
 // la ficha de un rubro: vidrio oscuro, número, nombre grande, subrayado de marca y la fila de logos de sus proyectos
 const TEX_W = 1024, TEX_H = Math.round(TEX_W / CARD_AR);
+const ICON_ROOM = Math.round((ICON_K + ICON_M * 0.6) * TEX_H);   // espacio que el nombre le deja al ícono
 function drawRubroCard(c, j, logos) {
   const r = RUBROS[j], g = c.getContext("2d");
   g.clearRect(0, 0, TEX_W, TEX_H);
@@ -505,12 +549,11 @@ function drawRubroCard(c, j, logos) {
   g.textBaseline = "alphabetic";
   g.fillStyle = "rgba(255,255,255,.5)"; g.font = '500 26px "JetBrains Mono", monospace';
   g.fillText(`${pad2(j + 1)} / ${pad2(NR)}  ·  RUBRO`, pad, pad + 22);
-  g.textAlign = "right"; g.fillText("→", TEX_W - pad, pad + 22); g.textAlign = "left";
   const lines = r.name.split(" / ").map((s, k, a) => (k < a.length - 1 ? s + " /" : s));
   let size = 128;
   const setFont = () => { g.font = `700 ${size}px Montserrat, sans-serif`; };
   setFont();
-  const maxW = TEX_W - pad * 2;
+  const maxW = TEX_W - pad * 2 - ICON_ROOM;         // la esquina superior derecha es del ícono animado
   while (Math.max(...lines.map((l) => g.measureText(l).width)) > maxW && size > 56) { size -= 4; setFont(); }
   if ("letterSpacing" in g) g.letterSpacing = `${-size * 0.04}px`;
   g.fillStyle = "#fff";
@@ -891,8 +934,8 @@ const KEYS = { pos: [], look: [] };
 // ancla de cada texto: distancia frente a la cámara de su escena y desplazamiento vertical (fracción de pantalla)
 // (manifiesto y servicios se anclan en el plano de su anillo: ver buildPath)
 // (en las de anillo, oy es fracción del diámetro del anillo: servicios sube un poco porque su base es más ancha)
-const TEXT_DESK = [{ d: 11, oy: 0.28 }, { oy: 0 }, { oy: -0.04 }, { d: 9.5, oy: 0 }, { d: 13.5, oy: 0.27 }];
-const TEXT_PORT = [{ d: 14, oy: 0.17 }, { oy: 0 }, { oy: 0 }, { d: 9.5, oy: 0 }, { d: 17.5, oy: 0.25 }];
+const TEXT_DESK = [{ d: 11, oy: 0.28 }, { oy: 0 }, { oy: -0.04 }, { d: 9.5, oy: 0 }, { d: 13.5, oy: 0.29 }];
+const TEXT_PORT = [{ d: 14, oy: 0.17 }, { oy: 0 }, { oy: 0 }, { d: 9.5, oy: 0 }, { d: 17.5, oy: 0.28 }];
 // qué tanto del lado corto de la pantalla ocupa el anillo cuando llegas a su escena
 const RING_FILL = { land: 0.84, port: 0.96 };
 const mLook = new THREE.Matrix4(), qTmp = new THREE.Quaternion();
@@ -927,9 +970,10 @@ function buildPath() {
   el3.style.display = "";
   const hh = el3.querySelector(".cases-head").offsetHeight, ch = el3.querySelector(".orbit-cap").offsetHeight, lh = el3.offsetHeight;
   el3.style.display = prev3;
-  const top3 = (narrow ? 112 : 96) + SAFE_T, bot3 = (narrow ? 24 : 40) + SAFE_B, half3 = lh / 2;
+  const top3 = (narrow ? 112 : 96) + SAFE_T, bot3 = narrow ? Math.max(24, SAFE_B + 14) : 40 + SAFE_B;
+  const fit3 = lh > 0 ? Math.min(1, (H - top3 - bot3) / lh) : 1, half3 = (lh * fit3) / 2;   // (la misma escala que usa su texto)
   const cy3 = clamp(H / 2, top3 + half3, Math.max(top3 + half3, H - bot3 - half3));   // (igual que el ancla de su texto)
-  const bandTop = cy3 - half3 + hh + 16, bandBot = cy3 + half3 - ch - 16;
+  const bandTop = cy3 - half3 + hh * fit3 + 16, bandBot = cy3 + half3 - ch * fit3 - 16;
   const bandH = Math.max(70, bandBot - bandTop), bandC = (bandTop + bandBot) / 2;
   SPI.camD = Math.max(
     SPI.cardW / ((portrait ? 0.78 : 0.46) * 2 * tanH * aspect),     // ancho
@@ -960,7 +1004,7 @@ function buildPath() {
     KEYS.look.push(V(0, y + camLift - pitch, E));
     FOCUS.push(SPI.camD);
   }
-  if (portrait) { KEYS.pos.push(V(0, yM + 0.6, E + 20.5)); KEYS.look.push(V(0, yM - 1.55, E)); FOCUS.push(20.5); }
+  if (portrait) { KEYS.pos.push(V(0, yM + 0.6, E + 20.5)); KEYS.look.push(V(0, yM - 1.55 - (H < 760 ? 0.6 : 0), E)); FOCUS.push(20.5); }
   else { KEYS.pos.push(V(0, yM + 0.4, E + 16.5)); KEYS.look.push(V(0, yM - 0.95, E)); FOCUS.push(16.5); }
   posCurve = new THREE.CatmullRomCurve3(KEYS.pos, false, "centripetal");
   lookCurve = new THREE.CatmullRomCurve3(KEYS.look, false, "centripetal");
@@ -989,7 +1033,8 @@ function buildPath() {
     el.style.display = "";
     const h = el.offsetHeight;
     el.style.display = prevD;
-    const top = (narrow ? (i === 3 ? 112 : 76) : 96) + SAFE_T, bottom = (narrow ? (i === LAST || i === 3 ? 24 : 96) : 40) + SAFE_B;
+    const top = (narrow ? (i === 3 ? 112 : 76) : 96) + SAFE_T;
+    const bottom = narrow && (i === LAST || i === 3) ? Math.max(24, SAFE_B + 14) : (narrow ? 96 : 40) + SAFE_B;
     // con anillo: centrado exacto y sin achicar (su tamaño ya sale del anillo), así texto, disco y anillo son concéntricos
     const fit = ring ? 1 : h > 0 ? Math.min(1, (H - top - bottom) / h) : 1;   // si no cabe, se achica un poco
     const half = (h * fit) / 2;
@@ -1089,16 +1134,22 @@ function goQ(i) {
   if (i === to) return;                                 // mismo destino: no se reinicia nada
   if (rp.open >= 0) closeRubro();
   const moving = prog !== to;
-  from = prog; to = i; tStart = now();
+  from = clamp(prog, 0, QLAST); to = i; tStart = now();
   v0 = moving && !reduced ? progVel : 0;
   // la duración sigue a la distancia real de la cámara: tramos cortos ágiles, largos sin prisa (ni eternos)
-  const n = Math.abs(to - from);
+  const hops = Math.abs(to - Math.round(from));        // por estaciones enteras: dos gestos encadenados no cuentan como salto
   let arc = 0;
-  for (let s = 0, a = posCurve.getPoint(from / QLAST, tmp2); s < 24; s++) {
-    const b = posCurve.getPoint((from + (to - from) * (s + 1) / 24) / QLAST, tmp3);
+  for (let s = 0, a = posCurve.getPoint(clamp(from, 0, QLAST) / QLAST, tmp2); s < 24; s++) {
+    const b = posCurve.getPoint(clamp(from + (to - from) * (s + 1) / 24, 0, QLAST) / QLAST, tmp3);
     arc += a.distanceTo(b); a.copy(b);
   }
-  dur = reduced ? 0 : n <= 1.01 ? clamp(1.05 + 0.04 * arc, 1.15, 1.85) : clamp(1.3 + 0.025 * arc, 1.6, 2.6);
+  dur = reduced ? 0 : hops <= 1 ? clamp(1.05 + 0.04 * arc, 1.15, 1.85) : clamp(1.3 + 0.025 * arc, 1.6, 2.6);
+  // si venía en movimiento: la tangente de salida no puede llevar la cámara más allá del destino ni en sentido
+  // contrario (condición de Fritsch–Carlson, |m0| ≤ 3·|D|). Sin esto, un cambio de destino a media carrera
+  // se pasaba de largo, q < 0, y la curva leía points[-1] (la página se congelaba)
+  const Dq = to - from;
+  if (v0 * Dq <= 0) v0 = 0;
+  else if (Math.abs(v0 * dur) > 3 * Math.abs(Dq)) v0 = Math.sign(Dq) * 3 * Math.abs(Dq) / dur;
   lockUntil = tStart + (reduced ? 350 : Math.max(800, dur * 1000 * 0.72));
 }
 const goTo = (s) => goQ(stationOf(clamp(s, 0, LAST)));   // por escena (índice, "volver al inicio")
@@ -1168,7 +1219,16 @@ document.querySelector(".brand")?.addEventListener("click", (e) => { e.preventDe
 
 /* ---------- HUD ---------- */
 const idxBtns = [...document.querySelectorAll(".idx [data-go]")];
-const noteEl = document.querySelector("[data-note]");
+const noteEl = document.querySelector("[data-note]"), noteM = document.querySelector("[data-note-m]");
+// el correo se copia al tocarlo y lo confirma (y además abre el cliente de correo, si hay)
+const mailBtn = document.querySelector("[data-copy-mail]");
+mailBtn?.addEventListener("click", () => {
+  const addr = mailBtn.textContent.trim();
+  try { navigator.clipboard?.writeText(addr).then(() => {
+    mailBtn.textContent = "Correo copiado ✓";
+    setTimeout(() => { mailBtn.textContent = addr; }, 1800);
+  }).catch(() => {}); } catch (e) {}
+});
 const progEl = document.querySelector("[data-prog]");
 const NOTES = [
   "Diseñamos marcas, sitios<br>y contenido con intención<br>comercial. Para que tu<br>cliente te elija.",
@@ -1196,6 +1256,7 @@ function setActive(a) {
   if (a !== 3 && rp.open >= 0) closeRubro(true);
   idxBtns.forEach((b, i) => { if (i === a) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current"); });
   if (noteEl) noteEl.innerHTML = NOTES[a];
+  if (noteM) noteM.textContent = NOTES[a].replace(/<br>/g, " ");
 }
 
 /* ---------- Cursor: rayo en el mundo para empujar partículas ---------- */
@@ -1216,7 +1277,7 @@ const clock = new THREE.Clock();
 const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), tmp3 = new THREE.Vector3(), camFwd = new THREE.Vector3();
 const railPos = new THREE.Vector3(), cssFwd = new THREE.Vector3();
 let t0 = null, lastT = 0, mouseAmt = 0, camSpd = 0, railInit = false;
-let userMoved = false, peekT0 = -1, peekN = 0, peekV = 0;
+let userMoved = false, peekT0 = -1, peekN = 0, peekV = 0, planetOff = -1;
 // cualquier gesto cancela el asomo y adelanta la entrada del HUD
 for (const ev of ["wheel", "touchstart", "keydown", "pointerdown"]) addEventListener(ev, () => { userMoved = true; if (lifted) revealHud(); }, { passive: true, capture: true });
 
@@ -1233,6 +1294,7 @@ function frame() {
   // transición: de una escena a la otra con llegada suave
   const kt = dur > 0 ? clamp((now() - tStart) / (dur * 1000), 0, 1) : 1;
   [prog, progVel] = kt >= 1 ? [to, 0] : tween(kt);
+  prog = clamp(prog, 0, QLAST);                           // red de seguridad: el riel no tiene nada fuera de 0..QLAST
   if (navByKey && kt >= 1) {
     navByKey = false;
     const h = sections[Math.round(sceneP(to))]?.querySelector("h1, h2");
@@ -1272,7 +1334,8 @@ function frame() {
   }
   camera.position.copy(camPos);
   camera.lookAt(camLook);
-  const kick = reduced ? 0 : sm(2, 14, camSpd);                          // 0..1 según la velocidad real
+  const land = sm(0.12, 0.4, Math.abs(p - Math.round(p)));              // 0 mientras el texto de una escena está visible
+  const kick = reduced ? 0 : sm(6, 20, camSpd) * land;                   // 0..1 según la velocidad real, sólo a media carrera
   camera.fov = BASE_FOV + kick * 3.5;
   camera.updateProjectionMatrix();
   // con un rubro abierto, la vista se corre (sin cambiar la perspectiva): la espiral queda a la izquierda
@@ -1290,6 +1353,8 @@ function frame() {
   horizon.material.uniforms.uDim.value = studio; horizon.visible = studio > 0.001;
   dust.material.uniforms.uDim.value = studio; dust.visible = studio > 0.001;
   sunMirror.material.uniforms.uDim.value = 0.3 * studio; sunMirror.visible = studio > 0.001;
+  // el eclipse del inicio va a la mitad (la M manda); se enciende completo al acercarte al manifiesto
+  sun.material.uniforms.uHot.value = sunMirror.material.uniforms.uHot.value = sm(0.1, 0.9, p);
 
   // anillos: se encienden al acercarse y se apagan al cruzarlos
   const ringDim = (r, gate, far) => {
@@ -1303,20 +1368,26 @@ function frame() {
   ringTime.value = t;
 
   // espiral de rubros: estación continua (0 = primer rubro) y giro
-  const sIn = clamp(q - Q0, 0, NR - 1), spin = spinAt(q);
+  // + vida: la espiral nunca está 100 % quieta. Se mece lento alrededor de su eje (±~7°) y respira en altura;
+  // fichas y cinta de partículas comparten el mismo vaivén (siguen en fase)
+  const idleSpin = reduced ? 0 : Math.sin(t * 0.23) * 0.075 + Math.sin(t * 0.087 + 1.3) * 0.05;
+  const idleY = reduced ? 0 : Math.sin(t * 0.31) * 0.09;
+  const sIn = clamp(q - Q0, 0, NR - 1), spin = spinAt(q) + idleSpin;
 
   // partículas: armar → anillo → túnel → armar de nuevo al final
   if (particles) {
     const U = particles.shared;
-    U.uA.value = sm(0.05, 1.3, p);
+    U.uA.value = sm(0.05, 0.95, p);
     U.uC.value = sm(1.15, 2.1, p);
     U.uB.value = sm(2.2, 2.95, p);         // al salir del túnel la M se construye: es el planeta de los casos
     U.uMScale.value = mScale; U.uRingS.value = RING_S; U.uRingZ.value = RING_Z;
     U.uMouseK.value = clamp(camera.position.distanceTo(camLook) / mouseRef, 1, 1.7);   // el remolino del cursor sigue a la distancia
     U.uRot.value = reduced ? 0 : Math.sin(t * 0.23) * 0.22 + smooth.x * 0.1;
     // casos: las partículas son la cinta de la espiral (gira con ella); en el cierre bajan y arman la M al pie
-    U.uPlanet.value = sm(2.2, 2.7, p) * (1 - sm(3.25, 3.85, p));
-    U.uSpiral.value.set(SPI.yTop, SPI.drop, SPI.R, spin);
+    U.uPlanet.value = sm(2.2, 2.7, p) * (1 - sm(3.0, 3.55, p));
+    if (U.uPlanet.value > 0.001 || p < 3) planetOff = -1;
+    else if (planetOff < 0) planetOff = now();                          // cuándo se soltó la última partícula hacia la M
+    U.uSpiral.value.set(SPI.yTop + idleY, SPI.drop, SPI.R, spin);
     U.uSpiralK.value.set(SPI.stepA, NR);
     const bob = reduced ? 0 : Math.sin(t * 0.6) * 0.04;
     U.uStart.value.set(0, AXIS_Y + bob, 0);
@@ -1358,8 +1429,9 @@ function frame() {
     ud.hover += ((j === hov ? 1 : 0) - ud.hover) * (1 - Math.exp(-dt * 8));
     const R = SPI.R * (1 + (1 - cIn) * 0.6 + cOut * 0.5) + 0.3 * ud.hover;
     const bob = reduced ? 0 : Math.sin(t * 0.7 + j * 1.9) * 0.05;
-    m.position.set(Math.sin(th) * R, SPI.yTop - j * SPI.drop + bob, END_Z + Math.cos(th) * R);
-    m.rotation.set(0, th, 0);                                              // mira hacia afuera del eje
+    m.position.set(Math.sin(th) * R, SPI.yTop - j * SPI.drop + bob + idleY, END_Z + Math.cos(th) * R);
+    // mira hacia afuera del eje, con un cabeceo suave propio de cada ficha (±1.7°: se sigue leyendo)
+    m.rotation.set(reduced ? 0 : Math.sin(t * 0.5 + j * 1.3) * 0.03, th, 0, "YXZ");
     const fade = sm(0, 0.35, cVis);                                        // al entrar y salir de la espiral, crecen y se encienden
     const sc = SPI.cardW * (0.7 + 0.3 * cIn) * (1 + 0.05 * ud.hover) * fade;
     m.scale.set(Math.max(1e-3, sc), Math.max(1e-3, sc / CARD_AR), 1);
@@ -1368,7 +1440,9 @@ function frame() {
     if (j !== rp.open) b *= 1 - 0.97 * rpView;                            // con un rubro abierto, las demás se retiran
     ud.u.uBright.value = b;
     ud.u.uEdge.value = (0.3 + 0.7 * Math.max(ud.hover, 0.55 * wc, j === rp.open ? 1 : 0)) * fade;
+    placeIcon(j, m, t, Math.min(1, b * 1.1));
   });
+  cards.forEach((m, j) => { if (!m.visible) icons[j].visible = false; });
 
   // textos: aparecen al acercarte, la cámara los atraviesa al seguir
   const jumpA = Math.round(sceneP(from)), jumpB = Math.round(sceneP(to));
@@ -1378,7 +1452,8 @@ function frame() {
     // Servicios vive a 3 unidades de los casos y la cámara no lo cruza: sale aún antes al avanzar.
     // Contacto espera a que la M esté armada. En saltos largos (índice) los intermedios no aparecen
     let vis = i === 2 && p > 2 ? 1 - sm(0.04, 0.18, p - 2)
-      : i === 4 && p < 4 ? sm(3.72, 3.95, p)
+      : i === 4 ? (1 - sm(0.12, 0.4, Math.abs(p - 4)))                  // sale como los demás…
+          * (reduced || !particles ? 1 : planetOff < 0 ? 0 : sm(0.3, 0.55, (now() - planetOff) / 1000))   // …y llega con la M ya armada
       : 1 - sm(0.12, 0.4, Math.abs(p - i));
     if (jumpA !== jumpB && Math.abs(jumpB - jumpA) >= 2 && i !== jumpA && i !== jumpB) vis = 0;
     if (i === 3) { o.position.copy(o.userData.base); o.position.y -= SPI.drop * sIn; }   // baja con la cámara de rubro en rubro
