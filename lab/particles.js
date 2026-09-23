@@ -17,8 +17,8 @@ import { MeshSurfaceSampler } from "three/addons/math/MeshSurfaceSampler.js";
 /* Destinos por estado. u = coordenada de la partícula en las texturas de datos */
 const TARGET_GLSL = /* glsl */ `
 uniform sampler2D tHome, tRing, tHelix;
-uniform float uTime, uA, uB, uC, uRot;
-uniform vec3 uStart, uEnd; uniform vec2 uAxis; uniform float uRingZ;
+uniform float uTime, uA, uB, uC, uRot, uPlanet, uTilt;
+uniform vec3 uStart, uEnd; uniform vec2 uAxis, uDust; uniform float uRingZ;
 float mvStag(float u, float s){ return smoothstep(0., 1., clamp(u * 1.6 - s * .6, 0., 1.)); }
 vec3 mvRotY(vec3 p, float a){ float c = cos(a), s = sin(a); return vec3(p.x * c + p.z * s, p.y, -p.x * s + p.z * c); }
 // devuelve el destino; en w, cuánto "viaja" ahora (0 = asentada)
@@ -33,7 +33,14 @@ vec4 mvTarget(vec2 u){
   vec3 helix = vec3(uAxis.x + cos(th) * hx.y, uAxis.y + sin(th) * hx.y * .9, hx.z);
   float eA = mvStag(uA, seed), eC = mvStag(uC, rg.w), eB = mvStag(uB, 1. - seed);
   vec3 t = mix(mix(mix(mp + uStart, ring, eA), helix, eC), mp + uEnd, eB);
-  float travel = sin(eA * 3.14159) + sin(eC * 3.14159) + sin(eB * 3.14159);
+  // planeta (casos): ~18% se desprende y forma un anillo de polvo que orbita con las fichas
+  float dsel = step(.82, fract(seed * 7.13)) * eB * uPlanet;
+  float dr = mix(uDust.x, uDust.y, fract(seed * 13.7));
+  float da = rg.x + uTime * (1.1 / dr);
+  vec3 dl = vec3(cos(da) * dr, (fract(seed * 29.3) - .5) * .2, sin(da) * dr);
+  vec3 dust = uEnd + vec3(dl.x, dl.y - dl.z * sin(uTilt), dl.z * cos(uTilt));
+  t = mix(t, dust, dsel);
+  float travel = sin(eA * 3.14159) + sin(eC * 3.14159) + sin(eB * 3.14159) + sin(dsel * 3.14159);
   return vec4(t, clamp(travel, 0., 1.));
 }
 `;
@@ -65,7 +72,7 @@ void main(){
   float rel = smoothstep(0., 1., clamp(uIntro * 1.5 - seed * .5, 0., 1.));   // entrada: se sueltan en cascada
   float k = mix(1.5, 26., rel) * (1. - .55 * tg.w);                           // resorte (más flojo al viajar)
   vec3 acc = (tg.xyz - pos) * k;
-  acc += mvFlow(pos * .55, uTime * .6) * uFlowAmt * (.07 + 1.5 * tg.w + (1. - rel) * 1.3);
+  acc += mvFlow(pos * .55, uTime * .6) * uFlowAmt * (.07 + .2 * uPlanet + 1.5 * tg.w + (1. - rel) * 1.3);
   // cursor: empuja desde su rayo y hace girar alrededor de él
   vec3 w = pos - uRayO; float tr = dot(w, uRayD);
   vec3 dv = w - uRayD * tr; float dist = length(dv);
@@ -111,15 +118,14 @@ void main(){
   float coc = clamp(abs(z - uFocus) * uAperture, 0., 1.);                     // profundidad de campo
   vec4 rgs = texture2D(tRing, aRef);
   float calm = mvStag(uC, rgs.w) * (1. - mvStag(uB, 1. - aSeed));             // 1 = viajando por el túnel
-  float base = (1.2 + aSeed * 2.2) * uPx * (19. / max(z, .1)) * mix(1., .55, calm);
-  gl_PointSize = clamp(base * (1. + coc * 1.8), 1., 36.) * smoothstep(.8, 2.2, z);   // pegadas a la cámara: sin costo
-  gl_PointSize *= 1. + .18 * max(1. - mvStag(uA, aSeed), mvStag(uB, 1. - aSeed));    // la M armada, más llena
+  float base = (.95 + aSeed * 1.6) * uPx * (16. / max(z, .1)) * mix(1., .6, calm);   // partículas finas
+  gl_PointSize = clamp(base * (1. + coc * .9), 1., 16.) * smoothstep(.8, 2.2, z);   // sin discos gigantes
+  gl_PointSize *= 1. + .15 * max(1. - mvStag(uA, aSeed), mvStag(uB, 1. - aSeed));    // la M armada, más llena
   float asmW = max(1. - mvStag(uA, aSeed), mvStag(uB, 1. - aSeed));            // 1 = forma la M
   float tw = mix(.72 + .28 * sin(uTime * (1.3 + aSeed * 2.1) + aSeed * 50.), 1., asmW * .75);
   vA = tw / (1. + coc * coc * 5.) * smoothstep(1., 3.5, z) * uAlpha * mix(1., .55, calm);
   if (uMirror > .5) vA *= .7 * smoothstep(-1.8, 0., p.y) * uReflect;
-  vec3 hot = mix(aCol, vec3(.86, .95, 1.), clamp(sp * .05, 0., .35) * (1. - asmW));   // sólo en vuelo se encienden
-  vC = hot * (mix(1.6, 1.3, asmW) + clamp(sp * .12, 0., .6) + near * .3);
+  vC = aCol * (mix(1.5, 1.3, asmW) + near * .3);                                // siempre su color de marca, nunca blanco
   vCoc = coc;
   gl_Position = projectionMatrix * mv;
 }
@@ -130,15 +136,28 @@ void main(){
   float d = length(gl_PointCoord - .5) * 2.;
   if (d > 1.) discard;
   float core = exp(-d * d * mix(6.5, 2.4, vCoc));                             // nítida → bokeh
-  float rim = smoothstep(1., .84, d) * smoothstep(.5, .95, d) * vCoc * .35;   // borde del bokeh
+  float rim = 0.;
   float k = (core + rim) * vA;
   if (k < .015) discard;
   gl_FragColor = vec4(vC * k, .5);   // alfa .5 = "color exacto con brillo" (lo lee el paso de salida)
 }
 `;
 
-export function createParticles({ renderer, geos, holderMatrix, mobile, reduced }) {
-  const W = mobile ? 120 : 180, N = W * W;
+// ¿el punto (x, y) cae dentro del polígono o a menos de `margin` de su borde? (coordenadas del SVG)
+function nearPoly(x, y, poly, margin) {
+  let inside = false, best = Infinity;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i], b = poly[j];
+    if ((a.y > y) !== (b.y > y) && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x) inside = !inside;
+    const dx = b.x - a.x, dy = b.y - a.y, L = dx * dx + dy * dy || 1;
+    const u = Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / L));
+    best = Math.min(best, Math.hypot(a.x + dx * u - x, a.y + dy * u - y));
+  }
+  return inside || best < margin;
+}
+
+export function createParticles({ renderer, geos, holderMatrix, mobile, reduced, exclude = [] }) {
+  const W = mobile ? 136 : 210, N = W * W;
 
   /* --- muestreo sobre la superficie de la M (menos en la cara trasera: silueta más nítida) --- */
   const samplers = geos.map((g) => new MeshSurfaceSampler(new THREE.Mesh(g)).build());
@@ -152,7 +171,13 @@ export function createParticles({ renderer, geos, holderMatrix, mobile, reduced 
   samplers.forEach((smp, si) => {
     const count = si === samplers.length - 1 ? N - k : Math.round(N * areas[si] / total);
     for (let j = 0; j < count && k < N; j++, k++) {
-      do { smp.sample(p, n, c); } while (n.z < -0.5 && Math.random() < 0.65);
+      const ex = exclude.filter((e) => e.geo === si);
+      for (let tries = 0; tries < 60; tries++) {
+        smp.sample(p, n, c);
+        if (n.z < -0.5 && Math.random() < 0.65) continue;                     // menos cara trasera
+        if (ex.some((e) => nearPoly(p.x, p.y, e.poly, e.margin))) continue;   // tapado por otra pieza
+        break;
+      }
       p.applyMatrix4(holderMatrix);
       const seed = Math.random();
       home.set([p.x, p.y, p.z, seed], k * 4);
@@ -167,8 +192,8 @@ export function createParticles({ renderer, geos, holderMatrix, mobile, reduced 
       const spread = Math.pow(Math.random(), 2) * (Math.random() < .5 ? -1 : 1);
       helix.set([(k % 3) * (Math.PI * 2 / 3) + z * 0.22 + spread * 0.9, 2.5 + Math.pow(Math.random(), 1.6) * 3.8 + Math.abs(spread) * 0.8, z, 0], k * 4);
       // nube de la entrada: la M se arma desde aquí
-      const th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1), rad = 5 + Math.random() * 7;
-      start.set([Math.sin(ph) * Math.cos(th) * rad, Math.cos(ph) * rad * 0.6 + 1.9, Math.sin(ph) * Math.sin(th) * rad - 2, 1], k * 4);
+      const th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1), rad = 3.2 + Math.random() * 4.5;
+      start.set([Math.sin(ph) * Math.cos(th) * rad * 1.2, Math.cos(ph) * rad * 0.55 + 1.9, Math.sin(ph) * Math.sin(th) * rad * 0.7 - 3.5, 1], k * 4);
     }
   });
   const dataTex = (arr) => {
@@ -181,6 +206,7 @@ export function createParticles({ renderer, geos, holderMatrix, mobile, reduced 
     tHome: { value: tHome }, tRing: { value: tRing }, tHelix: { value: tHelix },
     uTime: { value: 0 }, uA: { value: 0 }, uB: { value: 0 }, uC: { value: 0 }, uRot: { value: 0 },
     uStart: { value: new THREE.Vector3() }, uEnd: { value: new THREE.Vector3() },
+    uPlanet: { value: 0 }, uTilt: { value: 0.15 }, uDust: { value: new THREE.Vector2(3.2, 5.6) },
     uAxis: { value: new THREE.Vector2(0, 1.9) }, uRingZ: { value: -4.2 },
     uRayO: { value: new THREE.Vector3() }, uRayD: { value: new THREE.Vector3(0, 0, -1) }, uMouse: { value: 0 }
   };
@@ -221,7 +247,7 @@ export function createParticles({ renderer, geos, holderMatrix, mobile, reduced 
   geo.setAttribute("aSeed", new THREE.BufferAttribute(seeds, 1));
   const renderUniforms = (mirror) => Object.assign({}, shared, {
     tPos: { value: null }, tVel: { value: null }, uSim: { value: gpu ? 1 : 0 },
-    uPx: { value: 1 }, uFocus: { value: 12 }, uAperture: { value: mobile ? 0.07 : 0.09 },
+    uPx: { value: 1 }, uFocus: { value: 12 }, uAperture: { value: mobile ? 0.04 : 0.05 },
     uMirror: { value: mirror ? 1 : 0 }, uAlpha: { value: 1 }, uReflect: { value: 0 }
   });
   const mk = (mirror) => {

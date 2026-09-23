@@ -18,7 +18,7 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { CSS3DRenderer, CSS3DObject } from "three/addons/renderers/CSS3DRenderer.js";
-import { createParticles } from "./particles.js?v=13";
+import { createParticles } from "./particles.js?v=14";
 
 const canvas = document.querySelector("[data-gl]");
 const curtain = document.querySelector("[data-curtain]");
@@ -269,8 +269,9 @@ async function buildM() {
   const svgText = await (await fetch("../assets/logos/mv-design-mark-color.svg")).text();
   const data = new SVGLoader().parse(svgText);
   const box = new THREE.Box3(), geos = [];
+  const shapes = data.paths.map((path) => SVGLoader.createShapes(path));
   data.paths.forEach((path, i) => {
-    const geo = new THREE.ExtrudeGeometry(SVGLoader.createShapes(path), {
+    const geo = new THREE.ExtrudeGeometry(shapes[i], {
       depth: 34, bevelEnabled: true, bevelThickness: 9, bevelSize: 6.5, bevelOffset: 0, bevelSegments: 6, curveSegments: 40
     });
     geo.translate(0, 0, Z_OFF[i] || 0);
@@ -286,7 +287,10 @@ async function buildM() {
   holder.scale.set(s, -s, s);                       // el SVG tiene la Y hacia abajo
   holder.position.set(-center.x * s, center.y * s, -center.z * s);
   holder.updateMatrix();
-  particles = createParticles({ renderer, geos, holderMatrix: holder.matrix, mobile, reduced });
+  // como en el logo plano, la lágrima morada tapa el brazo derecho del chevrón: ahí no hay partículas azules
+  const tear = shapes[1] && shapes[1][0] ? shapes[1][0].getPoints(96) : null;
+  const exclude = tear ? [{ geo: 0, poly: tear, margin: 8 }] : [];
+  particles = createParticles({ renderer, geos, holderMatrix: holder.matrix, mobile, reduced, exclude });
   particles.px = DPR * (mobile ? 0.8 : 1);
   particles.points.renderOrder = 1;
   particles.reflection.renderOrder = -2;            // debajo del piso: el piso la vela
@@ -458,7 +462,7 @@ function buildPath() {
     KEYS.look = [V(0, 1.15, 0), V(0, 1.6, -4.2), V(0, AXIS_Y, -24), V(0, AXIS_Y + 1.2, E), V(0, 1.15, E)];
     FOCUS = [13.6, 16.7, 9, 17, 13.6];
   } else {
-    KEYS.pos = [V(0, 1.9, 12), V(0, AXIS_Y, 9.8), V(0, AXIS_Y, -9), V(0, AXIS_Y + 2.2, E + 15.2), V(0, 1.9, E + 12)];
+    KEYS.pos = [V(0, 1.9, 12), V(0, AXIS_Y, 9.8), V(0, AXIS_Y, -9), V(0, AXIS_Y + 1.5, E + 15.4), V(0, 1.9, E + 12)];
     KEYS.look = [V(0, 1.45, 0), V(0, AXIS_Y, -4.2), V(0, AXIS_Y, -24), V(0, AXIS_Y + 0.35, E), V(0, 1.45, E)];
     FOCUS = [12, 14, 9, 15, 12];
   }
@@ -694,13 +698,22 @@ function frame() {
   tunnel.forEach((r) => ringDim(r, 0.6 * sm(1.25, 1.9, p) * (1 - sm(2.45, 2.9, p))));   // al salir del túnel se apagan
   ringTime.value = t;
 
+  // planeta: cuánto estamos en casos y la inclinación viva del anillo (precesión suave)
+  const planetW = 1 - sm(0.15, 0.6, Math.abs(p - 3));
+  const orbitTilt = (portrait ? 0.38 : 0.12) + (reduced ? 0 : Math.sin(t * 0.21) * 0.03);
+
   // partículas: armar → anillo → túnel → armar de nuevo al final
   if (particles) {
     const U = particles.shared;
     U.uA.value = sm(0.05, 1.3, p);
     U.uC.value = sm(1.15, 2.1, p);
     U.uB.value = sm(2.2, 2.95, p);         // al salir del túnel la M se construye: es el planeta de los casos
-    U.uRot.value = reduced ? 0 : Math.sin(t * 0.23) * 0.22 + smooth.x * 0.1;
+    // en casos la M se balancea amplio sobre su eje (±55°): se ve su volumen y el logo siempre se lee
+    const planetSwing = Math.sin(t * 0.34) * 0.95 * planetW;
+    U.uRot.value = reduced ? 0 : Math.sin(t * 0.23) * 0.22 * (1 - planetW) + smooth.x * 0.1 + planetSwing;
+    U.uPlanet.value = planetW;
+    U.uTilt.value = orbitTilt;
+    U.uDust.value.set(portrait ? 1.6 : 3.0, portrait ? 3.1 : 5.7);
     const bob = reduced ? 0 : Math.sin(t * 0.6) * 0.04;
     U.uStart.value.set(0, AXIS_Y + bob, 0);
     U.uEnd.value.set(0, AXIS_Y + bob, END_Z);
@@ -729,13 +742,13 @@ function frame() {
   const focus = hov >= 0 ? hov : orbitSel;
   if (cVis > 0.01) showCaption(focus);
   document.body.style.cursor = hov >= 0 ? "pointer" : "";
-  orbitSpeed += ((focus >= 0 || reduced ? 0 : 0.14) - orbitSpeed) * (1 - Math.exp(-dt * 3));
+  orbitSpeed += ((focus >= 0 || reduced ? 0 : 0.2) - orbitSpeed) * (1 - Math.exp(-dt * 3));
   if (orbitSel >= 0 && hov < 0) {   // la elegida viene al frente
     let dA = (Math.PI / 2 - orbitSel * TAU / 5) - orbitBase;
     dA = Math.atan2(Math.sin(dA), Math.cos(dA));
     orbitBase += dA * (1 - Math.exp(-dt * (reduced ? 60 : 3.5)));
   } else orbitBase += orbitSpeed * dt;
-  const ORB_R = portrait ? 2.2 : 4.3, CARD_W = portrait ? 1.3 : 2.05, TILT = portrait ? 0.38 : 0.15;
+  const ORB_R = portrait ? 2.2 : 4.3, CARD_W = portrait ? 1.3 : 2.05, TILT = orbitTilt;
   const C = tmp2.set(0, AXIS_Y + (reduced ? 0 : Math.sin(t * 0.6) * 0.04), END_Z);
   cards.forEach((m) => {
     const ud = m.userData, i = ud.i;
@@ -744,7 +757,8 @@ function frame() {
     const th = orbitBase + i * TAU / 5 + (1 - cIn) * 2.2;
     const R = ORB_R * (0.45 + 0.55 * cIn) * (1 + cOut * 0.9);
     const x = Math.cos(th) * R, z = Math.sin(th) * R;
-    m.position.set(C.x + x, C.y - z * Math.sin(TILT), C.z + z * Math.cos(TILT));
+    const bob = reduced ? 0 : Math.sin(t * 0.8 + i * 1.7) * 0.09;           // flotan, cada una a su ritmo
+    m.position.set(C.x + x, C.y + bob - z * Math.sin(TILT), C.z + z * Math.cos(TILT));
     ud.lift += ((i === focus ? 1 : 0) - ud.lift) * (1 - Math.exp(-dt * 7));
     m.position.addScaledVector(camFwd, -1.1 * ud.lift);                     // la enfocada se acerca
     const sc = CARD_W * cVis * (1 + 0.42 * ud.lift);
