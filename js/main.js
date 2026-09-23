@@ -14,7 +14,7 @@
   if (/[?&]debug=/.test(location.search)) {
     var probe = document.createElement("script");
     probe.async = false;
-    probe.src = "js/probe.js";
+    probe.src = "js/probe.js?v=2c";
     document.head.appendChild(probe);
   }
   function announceReveal() { try { window.dispatchEvent(new Event("mv:reveal")); } catch (e) {} }
