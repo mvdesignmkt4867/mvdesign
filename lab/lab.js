@@ -787,8 +787,8 @@ function frame() {
     U.uEnd.value.set(0, AXIS_Y + bob, END_Z);
     // cursor: se enciende al moverlo y se relaja si se queda quieto
     const want = reduced ? 0 : pointerOn * (now() - lastMove < 2500 ? 1 : 0.45);
-    mouseAmt += (want - mouseAmt) * (1 - Math.exp(-dt * 6));
-    raycaster.setFromCamera(smooth, camera);
+    mouseAmt += (want - mouseAmt) * (1 - Math.exp(-dt * 18));             // responde casi al instante
+    raycaster.setFromCamera(ndc, camera);                                  // el mouse real, sin suavizado: cero retraso
     U.uRayO.value.copy(raycaster.ray.origin); U.uRayD.value.copy(raycaster.ray.direction);
     U.uMouse.value = mouseAmt;
     AU.uRayO.value.copy(raycaster.ray.origin); AU.uRayD.value.copy(raycaster.ray.direction); AU.uMouse.value = mouseAmt;
