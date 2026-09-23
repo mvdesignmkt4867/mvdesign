@@ -25,6 +25,11 @@
 
   if (/[?&](debug=reset|reset=1)/.test(qs)) {
     try { localStorage.removeItem(KEY); localStorage.removeItem(CKEY); } catch (e) {}
+    // el reset es de UNA vez: se quita de la URL para que ↻ no vuelva a borrar la ronda
+    try {
+      var q2 = qs.replace(/([?&])reset=1(&|$)/, function (m, p1, p2) { return p2 ? p1 : ""; }).replace("debug=reset", "debug=1");
+      window.history.replaceState(null, "", location.pathname + q2 + location.hash);
+    } catch (e) {}
   }
   // al recargar, que la corrida empiece arriba (sin scroll restaurado que ensucie)
   try {
