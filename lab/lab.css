@@ -308,6 +308,10 @@ html:not(.is-3d) .idx, html:not(.is-3d) .restart { display: none; }
   .idx button::before { inset: -8px -12px; }          /* números solos: el área táctil llega a ~44 px */
   .idx__t { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
+@media (max-width: 380px) {                             /* celulares angostos: la cápsula no tapa "MV DESIGN" */
+  .idx ol { gap: 12px; padding: 3px 10px; }
+  .idx button::before { inset: -8px -8px; }
+}
 @media (max-width: 720px) {
   .hud--tr { display: none; }
   .title--2 { font-size: clamp(28px, 8vw, 40px); }

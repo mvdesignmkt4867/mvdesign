@@ -724,6 +724,15 @@ function buildPanel(j) {
   det.hidden = true; det.setAttribute("aria-labelledby", "rpanel-det-name");
   rpEl.append(head, grid, det);
 }
+// Atrás (o el gesto de regresar del celular) cierra primero el caso y luego el rubro, en vez de salir del sitio
+let ignorePop = 0;
+function pushPanel(level) { try { history.pushState({ panel: level }, ""); } catch (e) {} }
+function popPanel(levels) {                            // cerrar desde la interfaz: consume las entradas propias
+  const st = history.state && history.state.panel;
+  if (!st) return;
+  const n = Math.min(levels, st);
+  if (n > 0) { ignorePop += 1; try { history.go(-n); } catch (e) { ignorePop -= 1; } }
+}
 function openRubro(j, opener) {
   if (j < 0 || j >= NR || rp.open === j) return;
   clearTimeout(rp.closeTimer);
@@ -737,6 +746,7 @@ function openRubro(j, opener) {
   if (waFloat) waFloat.inert = true;                   // oculto con el panel: tampoco se tabula
   rpEl.scrollTop = 0;
   rp.openedAt = performance.now();                    // el clic sintético de un toque no debe abrir un caso
+  pushPanel(1);
   if (!reduced) {
     const from = cardRect(j, 1);                     // donde queda la ficha con la vista ya corrida
     rpEl.querySelector(".rpanel__head").animate([{ opacity: 0, transform: "translateY(14px)" }, { opacity: 1, transform: "none" }],
@@ -749,8 +759,9 @@ function openRubro(j, opener) {
   rpEl.querySelector("#rpanel-title")?.focus({ preventScroll: true });
   if (capLive) capLive.textContent = `${RUBROS[j].name}: ${RUBROS[j].projects.length} proyectos.`;
 }
-function closeRubro(instant = false) {
+function closeRubro(instant = false, via = "ui") {
   if (rp.open < 0) return;
+  if (via === "ui") popPanel(rp.detail >= 0 ? 2 : 1);
   const j = rp.open;
   rp.open = -1; rp.detail = -1; rp.tile = null;
   document.body.classList.remove("rp-open");
@@ -786,12 +797,13 @@ function openDetail(k, tile) {
   const tb = tile.getBoundingClientRect();           // antes de ocultar la rejilla y de mover el scroll
   rp.scroll = rpEl.scrollTop;
   rp.detail = k; rp.tile = tile;
+  pushPanel(2);
   const det = rpEl.querySelector(".rpanel__detail");
   det.getAnimations().forEach((a) => a.cancel());    // la salida anterior (fill forwards) no debe seguir aplicada
   det.textContent = "";
   const back = mk("button", "rpanel__back mono", `← ${r.name}`);
   back.type = "button"; back.setAttribute("aria-label", `Volver a los proyectos de ${r.name}`);
-  back.addEventListener("click", closeDetail);
+  back.addEventListener("click", () => closeDetail());
   const media = mk("div", "det__media" + (pr.img ? "" : " det__media--logo"));
   if (pr.img) { const im = mk("img"); im.src = pr.img; im.alt = pr.alt || pr.name; im.decoding = "async"; media.append(im); }
   else if (pr.logo) { const im = mk("img"); im.src = pr.logo; im.alt = `Logotipo de ${pr.name}`; media.append(im); }
@@ -817,9 +829,10 @@ function openDetail(k, tile) {
   if (!reduced) flipIn(det, { x: tb.left, y: tb.top, w: tb.width, h: tb.height }, { dur: 760 });
   name.focus({ preventScroll: true });
 }
-function closeDetail() {
+function closeDetail(via = "ui") {
   const det = rpEl.querySelector(".rpanel__detail"), tile = rp.tile;
   if (!det || rp.detail < 0) return;
+  if (via === "ui") popPanel(1);
   rp.detail = -1; rp.tile = null;
   clearTimeout(rp.hideTimer);
   rpEl.querySelectorAll(".rpanel__head, .rpanel__grid").forEach((e) => { e.inert = false; e.style.display = ""; });
@@ -1034,7 +1047,7 @@ function buildPath() {
     const h = el.offsetHeight;
     el.style.display = prevD;
     const top = (narrow ? (i === 3 ? 112 : 76) : 96) + SAFE_T;
-    const bottom = narrow && (i === LAST || i === 3) ? Math.max(24, SAFE_B + 14) : (narrow ? 96 : 40) + SAFE_B;
+    const bottom = narrow && (i === LAST || i === 3) ? Math.max(24, SAFE_B + 14) : (narrow ? 96 : i === 0 ? 110 : 40) + SAFE_B;   // (inicio: la pista 'Desliza' va abajo)
     // con anillo: centrado exacto y sin achicar (su tamaño ya sale del anillo), así texto, disco y anillo son concéntricos
     const fit = ring ? 1 : h > 0 ? Math.min(1, (H - top - bottom) / h) : 1;   // si no cabe, se achica un poco
     const half = (h * fit) / 2;
@@ -1132,7 +1145,7 @@ function tween(kt) {
 function goQ(i) {
   i = clamp(Math.round(i), 0, QLAST);
   if (i === to) return;                                 // mismo destino: no se reinicia nada
-  if (rp.open >= 0) closeRubro();
+  if (rp.open >= 0) closeRubro(false, "nav");
   const moving = prog !== to;
   from = clamp(prog, 0, QLAST); to = i; tStart = now();
   v0 = moving && !reduced ? progVel : 0;
@@ -1148,7 +1161,7 @@ function goQ(i) {
   // contrario (condición de Fritsch–Carlson, |m0| ≤ 3·|D|). Sin esto, un cambio de destino a media carrera
   // se pasaba de largo, q < 0, y la curva leía points[-1] (la página se congelaba)
   const Dq = to - from;
-  if (v0 * Dq <= 0) v0 = 0;
+  if (v0 * Dq < 0) v0 = Math.sign(v0) * Math.min(Math.abs(v0), 0.6 / dur);   // contra la marcha: frena corto (se pasa ≤ ~0.1 estación), no en seco
   else if (Math.abs(v0 * dur) > 3 * Math.abs(Dq)) v0 = Math.sign(Dq) * 3 * Math.abs(Dq) / dur;
   lockUntil = tStart + (reduced ? 350 : Math.max(800, dur * 1000 * 0.72));
 }
@@ -1196,7 +1209,7 @@ addEventListener("keydown", (e) => {
     const dy = { ArrowDown: 60, ArrowUp: -60, PageDown: rpEl.clientHeight * 0.85, PageUp: -rpEl.clientHeight * 0.85, " ": (e.shiftKey ? -1 : 1) * rpEl.clientHeight * 0.85 }[e.key];
     if (dy !== undefined) { e.preventDefault(); rpEl.scrollBy({ top: dy, behavior: reduced ? "auto" : "smooth" }); return; }
   }
-  if (e.key === " " && e.target.closest && e.target.closest("button, a, [tabindex], summary")) return;   // Espacio activa el botón enfocado
+  if (e.key === " " && e.target.closest && e.target.closest('button, a[href], summary, [tabindex]:not([tabindex="-1"])')) return;   // Espacio activa el botón enfocado
   if (e.repeat) { if ([" ", "ArrowDown", "ArrowUp", "PageDown", "PageUp"].includes(e.key)) e.preventDefault(); return; }
   // (sólo las teclas que navegan marcan la llegada con teclado: Tab y las demás no mueven el foco)
   if (active === 3 && (e.key === "ArrowRight" || e.key === "ArrowLeft")) { e.preventDefault(); navByKey = true; step(e.key === "ArrowRight" ? 1 : -1); return; }
@@ -1210,23 +1223,34 @@ const SLUGS = ["inicio", "manifiesto", "servicios", "casos", "contacto"];
 const NAMES = ["La firma", "Manifiesto", "Servicios", "Casos", "Contacto"];
 let navByKey = false;                                  // al llegar con teclado, el foco pasa al titular de la escena
 function goScene(s, push) {
-  if (push && SLUGS[s] && location.hash !== "#" + SLUGS[s]) { try { history.pushState({ s }, "", "#" + SLUGS[s]); } catch (e) {} }
+  if (push && SLUGS[s] && s !== Math.round(sceneP(to))) { try { history.pushState({ s }, "", s === 0 ? location.pathname + location.search : "#" + SLUGS[s]); } catch (e) {} }
   goTo(s);
 }
 document.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => goScene(+b.dataset.go, true)));
-addEventListener("popstate", () => { const s = SLUGS.indexOf(location.hash.slice(1)); goTo(s >= 0 ? s : 0); });
-document.querySelector(".brand")?.addEventListener("click", (e) => { e.preventDefault(); goScene(0, true); });   // el logo regresa al inicio de la experiencia
+addEventListener("popstate", () => {
+  if (ignorePop > 0) { ignorePop -= 1; return; }       // (lo consumió la propia interfaz al cerrar)
+  if (rp.detail >= 0) { closeDetail("pop"); return; }
+  if (rp.open >= 0) { closeRubro(false, "pop"); return; }
+  const s = SLUGS.indexOf(location.hash.slice(1)), target = s >= 0 ? s : 0;
+  if (target !== active) goTo(target);
+});
+document.querySelector(".brand")?.addEventListener("click", (e) => {   // el logo regresa al inicio de la experiencia
+  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  e.preventDefault(); goScene(0, true);
+});
 
 /* ---------- HUD ---------- */
 const idxBtns = [...document.querySelectorAll(".idx [data-go]")];
 const noteEl = document.querySelector("[data-note]"), noteM = document.querySelector("[data-note-m]");
 // el correo se copia al tocarlo y lo confirma (y además abre el cliente de correo, si hay)
 const mailBtn = document.querySelector("[data-copy-mail]");
+const MAIL = (mailBtn?.getAttribute("href") || "").replace(/^mailto:/, "");
+let mailT = 0;
 mailBtn?.addEventListener("click", () => {
-  const addr = mailBtn.textContent.trim();
-  try { navigator.clipboard?.writeText(addr).then(() => {
+  try { navigator.clipboard?.writeText(MAIL).then(() => {
     mailBtn.textContent = "Correo copiado ✓";
-    setTimeout(() => { mailBtn.textContent = addr; }, 1800);
+    clearTimeout(mailT);
+    mailT = setTimeout(() => { mailBtn.textContent = MAIL; }, 1800);
   }).catch(() => {}); } catch (e) {}
 });
 const progEl = document.querySelector("[data-prog]");
@@ -1245,7 +1269,7 @@ const sceneLive = document.querySelector("[data-scene-live]");
 function setActive(a) {
   if (a === active) return;
   if (active >= 0) {
-    if (sceneLive) sceneLive.textContent = `Escena ${a + 1} de ${LAST + 1}: ${NAMES[a]}`;
+    if (sceneLive && a === Math.round(sceneP(to))) sceneLive.textContent = `Escena ${a + 1} de ${LAST + 1}: ${NAMES[a]}`;
     try { history.replaceState(history.state, "", a === 0 ? location.pathname + location.search : "#" + SLUGS[a]); } catch (e) {}
   }
   if (active === 0 && a > 0) { document.documentElement.classList.add("hint-done"); try { sessionStorage.setItem("mv-hint", "1"); } catch (e) {} }
@@ -1253,7 +1277,7 @@ function setActive(a) {
   document.body.dataset.scene = a;
   // se esconde en contacto (ahí están los dos WhatsApp) y en casos en celular (tapaba la galería)
   if (waFloat) waFloat.inert = a === LAST || (a === 3 && narrowMQ.matches);
-  if (a !== 3 && rp.open >= 0) closeRubro(true);
+  if (a !== 3 && rp.open >= 0) closeRubro(true, "nav");
   idxBtns.forEach((b, i) => { if (i === a) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current"); });
   if (noteEl) noteEl.innerHTML = NOTES[a];
   if (noteM) noteM.textContent = NOTES[a].replace(/<br>/g, " ");
@@ -1277,7 +1301,7 @@ const clock = new THREE.Clock();
 const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), tmp3 = new THREE.Vector3(), camFwd = new THREE.Vector3();
 const railPos = new THREE.Vector3(), cssFwd = new THREE.Vector3();
 let t0 = null, lastT = 0, mouseAmt = 0, camSpd = 0, railInit = false;
-let userMoved = false, peekT0 = -1, peekN = 0, peekV = 0, planetOff = -1;
+let userMoved = false, peekT0 = -1, peekN = 0, peekV = 0, planetOff = -1, kickS = 0;
 // cualquier gesto cancela el asomo y adelanta la entrada del HUD
 for (const ev of ["wheel", "touchstart", "keydown", "pointerdown"]) addEventListener(ev, () => { userMoved = true; if (lifted) revealHud(); }, { passive: true, capture: true });
 
@@ -1334,8 +1358,11 @@ function frame() {
   }
   camera.position.copy(camPos);
   camera.lookAt(camLook);
-  const land = sm(0.12, 0.4, Math.abs(p - Math.round(p)));              // 0 mientras el texto de una escena está visible
-  const kick = reduced ? 0 : sm(6, 20, camSpd) * land;                   // 0..1 según la velocidad real, sólo a media carrera
+  // 0 mientras el texto de la escena de origen o de destino está visible (las intermedias de un salto no cuentan)
+  const pA = Math.round(sceneP(from)), pB = Math.round(sceneP(to));
+  const land = sm(0.12, 0.4, Math.min(Math.abs(p - pA), Math.abs(p - pB)));
+  kickS += ((reduced ? 0 : sm(6, 20, camSpd) * land) - kickS) * (1 - Math.exp(-dt * 8));
+  const kick = kickS;                                                    // 0..1 según la velocidad real, sólo a media carrera
   camera.fov = BASE_FOV + kick * 3.5;
   camera.updateProjectionMatrix();
   // con un rubro abierto, la vista se corre (sin cambiar la perspectiva): la espiral queda a la izquierda
@@ -1370,8 +1397,10 @@ function frame() {
   // espiral de rubros: estación continua (0 = primer rubro) y giro
   // + vida: la espiral nunca está 100 % quieta. Se mece lento alrededor de su eje (±~7°) y respira en altura;
   // fichas y cinta de partículas comparten el mismo vaivén (siguen en fase)
-  const idleSpin = reduced ? 0 : Math.sin(t * 0.23) * 0.075 + Math.sin(t * 0.087 + 1.3) * 0.05;
-  const idleY = reduced ? 0 : Math.sin(t * 0.31) * 0.09;
+  // (se calma con un rubro abierto: la ficha no se mete bajo el panel; en vertical es más corto: el margen es poco)
+  const calm = 1 - rpView, idleK = (portrait ? 0.4 : 1) * calm;
+  const idleSpin = reduced ? 0 : (Math.sin(t * 0.23) * 0.075 + Math.sin(t * 0.087 + 1.3) * 0.05) * idleK;
+  const idleY = reduced ? 0 : Math.sin(t * 0.31) * 0.09 * calm;
   const sIn = clamp(q - Q0, 0, NR - 1), spin = spinAt(q) + idleSpin;
 
   // partículas: armar → anillo → túnel → armar de nuevo al final
@@ -1428,10 +1457,10 @@ function frame() {
     if (!m.visible) return;
     ud.hover += ((j === hov ? 1 : 0) - ud.hover) * (1 - Math.exp(-dt * 8));
     const R = SPI.R * (1 + (1 - cIn) * 0.6 + cOut * 0.5) + 0.3 * ud.hover;
-    const bob = reduced ? 0 : Math.sin(t * 0.7 + j * 1.9) * 0.05;
+    const bob = reduced ? 0 : Math.sin(t * 0.7 + j * 1.9) * 0.05 * (j === rp.open ? calm : 1);
     m.position.set(Math.sin(th) * R, SPI.yTop - j * SPI.drop + bob + idleY, END_Z + Math.cos(th) * R);
     // mira hacia afuera del eje, con un cabeceo suave propio de cada ficha (±1.7°: se sigue leyendo)
-    m.rotation.set(reduced ? 0 : Math.sin(t * 0.5 + j * 1.3) * 0.03, th, 0, "YXZ");
+    m.rotation.set(reduced ? 0 : Math.sin(t * 0.5 + j * 1.3) * 0.03 * (j === rp.open ? calm : 1), th, 0, "YXZ");
     const fade = sm(0, 0.35, cVis);                                        // al entrar y salir de la espiral, crecen y se encienden
     const sc = SPI.cardW * (0.7 + 0.3 * cIn) * (1 + 0.05 * ud.hover) * fade;
     m.scale.set(Math.max(1e-3, sc), Math.max(1e-3, sc / CARD_AR), 1);
@@ -1499,15 +1528,16 @@ function revealHud() {
   if (revealed) return; revealed = true;
   document.documentElement.classList.remove("is-intro");
   if (reduced) return;
-  introEls().forEach((el, i) => el.animate([{ opacity: 0, translate: "0 6px" }, { opacity: 1, translate: "0 0" }],
+  introEls().forEach((el, i) => el.animate([{ opacity: 0, translate: "0 6px" }, {}],   // {} = el valor que le toca por CSS
     { duration: 480, delay: i < 4 ? i * 70 : 600, easing: "cubic-bezier(.16,1,.3,1)", fill: "backwards" }));
 }
 let lifted = false;
 function lift() {
   if (lifted) return; lifted = true;
+  const covered = !curtain.classList.contains("is-off") && +getComputedStyle(curtain).opacity > 0.5;
   setLoad(1);
   curtain.classList.add("is-off");
-  t0 = null;                                         // la intro (dolly y titular) empieza aquí, a la vista
+  if (covered) t0 = null;                            // la intro empieza aquí, a la vista (si el telón ya se fue, no se reinicia)
   liftedAt = now();
   setTimeout(revealHud, reduced ? 0 : 2800);
 }
