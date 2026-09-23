@@ -7,14 +7,17 @@
   "use strict";
 
   var docEl = document.documentElement;
-  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var osReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // "Pausar movimiento" (WCAG 2.2.2): la elección se recuerda y lleva a la versión estática
+  var motionOff = docEl.classList.contains("motion-off");
+  var reduced = osReduced || motionOff;
 
   /* Sonda de arranque (?debug=1): mide en el teléfono real si el reveal se traba.
      Nunca se carga sin ?debug; con ?debug tampoco se envía analítica (MV_TRACK). */
   if (/[?&]debug=/.test(location.search)) {
     var probe = document.createElement("script");
     probe.async = false;
-    probe.src = "js/probe.js?v=6";
+    probe.src = "js/probe.js?v=8";
     document.head.appendChild(probe);
   }
   function announceReveal() {
@@ -39,7 +42,7 @@
     } catch (e) {}
   }
 
-  var EASE = "power3.out"; // ≈ cubic-bezier(.20,.80,.25,1) del DS
+  var EASE = "mv-out"; // cubic-bezier(.20,.80,.25,1) del DS (registrada abajo)
 
   /* ---------- Año ---------- */
   var yearEl = document.querySelector("[data-year]");
@@ -58,20 +61,114 @@
     lastY = y;
   }
 
+  /* Menú móvil accesible (DS 2.0): Escape cierra, el resto de la página queda
+     inerte mientras está abierto, el scroll se detiene y el foco vuelve al botón. */
+  var menuInert = [document.querySelector("main"), document.querySelector(".footer"), document.querySelector("[data-wa-float]"), document.querySelector(".nav__brand"), document.querySelector(".skip-link")];
+  function setMenu(open, returnFocus) {
+    if (!navToggle || !navLinks) return;
+    navLinks.setAttribute("data-open", String(open));
+    navToggle.setAttribute("aria-expanded", String(open));
+    navToggle.setAttribute("aria-label", open ? "Cerrar menú" : "Abrir menú");
+    document.body.setAttribute("data-nav-open", String(open));
+    menuInert.forEach(function (el) {
+      if (!el) return;
+      if (open) { el.setAttribute("inert", ""); el.setAttribute("data-menu-inert", ""); }
+      else if (el.hasAttribute("data-menu-inert")) {
+        el.removeAttribute("data-menu-inert");
+        // el flotante maneja su propio inert (visible/oculto): no se lo quitamos si lo tenía
+        if (!(el.hasAttribute("data-wa-float") && !el.classList.contains("is-visible"))) el.removeAttribute("inert");
+      }
+    });
+    if (window.__lenis) { if (open) window.__lenis.stop(); else window.__lenis.start(); }
+    if (open) { var first = navLinks.querySelector("a"); if (first) first.focus({ preventScroll: true }); }
+    else if (returnFocus) navToggle.focus({ preventScroll: true });
+  }
   if (navToggle) {
     navToggle.addEventListener("click", function () {
-      var open = navLinks.getAttribute("data-open") === "true";
-      navLinks.setAttribute("data-open", String(!open));
-      navToggle.setAttribute("aria-expanded", String(!open));
-      document.body.setAttribute("data-nav-open", String(!open));
+      setMenu(navLinks.getAttribute("data-open") !== "true", true);
     });
     navLinks.querySelectorAll("a").forEach(function (a) {
-      a.addEventListener("click", function () {
-        navLinks.setAttribute("data-open", "false");
-        navToggle.setAttribute("aria-expanded", "false");
-        document.body.setAttribute("data-nav-open", "false");
-      });
+      a.addEventListener("click", function () { if (navLinks.getAttribute("data-open") === "true") setMenu(false, false); });
     });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && navLinks.getAttribute("data-open") === "true") setMenu(false, true);
+    });
+    // si el menú está abierto y la ventana pasa de 860 px (girar el iPad), se cierra
+    var mqMenu = window.matchMedia("(max-width: 860px)");
+    var onMqMenu = function (e) { if (!e.matches && navLinks.getAttribute("data-open") === "true") setMenu(false, false); };
+    if (mqMenu.addEventListener) mqMenu.addEventListener("change", onMqMenu); else if (mqMenu.addListener) mqMenu.addListener(onMqMenu);
+  }
+
+  /* "Pausar movimiento": estado del botón y cambio (recarga a la versión estática) */
+  // El nombre del botón dice la acción ("Pausar…" / "Reanudar…"); sin aria-pressed
+  // para que el lector no anuncie un estado contradictorio.
+  document.querySelectorAll("[data-motion-toggle]").forEach(function (btn) {
+    if (osReduced) { btn.hidden = true; return; } // el sistema ya pidió menos movimiento
+    var label = btn.querySelector(".motion-toggle__label") || btn;
+    label.textContent = motionOff ? "Reanudar movimiento" : "Pausar movimiento";
+    if (btn.classList.contains("motion-toggle")) btn.title = label.textContent;
+    btn.addEventListener("click", function () {
+      var ok = true;
+      try {
+        if (motionOff) localStorage.removeItem("mv-motion"); else localStorage.setItem("mv-motion", "off");
+      } catch (e) { ok = false; }
+      try { sessionStorage.setItem("mv-motion-focus", btn.classList.contains("footer__motion") ? "footer" : "nav"); } catch (e) {}
+      // si el navegador no deja guardar (p. ej. Safari privado), la elección viaja en la URL
+      var u = new URL(location.href);
+      if (motionOff) u.searchParams.delete("motion"); else if (!ok) u.searchParams.set("motion", "off");
+      if (u.href !== location.href) location.replace(u.href); else location.reload();
+    });
+  });
+  // tras recargar, el foco vuelve al botón que se usó
+  try {
+    var mf = sessionStorage.getItem("mv-motion-focus");
+    if (mf) {
+      sessionStorage.removeItem("mv-motion-focus");
+      var mt = mf === "footer" ? document.querySelector(".footer__motion")
+        : (window.matchMedia("(max-width: 860px)").matches ? navToggle : document.querySelector(".motion-toggle"));
+      if (mt && !mt.hidden) mt.focus({ preventScroll: true });
+    }
+  } catch (e) {}
+
+  /* Correo: en desktop, además de abrir el cliente de correo, se copia al
+     portapapeles y se avisa "Correo copiado" (mucha gente no tiene cliente). */
+  (function () {
+    if (!(window.matchMedia && window.matchMedia("(hover: hover) and (pointer: fine)").matches)) return;
+    if (!(navigator.clipboard && navigator.clipboard.writeText)) return;
+    // la región viva existe (vacía) desde el inicio: así el lector sí anuncia el aviso
+    var toast = document.createElement("div");
+    toast.className = "toast"; toast.setAttribute("role", "status"); toast.setAttribute("aria-atomic", "true");
+    document.body.appendChild(toast);
+    var hideT = null, sayT = null;
+    function say(msg) {
+      clearTimeout(sayT); clearTimeout(hideT);
+      toast.textContent = "";
+      sayT = setTimeout(function () {
+        toast.textContent = msg; toast.classList.add("is-on");
+        hideT = setTimeout(function () { toast.classList.remove("is-on"); toast.textContent = ""; }, 1800);
+      }, 100);
+    }
+    document.addEventListener("click", function (e) {
+      var a = e.target.closest && e.target.closest('a[href^="mailto:"]');
+      if (!a) return;
+      var mail = a.getAttribute("href").replace(/^mailto:/, "").split("?")[0];
+      navigator.clipboard.writeText(mail).then(function () {
+        say("Correo copiado: " + mail);
+        if (typeof gtag === "function") gtag("event", "copy_contact", { method: "Correo", cta_location: a.getAttribute("data-cta") || "sin-etiqueta" });
+      }, function () {});
+    });
+  })();
+
+  /* traza un ícono una sola vez y lo deja fijo al terminar */
+  function drawIcon(ico) {
+    if (ico.classList.contains("is-drawn")) return;
+    ico.classList.add("is-drawn");
+    var left = ico.querySelectorAll("svg *").length;
+    ico.addEventListener("animationend", function onEnd(ev) {
+      if (ev.animationName !== "icoDrawFast") return;
+      if (--left <= 0) { ico.classList.add("is-done"); ico.removeEventListener("animationend", onEnd); }
+    });
+    setTimeout(function () { ico.classList.add("is-done"); }, 2000); // respaldo
   }
 
   /* ---------- Split de palabras (preserva .grad) ---------- */
@@ -112,6 +209,37 @@
   });
   docEl.classList.add("mv-split"); // el h1 ya está partido: el CSS deja de ocultarlo
 
+  /* ---------- Nav: pastilla que marca el capítulo en el que estás (desktop) ----------
+     Va antes de la rama estática: aria-current funciona también sin movimiento. */
+  (function () {
+    var links = navLinks ? Array.prototype.slice.call(navLinks.querySelectorAll('.nav__link[href^="#"]')) : [];
+    if (!links.length || !("IntersectionObserver" in window)) return;
+    var pill = document.createElement("span");
+    pill.className = "nav__pill"; pill.setAttribute("aria-hidden", "true");
+    navLinks.insertBefore(pill, navLinks.firstChild);
+    var current = null;
+    function place(a) {
+      if (a === current) return;
+      links.forEach(function (l) { if (l === a) l.setAttribute("aria-current", "location"); else l.removeAttribute("aria-current"); });
+      current = a;
+      if (!a) { pill.classList.remove("is-on"); return; }
+      pill.style.setProperty("--px", (a.offsetLeft - 14) + "px");
+      pill.style.setProperty("--pw", (a.offsetWidth + 28) + "px");
+      pill.classList.add("is-on");
+    }
+    var bySection = {};
+    links.forEach(function (a) { var s = document.querySelector(a.getAttribute("href")); if (s) bySection[s.id] = a; });
+    var visible = {};
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { visible[e.target.id] = e.isIntersecting; });
+      var active = null;
+      links.forEach(function (a) { var id = a.getAttribute("href").slice(1); if (visible[id]) active = a; });
+      place(active);
+    }, { rootMargin: "-45% 0px -50% 0px" });
+    Object.keys(bySection).forEach(function (id) { io.observe(document.getElementById(id)); });
+    window.addEventListener("resize", function () { var a = current; current = null; place(a); });
+  })();
+
   /* ---------- Sin GSAP (o reduced): todo visible y fuera ----------
      OJO: aquí 'pre' todavía no existe (se declara más abajo) e introHero necesita
      GSAP, así que no se llama introHero: se quita el velo directo. Antes el velo
@@ -122,10 +250,48 @@
     if (window.MVHERO) window.MVHERO.setProgress(1);
     var preEl = document.querySelector("[data-preloader]");
     if (preEl) preEl.classList.add("is-done");
+    // versión estática: el nav toma fondo al hacer scroll (sin ocultarse)
+    if (nav) {
+      var onStaticScroll = function () { nav.setAttribute("data-scrolled", window.scrollY > 40 ? "true" : "false"); };
+      window.addEventListener("scroll", onStaticScroll, { passive: true });
+      onStaticScroll();
+    }
     return;
   }
 
   gsap.registerPlugin(ScrollTrigger);
+
+  /* Curvas del DS 2.0 compartidas con el CSS (tokens.css --ease-mv-*): GSAP usa
+     exactamente las mismas cubic-bezier, sin plugins extra. */
+  function cubicBezier(x1, y1, x2, y2) {
+    function a(p1, p2) { return 1 - 3 * p2 + 3 * p1; }
+    function b(p1, p2) { return 3 * p2 - 6 * p1; }
+    function c(p1) { return 3 * p1; }
+    function curve(t, p1, p2) { return ((a(p1, p2) * t + b(p1, p2)) * t + c(p1)) * t; }
+    function slope(t, p1, p2) { return 3 * a(p1, p2) * t * t + 2 * b(p1, p2) * t + c(p1); }
+    return function (x) {
+      if (x <= 0) return 0; if (x >= 1) return 1;
+      var t = x;
+      for (var i = 0; i < 8; i++) {              // Newton-Raphson
+        var s = slope(t, x1, x2); if (Math.abs(s) < 1e-6) break;
+        t -= (curve(t, x1, x2) - x) / s;
+      }
+      if (t < 0 || t > 1 || Math.abs(curve(t, x1, x2) - x) > 1e-4) { // respaldo: bisección
+        var lo = 0, hi = 1; t = x;
+        for (var j = 0; j < 30; j++) { var v = curve(t, x1, x2); if (Math.abs(v - x) < 1e-6) break; if (v < x) lo = t; else hi = t; t = (lo + hi) / 2; }
+      }
+      return curve(t, y1, y2);
+    };
+  }
+  var MV_EASES = {
+    "mv-out": [.20, .80, .25, 1], "mv-expo": [.16, 1, .3, 1], "mv-in": [.55, 0, .75, .20],
+    "mv-move": [.65, 0, .35, 1], "mv-drift": [.37, 0, .63, 1]
+  };
+  Object.keys(MV_EASES).forEach(function (k) {
+    var p = MV_EASES[k];
+    if (gsap.registerEase) gsap.registerEase(k, cubicBezier(p[0], p[1], p[2], p[3]));
+  });
+  gsap.defaults({ ease: EASE });
 
   /* ---------- Lenis ---------- */
   var lenis = null;
@@ -151,6 +317,10 @@
         if (id.length > 1 && document.querySelector(id)) {
           ev.preventDefault();
           lenis.scrollTo(id, { offset: -70 });
+          // el foco va al destino (lector de pantalla y teclado siguen desde ahí)
+          var tgt = document.querySelector(id);
+          if (!tgt.matches("a, button, input, select, textarea, [tabindex]")) tgt.setAttribute("tabindex", "-1");
+          tgt.focus({ preventScroll: true });
         }
       });
     });
@@ -347,7 +517,9 @@
     var delay = parseFloat(getComputedStyle(el).getPropertyValue("--d")) || 0;
     gsap.to(el, {
       opacity: 1, y: 0, duration: 0.8, ease: EASE, delay: delay,
-      scrollTrigger: { trigger: el, start: "top 86%" }
+      scrollTrigger: { trigger: el, start: "top 86%" },
+      // el ícono se traza junto con la entrada de su card (no mientras sigue invisible)
+      onStart: function () { el.querySelectorAll(".mft__ico, .svc__ico").forEach(drawIcon); }
     });
   });
 
@@ -470,29 +642,69 @@
     strips.forEach(function (s) { io.observe(s); });
   })();
 
-  /* ---------- Cards 3D: tilt con el cursor + brillo que lo sigue ---------- */
-  function addTilt(sel, maxDeg) {
+  /* ---------- Cards: brillo en el borde que sigue al cursor (DS 2.0) ----------
+     Solo con mouse o trackpad. El tilt 3D quedó solo en Casos (3°): el tilt en
+     todas las familias de cards se descartó por cliché. */
+  var finePointer = !!(window.matchMedia && window.matchMedia("(hover: hover) and (pointer: fine)").matches);
+  function addSpotlight(sel, maxDeg) {
+    if (!finePointer) return;
     document.querySelectorAll(sel).forEach(function (card) {
       card.addEventListener("pointermove", function (e) {
-        if (e.pointerType === "touch") return;
         var r = card.getBoundingClientRect();
         var nx = (e.clientX - r.left) / r.width * 2 - 1;
         var ny = (e.clientY - r.top) / r.height * 2 - 1;
-        card.style.setProperty("--ty", (nx * maxDeg).toFixed(2) + "deg");
-        card.style.setProperty("--tx", (-ny * maxDeg * 0.7).toFixed(2) + "deg");
+        if (maxDeg) {
+          card.style.setProperty("--ty", (nx * maxDeg).toFixed(2) + "deg");
+          card.style.setProperty("--tx", (-ny * maxDeg * 0.7).toFixed(2) + "deg");
+        }
         card.style.setProperty("--mx", ((nx + 1) * 50).toFixed(1) + "%");
         card.style.setProperty("--my", ((ny + 1) * 50).toFixed(1) + "%");
       });
-      card.addEventListener("pointerleave", function () {
+      if (maxDeg) card.addEventListener("pointerleave", function () {
         card.style.setProperty("--ty", "0deg");
         card.style.setProperty("--tx", "0deg");
       });
     });
   }
-  addTilt(".svc", 7);
-  addTilt(".case", 4.5);
-  addTilt(".tier", 4);
-  addTilt(".mft", 5);
+  addSpotlight(".svc", 0);
+  addSpotlight(".case", 3);
+  addSpotlight(".tier", 0);
+  addSpotlight(".mft", 0);
+
+  /* ---------- Imán sutil en 3 CTAs (DS 2.0): hero, Contacto y flotante ----------
+     Solo con mouse; 7 px como máximo. Se mueve el contenido, nunca el <a>. */
+  if (finePointer) {
+    document.querySelectorAll("[data-magnet]").forEach(function (el) {
+      el.addEventListener("pointermove", function (e) {
+        var r = el.getBoundingClientRect();
+        var dx = (e.clientX - (r.left + r.width / 2)) / (r.width / 2);
+        var dy = (e.clientY - (r.top + r.height / 2)) / (r.height / 2);
+        gsap.to(el, { "--mgx": (dx * 7).toFixed(1) + "px", "--mgy": (dy * 5).toFixed(1) + "px", duration: 0.35, overwrite: "auto" });
+      });
+      el.addEventListener("pointerleave", function () {
+        gsap.to(el, { "--mgx": "0px", "--mgy": "0px", duration: 0.5, overwrite: "auto" });
+      });
+    });
+  }
+  // iOS solo aplica :active (estado presionado) si la página escucha touchstart
+  document.addEventListener("touchstart", function () {}, { passive: true });
+
+  /* ---------- Íconos: se trazan UNA vez al entrar en pantalla (DS 2.0) ----------
+     Los que están dentro de una card con reveal se trazan con su entrada (onStart
+     arriba); el resto, al verse. Al terminar quedan fijos (is-done): el hover los
+     vuelve a trazar, pero al salir no se redibujan desde cero. */
+  (function () {
+    var icons = document.querySelectorAll(".svc__ico, .mft__ico");
+    if (!icons.length) return;
+    if (!("IntersectionObserver" in window)) { icons.forEach(drawIcon); return; }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        drawIcon(e.target); io.unobserve(e.target);
+      });
+    }, { threshold: 0.6 });
+    icons.forEach(function (i) { var r = i.closest("[data-reveal]"); if (!r || r.closest(".hero")) io.observe(i); });
+  })();
 
   /* Servicios: las fichas giran sutilmente según su posición durante el scroll */
   var svcCards = Array.prototype.slice.call(document.querySelectorAll(".svc"));

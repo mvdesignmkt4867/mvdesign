@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script>document.documentElement.classList.add('js');</script>
+  <script>document.documentElement.classList.add('js');try{if(/[?&]motion=off(&|$)/.test(location.search)||localStorage.getItem('mv-motion')==='off')document.documentElement.classList.add('motion-off')}catch(e){if(/[?&]motion=off(&|$)/.test(location.search))document.documentElement.classList.add('motion-off')}</script>
 
   <title>Agencia de marketing y diseño en Querétaro | MV Design</title>
   <meta name="description" content="Agencia de marketing y diseño en Querétaro: branding, diseño web, tiendas Shopify y redes con intención comercial. Cotiza por WhatsApp." />
@@ -49,9 +49,9 @@
   <link rel="preload" href="assets/fonts/montserrat-latin.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="preload" href="assets/fonts/montserrat-italic-latin.woff2" as="font" type="font/woff2" crossorigin />
 
-  <link rel="stylesheet" href="css/tokens.css?v=6" />
-  <link rel="stylesheet" href="css/base.css?v=6" />
-  <link rel="stylesheet" href="css/components.css?v=6" />
+  <link rel="stylesheet" href="css/tokens.css?v=8" />
+  <link rel="stylesheet" href="css/base.css?v=8" />
+  <link rel="stylesheet" href="css/components.css?v=8" />
 
   <script type="application/ld+json">
   {
@@ -170,11 +170,12 @@
         <img class="mark" src="assets/logos/mv-design-mark-color.svg" alt="" width="32" height="32" />
         <span class="name">MV DESIGN</span>
       </a>
-      <nav class="nav__links" data-nav-links data-open="false" aria-label="Navegación principal">
+      <nav class="nav__links" data-nav-links data-open="false" data-lenis-prevent aria-label="Navegación principal">
         <a class="nav__link" href="#servicios">Servicios</a>
         <a class="nav__link" href="#proceso">Proceso</a>
         <a class="nav__link" href="#casos">Casos</a>
         <a class="nav__link" href="#paquetes">Paquetes</a>
+        <button class="motion-toggle" type="button" data-motion-toggle><span class="motion-toggle__ico" aria-hidden="true"></span><span class="motion-toggle__label">Pausar movimiento</span></button>
         <a class="btn" href="#contacto">Cotiza tu proyecto</a>
       </nav>
       <button class="nav__toggle" data-nav-toggle aria-label="Abrir menú" aria-expanded="false">
@@ -185,7 +186,7 @@
 
   <!-- WhatsApp flotante: aparece cuando los CTAs del hero salen de pantalla; se oculta
        si hay otro botón de WhatsApp a la vista, en Contacto y en el footer -->
-  <a class="btn btn--solid btn--pop wa-float" href="https://wa.me/5214427146255?text=Hola%20MV%20Design%2C%20quiero%20cotizar%20un%20proyecto.%20%5Bweb%20%C2%B7%20bot%C3%B3n%20flotante%5D" target="_blank" rel="noopener" data-cta="flotante" data-wa-float
+  <a class="btn btn--solid btn--pop wa-float" data-magnet href="https://wa.me/5214427146255?text=Hola%20MV%20Design%2C%20quiero%20cotizar%20un%20proyecto.%20%5Bweb%20%C2%B7%20bot%C3%B3n%20flotante%5D" target="_blank" rel="noopener" data-cta="flotante" data-wa-float
      aria-label="Escribir por WhatsApp a MV Design" inert>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.6-1.2A9 9 0 1 0 12 3Z"/><path d="M8.8 9.4c0 3.2 2.6 5.8 5.8 5.8.5 0 .9-.2 1.1-.6l.4-.8c.2-.4 0-.8-.4-1l-1.4-.6c-.3-.1-.7 0-.9.3l-.2.3a4.4 4.4 0 0 1-1.9-1.9l.3-.2c.3-.2.4-.6.3-.9l-.6-1.4c-.2-.4-.6-.6-1-.4l-.8.4c-.4.2-.7.6-.7 1Z"/></svg>
     <span>WhatsApp</span>
@@ -207,8 +208,8 @@
           <h1 class="hero__title" data-words>Diseñamos lo que <span class="grad">vendes</span>.</h1>
           <p class="hero__lead" data-reveal style="--d:.25s">Branding, redes y diseño web con intención comercial. Cada decisión visual tiene una razón: que tu cliente te elija.</p>
           <div class="hero__actions" data-reveal style="--d:.4s">
-            <a class="btn btn--solid btn--pop" href="https://wa.me/5214427146255?text=Hola%20MV%20Design%2C%20quiero%20cotizar%20un%20proyecto.%20%5Bweb%20%C2%B7%20inicio%5D" target="_blank" rel="noopener" data-cta="inicio">Cotiza por WhatsApp</a>
-            <a class="btn" href="#casos">Ver el trabajo</a>
+            <a class="btn btn--solid btn--pop btn--wa" data-magnet href="https://wa.me/5214427146255?text=Hola%20MV%20Design%2C%20quiero%20cotizar%20un%20proyecto.%20%5Bweb%20%C2%B7%20inicio%5D" target="_blank" rel="noopener" data-cta="inicio"><span class="btn__glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.6-1.2A9 9 0 1 0 12 3Z"/><path d="M8.8 9.4c0 3.2 2.6 5.8 5.8 5.8.5 0 .9-.2 1.1-.6l.4-.8c.2-.4 0-.8-.4-1l-1.4-.6c-.3-.1-.7 0-.9.3l-.2.3a4.4 4.4 0 0 1-1.9-1.9l.3-.2c.3-.2.4-.6.3-.9l-.6-1.4c-.2-.4-.6-.6-1-.4l-.8.4c-.4.2-.7.6-.7 1Z"/></svg></span><span class="btn__label">Cotiza por WhatsApp</span></a>
+            <a class="link-arrow" href="#casos">Ver el trabajo</a>
           </div>
         </div>
 
@@ -412,6 +413,7 @@
 
         <div class="work__grid">
           <article class="case case--wide" data-reveal>
+            <span class="case__frame" aria-hidden="true"></span>
             <div class="case__media case__media--video" data-parallax>
               <video class="case__video" muted loop playsinline preload="none"
                      poster="assets/img/case-gu-poster.jpg">
@@ -428,6 +430,7 @@
           </article>
 
           <article class="case case--contain" data-reveal>
+            <span class="case__frame" aria-hidden="true"></span>
             <div class="case__media case__media--img">
               <img class="case__img" src="assets/img/case-vistareal.jpg" alt="Sitio web de Vista Real Country Club" loading="lazy" decoding="async" />
             </div>
@@ -441,6 +444,7 @@
           </article>
 
           <article class="case" data-reveal style="--d:.12s">
+            <span class="case__frame" aria-hidden="true"></span>
             <div class="case__media case__media--img" data-parallax>
               <img class="case__img" src="assets/img/case-blak.jpg" alt="Local de Blak Coffee & Co — café de especialidad" loading="lazy" decoding="async" />
             </div>
@@ -453,6 +457,7 @@
           </article>
 
           <article class="case case--contain" data-reveal>
+            <span class="case__frame" aria-hidden="true"></span>
             <div class="case__media case__media--img">
               <img class="case__img" src="assets/img/case-protect.jpg" alt="Tienda Shopify de Protect Diversity — dermocosmética vegana" loading="lazy" decoding="async" />
             </div>
@@ -466,6 +471,7 @@
           </article>
 
           <article class="case" data-reveal style="--d:.12s">
+            <span class="case__frame" aria-hidden="true"></span>
             <div class="case__media case__media--img" data-parallax>
               <img class="case__img" src="assets/img/case-manzzani.jpg" alt="Tienda en línea Manzzani en Shopify: portada de Fiestas Patrias con manzanas cubiertas de tamarindo y chile piquín, papel picado y menú de categorías" width="1440" height="731" loading="lazy" decoding="async" />
             </div>
@@ -595,7 +601,7 @@
               <li>Estructura lista para crecer</li>
               <li>SEO técnico on-page</li>
             </ul>
-            <a class="btn btn--solid" href="https://wa.me/5214427146255?text=Hola%20MV%20Design%2C%20me%20interesa%20el%20paquete%20Web%203D%20inmersiva.%20%5Bweb%20%C2%B7%20paquete%203D%5D" target="_blank" rel="noopener" data-cta="paquete-3d">Cotizar inmersiva</a>
+            <a class="btn btn--solid btn--wa" href="https://wa.me/5214427146255?text=Hola%20MV%20Design%2C%20me%20interesa%20el%20paquete%20Web%203D%20inmersiva.%20%5Bweb%20%C2%B7%20paquete%203D%5D" target="_blank" rel="noopener" data-cta="paquete-3d"><span class="btn__glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.6-1.2A9 9 0 1 0 12 3Z"/><path d="M8.8 9.4c0 3.2 2.6 5.8 5.8 5.8.5 0 .9-.2 1.1-.6l.4-.8c.2-.4 0-.8-.4-1l-1.4-.6c-.3-.1-.7 0-.9.3l-.2.3a4.4 4.4 0 0 1-1.9-1.9l.3-.2c.3-.2.4-.6.3-.9l-.6-1.4c-.2-.4-.6-.6-1-.4l-.8.4c-.4.2-.7.6-.7 1Z"/></svg></span><span class="btn__label">Cotizar inmersiva</span></a>
           </article>
 
           <article class="tier" data-reveal style="--d:.24s">
@@ -631,8 +637,8 @@
         <h2 class="cta__title" data-words style="margin-top:var(--s-6)">Hagamos que tu marca <span class="grad">venda</span>.</h2>
         <p class="cta__lead" data-reveal>Cuéntanos qué tienes en mente. En una llamada aterrizamos el alcance, te cotizamos y arrancamos. Presencial en Querétaro y su zona metropolitana, remoto en todo México.</p>
         <div class="cta__actions" data-reveal style="--d:.15s">
-          <a class="btn btn--solid btn--pop" href="https://wa.me/5214427146255?text=Hola%20MV%20Design%2C%20quiero%20cotizar%20un%20proyecto.%20%5Bweb%20%C2%B7%20contacto%5D" target="_blank" rel="noopener" data-cta="contacto">WhatsApp directo</a>
-          <a class="btn" href="mailto:mvdesign.mkt@gmail.com" data-cta="contacto-correo">Escríbenos por correo</a>
+          <a class="btn btn--solid btn--pop btn--wa" data-magnet href="https://wa.me/5214427146255?text=Hola%20MV%20Design%2C%20quiero%20cotizar%20un%20proyecto.%20%5Bweb%20%C2%B7%20contacto%5D" target="_blank" rel="noopener" data-cta="contacto"><span class="btn__glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.6-1.2A9 9 0 1 0 12 3Z"/><path d="M8.8 9.4c0 3.2 2.6 5.8 5.8 5.8.5 0 .9-.2 1.1-.6l.4-.8c.2-.4 0-.8-.4-1l-1.4-.6c-.3-.1-.7 0-.9.3l-.2.3a4.4 4.4 0 0 1-1.9-1.9l.3-.2c.3-.2.4-.6.3-.9l-.6-1.4c-.2-.4-.6-.6-1-.4l-.8.4c-.4.2-.7.6-.7 1Z"/></svg></span><span class="btn__label">WhatsApp directo</span></a>
+          <a class="link-arrow" href="mailto:mvdesign.mkt@gmail.com" data-cta="contacto-correo">Escríbenos por correo</a>
         </div>
         <div class="cta__contact" data-reveal style="--d:.3s">
           <a href="https://www.instagram.com/mvdesign.mkt" target="_blank" rel="noopener">
@@ -671,6 +677,7 @@
         <span>© <span data-year>2026</span> MV Design · Agencia de marketing y diseño en Santiago de Querétaro, México</span>
         <a href="https://www.instagram.com/mvdesign.mkt" target="_blank" rel="noopener">Instagram</a>
         <a href="https://www.facebook.com/mvdesign.mkt" target="_blank" rel="noopener">Facebook</a>
+        <button class="footer__motion" type="button" data-motion-toggle>Pausar movimiento</button>
       </div>
     </div>
   </footer>
@@ -679,8 +686,8 @@
   <script src="vendor/gsap.min.js" defer></script>
   <script src="vendor/ScrollTrigger.min.js" defer></script>
   <script src="vendor/lenis.min.js" defer></script>
-  <script src="js/hero3d.js?v=6" defer></script>
-  <script src="js/main.js?v=6" defer></script>
+  <script src="js/hero3d.js?v=8" defer></script>
+  <script src="js/main.js?v=8" defer></script>
 
   <!-- Conversiones: WhatsApp = Lead (principal) · correo = Contact. Envia a Meta Pixel Y a GA4 -->
   <script>

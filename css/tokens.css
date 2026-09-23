@@ -121,12 +121,12 @@
   --t-display-lg: 700 72px/1.00 var(--font-display);
   --t-display-md: 700 56px/1.05 var(--font-display);
   --t-h1:         700 44px/1.08 var(--font-display);
-  --t-h2:         700 36px/1.12 var(--font-display);
-  --t-h3:         600 28px/1.20 var(--font-display);
+  --t-h2:         700 var(--fs-h2)/1.06 var(--font-display);   /* DS 2.0: 32→60 fluido (antes 36 fijo) */
+  --t-h3:         600 var(--fs-h3)/1.2 var(--font-display);    /* 23→32 */
   --t-h4:         600 22px/1.28 var(--font-display);
-  --t-eyebrow:    600 12px/1.4  var(--font-display);
-  --t-lead:       500 20px/1.55 var(--font-body);
-  --t-body:       400 16px/1.6  var(--font-body);
+  --t-eyebrow:    600 var(--fs-meta)/1.4 var(--font-display);  /* 12→13 */
+  --t-lead:       500 var(--fs-lead)/1.55 var(--font-body);     /* 18→22 */
+  --t-body:       400 var(--fs-body)/1.65 var(--font-body);     /* 16→18 */
   --t-body-sm:    400 14px/1.55 var(--font-body);
   --t-caption:    500 12px/1.45 var(--font-body);
   --t-mono:       500 13px/1.5  var(--font-mono);
@@ -203,7 +203,13 @@
   font-size: calc(var(--lh) * 0.46); line-height: 1; letter-spacing: 0.01em;
 }
 
-/* Dark-mode token swap — apply [data-theme="dark"] on a wrapper */
+/* ============================================================
+   DS 2.0 (fase 3) · El sitio es oscuro: :root ES el tema oscuro.
+   El claro queda en [data-theme="light"] para futuras páginas
+   legales o de blog. (Antes :root era claro y los bordes ghost
+   salían invisibles: --line-strong negro sobre negro.)
+   ============================================================ */
+:root,
 [data-theme="dark"] {
   --fg-1: #FFFFFF;
   --fg-2: #C9CBD3;
@@ -217,4 +223,64 @@
   --line:        rgba(255,255,255,0.10);
   --line-strong: rgba(255,255,255,0.18);
   color-scheme: dark;
+}
+[data-theme="light"] {
+  --fg-1: #0A0A0F; --fg-2: #2A2A33; --fg-3: #5B5B66; --fg-4: #9094A0;
+  --bg-0: #FFFFFF; --bg-1: #F6F6F8; --bg-2: #EDEEF2; --bg-3: #E1E2E8;
+  --line-soft: rgba(10,10,15,0.06); --line: rgba(10,10,15,0.10); --line-strong: rgba(10,10,15,0.18);
+  color-scheme: light;
+}
+
+/* ============================================================
+   DS 2.0 · tokens nuevos (los nombres de siempre quedan como alias)
+   ============================================================ */
+:root {
+  /* Color en canales, para alfa: rgb(var(--mv-purple-2-rgb) / .35) */
+  --mv-blue-1-rgb: 72 146 217;  --mv-blue-2-rgb: 43 204 217;
+  --mv-purple-1-rgb: 158 67 184; --mv-purple-2-rgb: 98 92 217;
+  --text-strong: #FFFFFF; --text: #C9CBD3; --text-muted: #8B8E99; --text-subtle: #6B6E79;
+
+  /* Tipografía fluida 360 → 1440 px */
+  --fs-meta:    clamp(.75rem, .729rem + .093vw, .8125rem);   /* 12→13 */
+  --fs-body:    clamp(1rem, .958rem + .185vw, 1.125rem);     /* 16→18 */
+  --fs-lead:    clamp(1.125rem, 1.042rem + .37vw, 1.375rem); /* 18→22 */
+  --fs-h3:      clamp(1.4375rem, 1.25rem + .833vw, 2rem);    /* 23→32 */
+  --fs-h2:      clamp(2rem, 1.417rem + 2.593vw, 3.75rem);    /* 32→60 */
+  --fs-display: clamp(2.375rem, 1.5rem + 3.889vw, 5rem);     /* 38→80 · manifiesto y CTA */
+  --fs-hero:    clamp(3.25rem, 2.333rem + 4.074vw, 6rem);    /* 52→96 · la masa la pone la M */
+  --track-display: -.035em; --track-heading: -.02em; --track-label: .14em;
+  --measure: 65ch;
+
+  /* Ritmo */
+  --gutter: clamp(16px, 4vw, 48px);
+  --space-block: clamp(32px, 4vw, 64px);
+  --space-section: clamp(96px, 5rem + 6vw, 200px);
+
+  /* Motion: una sola fuente para CSS y GSAP (main.js registra las mismas curvas) */
+  --ease-mv-out:   cubic-bezier(.20, .80, .25, 1);  /* firma, ~80% de los usos */
+  --ease-mv-expo:  cubic-bezier(.16, 1, .3, 1);     /* entradas dramáticas */
+  --ease-mv-in:    cubic-bezier(.55, 0, .75, .20);  /* salidas */
+  --ease-mv-move:  cubic-bezier(.65, 0, .35, 1);    /* cambio de escena, morphs */
+  --ease-mv-drift: cubic-bezier(.37, 0, .63, 1);    /* ambiente y loops */
+  --ease-in-out: var(--ease-mv-move);
+  --dur-press: 120ms; --dur-hover: 180ms; --dur-ui: 240ms; --dur-enter: 640ms; --dur-exit: 440ms;
+  --dur-hero: 900ms; --dur-scene: 1000ms; --dur-morph: 1400ms;
+  --stagger: 45ms; --stagger-max: 400ms;
+
+  /* Profundidad hecha de luz (no de sombras grises) */
+  --surface-0: #0A0A0F; --surface-1: #121219; --surface-2: #1A1B23; --surface-3: #23242E;
+  --edge-hi: inset 0 1px 0 rgba(255,255,255,.07);
+  --hairline: 0 0 0 1px rgba(255,255,255,.07);
+  --elev-1: var(--edge-hi), var(--hairline);
+  --elev-2: var(--edge-hi), var(--hairline), 0 24px 48px -28px rgba(2,2,10,.8);
+  --elev-glow: inset 0 1px 0 rgba(255,255,255,.09), 0 0 0 1px rgb(var(--mv-purple-2-rgb) / .38), 0 30px 80px -40px rgb(var(--mv-purple-2-rgb) / .5);
+
+  /* Estados, foco y capas */
+  --state-hover: rgba(255,255,255,.04); --state-press: rgba(255,255,255,.08);
+  --focus-ring: 2px solid var(--mv-blue-2); --focus-halo: 0 0 0 5px rgba(10,10,15,.85);
+  --wa: 37 211 102;   /* verde WhatsApp, solo dentro del círculo del glifo */
+  --z-fx-back: 1; --z-content: 2; --z-fx-front: 3; --z-float: 50; --z-nav: 100; --z-overlay: 150; --z-preloader: 200; --z-skip: 300;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-enter: 1ms; --dur-scene: 1ms; --stagger: 0ms; }
 }

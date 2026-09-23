@@ -19,7 +19,9 @@
   var mountFront = document.querySelector("[data-fx-front]");
   if (!mountBack) return;
 
-  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // "Reducir movimiento" del sistema o "Pausar movimiento" del sitio → M estática
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
+                document.documentElement.classList.contains("motion-off");
 
   /* ---------- Marca ---------- */
   var BLUE_1 = new THREE.Color("#4892D9");
