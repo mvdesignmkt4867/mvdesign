@@ -10,7 +10,7 @@
   <link rel="icon" type="image/svg+xml" href="../assets/logos/mv-design-mark-color.svg" />
   <link rel="preload" href="../assets/fonts/montserrat-latin.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="preload" href="../assets/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
-  <link rel="stylesheet" href="lab.css?v=24" />
+  <link rel="stylesheet" href="lab.css?v=25" />
   <noscript><style>.curtain { display: none; }</style></noscript>
   <script type="importmap">
   {
@@ -52,12 +52,12 @@
   <main class="stage">
     <section class="scene scene--hero" data-scene="0" aria-label="La firma">
       <p class="kicker mono">01 / 05 · La firma</p>
-      <h1 class="title">Diseñamos<br />lo que <em class="grad">vendes</em>.</h1>
+      <h1 class="title" tabindex="-1">Diseñamos<br />lo que <em class="grad">vendes</em>.</h1>
     </section>
 
     <section class="scene scene--ring" data-scene="1" aria-label="Manifiesto">
       <p class="kicker mono">02 / 05 · Manifiesto</p>
-      <h2 class="title title--2">Una marca bien construida se nota sin <em class="grad">explicarse</em>.</h2>
+      <h2 class="title title--2" tabindex="-1">Una marca bien construida se nota sin <em class="grad">explicarse</em>.</h2>
       <div class="trio">
         <p><strong>Percepción</strong> <span class="desc">Tu marca habla antes que tú. Diseñamos cómo te perciben desde el primer contacto.</span></p>
         <p><strong>Confianza</strong> <span class="desc">Cuando todo se ve igual de cuidado, tu cliente confía y decide más rápido.</span></p>
@@ -67,7 +67,7 @@
 
     <section class="scene scene--ring" data-scene="2" aria-label="Servicios">
       <p class="kicker mono">03 / 05 · Servicios</p>
-      <h2 class="title title--2">Toda la cadena creativa, <em class="grad">sin intermediarios</em>.</h2>
+      <h2 class="title title--2" tabindex="-1">Toda la cadena creativa, <em class="grad">sin intermediarios</em>.</h2>
       <ol class="svc-grid">
         <li><span>01</span> <b>Branding estratégico</b> <i>Naming · Identidad · Brandbook</i></li>
         <li><span>02</span> <b>Redes sociales</b> <i>Contenido · Comunidad · Pauta</i></li>
@@ -81,7 +81,7 @@
     <section class="scene scene--cases" data-scene="3" aria-label="Casos por rubro">
       <div class="cases-head">
         <p class="kicker mono">04 / 05 · Casos</p>
-        <h2 class="title title--2">Marcas que hoy se ven como lo que <em class="grad">son</em>.</h2>
+        <h2 class="title title--2" tabindex="-1">Marcas que hoy se ven como lo que <em class="grad">son</em>.</h2>
       </div>
       <!-- casos por rubro: con 3D son una espiral que baja; esta lista es el contenido real (sin 3D, lectores de pantalla y buscadores) -->
       <div class="rubros" data-rubros>
@@ -165,7 +165,7 @@
 
     <section class="scene scene--contact" data-scene="4" aria-label="Contacto">
       <p class="kicker mono">05 / 05 · Contacto</p>
-      <h2 class="title title--2">Hagamos que tu marca <em class="grad">venda</em>.</h2>
+      <h2 class="title title--2" tabindex="-1">Hagamos que tu marca <em class="grad">venda</em>.</h2>
       <div class="ctas">
         <a class="pill pill--light" href="https://wa.me/5214427146255?text=Hola%20Fer%2C%20quiero%20cotizar%20un%20proyecto%20con%20MV%20Design.%20%5Bweb%20%C2%B7%20lab%5D" target="_blank" rel="noopener">
           <span class="wa__dot" aria-hidden="true"></span>Ma. Fernanda · 442 714 6255
@@ -190,6 +190,9 @@
     <span class="wa__dot" aria-hidden="true"></span>Cotiza por WhatsApp
   </a>
 
+  <!-- el lector de pantalla oye a qué escena llegaste -->
+  <p class="sr-only" aria-live="polite" data-scene-live></p>
+
   <!-- pista de deslizar: se va para siempre con el primer cambio de escena -->
   <p class="mono swipe-hint" data-hint aria-hidden="true"><i></i>Desliza</p>
 
@@ -207,6 +210,6 @@
       setTimeout(function () { if (!document.documentElement.classList.contains("is-3d")) off(); }, 4000);
     })();
   </script>
-  <script type="module" src="lab.js?v=58"></script>
+  <script type="module" src="lab.js?v=59"></script>
 </body>
 </html>

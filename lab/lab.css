@@ -73,6 +73,7 @@ html.is-3d .scene--hero .title { font-size: max(clamp(40px, 6.4vw, 108px), min(c
 }
 .title--2 { font-size: clamp(30px, 4.1vw, 66px); line-height: .98; letter-spacing: -.04em; max-width: 16ch; margin: 0 auto; text-wrap: balance; }
 .grad {
+  white-space: nowrap;                                  /* "sin intermediarios." nunca se parte */
   font-style: italic; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent;
   padding-right: .06em;
 }
@@ -234,6 +235,8 @@ body.rp-open .hud--tr { opacity: 0; }
   transition: transform .4s var(--ease), background .3s;
 }
 .pill:hover { transform: translateY(-2px); }
+.pill:active, .wa:active, .chip--cta:active, .arrow:active, .sub:active, .rpanel__back:active { transform: scale(.97); transition-duration: .08s; }   /* respuesta al presionar */
+.title:focus { outline: none; }
 .pill--light { background: #fff; color: #07070B; }   /* sin sombras difusas: viven dentro del 3D */
 .pill--ghost { border: 1px solid rgba(255,255,255,.22); color: #fff; padding-left: 22px; }
 .pill--ghost:hover { background: rgba(255,255,255,.07); }

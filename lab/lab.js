@@ -1147,13 +1147,24 @@ addEventListener("keydown", (e) => {
   }
   if (e.key === " " && e.target.closest && e.target.closest("button, a, [tabindex], summary")) return;   // Espacio activa el botón enfocado
   if (e.repeat) { if ([" ", "ArrowDown", "ArrowUp", "PageDown", "PageUp"].includes(e.key)) e.preventDefault(); return; }
-  if (active === 3 && (e.key === "ArrowRight" || e.key === "ArrowLeft")) { e.preventDefault(); step(e.key === "ArrowRight" ? 1 : -1); return; }
-  if (["ArrowDown", "PageDown"].includes(e.key) || (e.key === " " && !e.shiftKey)) { e.preventDefault(); step(1); }
-  else if (["ArrowUp", "PageUp"].includes(e.key) || (e.key === " " && e.shiftKey)) { e.preventDefault(); step(-1); }
-  else if (e.key === "Home") { e.preventDefault(); goTo(0); }
-  else if (e.key === "End") { e.preventDefault(); goQ(QLAST); }
+  // (sólo las teclas que navegan marcan la llegada con teclado: Tab y las demás no mueven el foco)
+  if (active === 3 && (e.key === "ArrowRight" || e.key === "ArrowLeft")) { e.preventDefault(); navByKey = true; step(e.key === "ArrowRight" ? 1 : -1); return; }
+  if (["ArrowDown", "PageDown"].includes(e.key) || (e.key === " " && !e.shiftKey)) { e.preventDefault(); navByKey = true; step(1); }
+  else if (["ArrowUp", "PageUp"].includes(e.key) || (e.key === " " && e.shiftKey)) { e.preventDefault(); navByKey = true; step(-1); }
+  else if (e.key === "Home") { e.preventDefault(); navByKey = true; goTo(0); }
+  else if (e.key === "End") { e.preventDefault(); navByKey = true; goQ(QLAST); }
 });
-document.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => goTo(+b.dataset.go)));
+// cada escena tiene su dirección (#casos, #contacto…): se puede compartir, y Atrás regresa a la escena anterior
+const SLUGS = ["inicio", "manifiesto", "servicios", "casos", "contacto"];
+const NAMES = ["La firma", "Manifiesto", "Servicios", "Casos", "Contacto"];
+let navByKey = false;                                  // al llegar con teclado, el foco pasa al titular de la escena
+function goScene(s, push) {
+  if (push && SLUGS[s] && location.hash !== "#" + SLUGS[s]) { try { history.pushState({ s }, "", "#" + SLUGS[s]); } catch (e) {} }
+  goTo(s);
+}
+document.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => goScene(+b.dataset.go, true)));
+addEventListener("popstate", () => { const s = SLUGS.indexOf(location.hash.slice(1)); goTo(s >= 0 ? s : 0); });
+document.querySelector(".brand")?.addEventListener("click", (e) => { e.preventDefault(); goScene(0, true); });   // el logo regresa al inicio de la experiencia
 
 /* ---------- HUD ---------- */
 const idxBtns = [...document.querySelectorAll(".idx [data-go]")];
@@ -1170,8 +1181,13 @@ let active = -1;
 const waFloat = document.querySelector(".wa");
 const narrowMQ = matchMedia("(max-width: 720px)");
 try { if (sessionStorage.getItem("mv-hint")) document.documentElement.classList.add("hint-done"); } catch (e) {}
+const sceneLive = document.querySelector("[data-scene-live]");
 function setActive(a) {
   if (a === active) return;
+  if (active >= 0) {
+    if (sceneLive) sceneLive.textContent = `Escena ${a + 1} de ${LAST + 1}: ${NAMES[a]}`;
+    try { history.replaceState(history.state, "", a === 0 ? location.pathname + location.search : "#" + SLUGS[a]); } catch (e) {}
+  }
   if (active === 0 && a > 0) { document.documentElement.classList.add("hint-done"); try { sessionStorage.setItem("mv-hint", "1"); } catch (e) {} }
   active = a;
   document.body.dataset.scene = a;
@@ -1217,6 +1233,11 @@ function frame() {
   // transición: de una escena a la otra con llegada suave
   const kt = dur > 0 ? clamp((now() - tStart) / (dur * 1000), 0, 1) : 1;
   [prog, progVel] = kt >= 1 ? [to, 0] : tween(kt);
+  if (navByKey && kt >= 1) {
+    navByKey = false;
+    const h = sections[Math.round(sceneP(to))]?.querySelector("h1, h2");
+    if (h && !(rp.open >= 0)) requestAnimationFrame(() => h.focus({ preventScroll: true }));
+  }
   const q = prog, p = sceneP(q);                       // q: estación (con rubros) · p: escena para los efectos (0..4)
   setActive(Math.round(p));
   if (progEl) progEl.style.transform = `scaleX(${q / QLAST})`;
@@ -1390,7 +1411,9 @@ function frame() {
 
 // para pruebas: ?s=3 abre directo en una escena; ?debug expone el mundo en la consola
 const qsScene = new URLSearchParams(location.search).get("s");
+const hashScene = SLUGS.indexOf(location.hash.slice(1));
 if (qsScene !== null) { from = to = prog = stationOf(clamp(Math.round(+qsScene) || 0, 0, LAST)); }
+else if (hashScene > 0) { from = to = prog = stationOf(hashScene); }
 if (/[?&]debug\b/.test(location.search)) window.__lab = { THREE, get dpr() { return DPR; }, renderer, scene, composer, bloom, camera, get particles() { return particles; }, goTo, goQ, openRubro, openDetail, get rp() { return rp; }, cards, SPI };
 
 // la entrada: el telón se levanta cuando todo está listo y ahí arranca el reloj de la intro
