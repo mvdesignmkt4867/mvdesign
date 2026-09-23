@@ -29,24 +29,30 @@ html:not(.js) .preloader { display: none; }           /* sin JS: nunca aparece *
 /* fade out limpio (antes era un clip-path que recortaba de abajo → dejaba ver
    una franja del fondo al final); el fade cubre toda la pantalla por igual */
 .preloader.is-done { opacity: 0; pointer-events: none; }
-.preloader__inner { display: grid; justify-items: center; gap: var(--s-6); }
-.preloader__mark { width: 72px; height: 72px; }
-.preloader__count {
-  font: var(--t-mono); letter-spacing: 0.12em;
-  color: var(--fg-on-dark-3);
+.preloader.is-instant { transition: none; }   /* llegada con #ancla o con "Atrás": sin intro */
+/* La M se escribe en orden de trazo: punto morado, chevrón azul de izquierda
+   a derecha, la lágrima morada cae hacia el vértice y cierra el punto azul.
+   Dura ~0.9 s. Gesto de firma 2 del DS: trazo, una sola vez, nunca en bucle. */
+.preloader__mark { width: 84px; height: 84px; overflow: visible; }
+.pl-pen {
+  fill: none; stroke: #fff; stroke-linejoin: round;
+  stroke-dasharray: 1; stroke-dashoffset: 1;   /* pathLength="1": oculto → trazado */
+  animation: pl-draw var(--pl-d) cubic-bezier(.65, 0, .35, 1) var(--pl-t) forwards;
 }
-/* "SCROLL" justo debajo del % (cerca del centro, no en el fondo) — aparece al 60% */
-.preloader__scroll {
-  position: absolute;
-  top: calc(50% + 78px);
-  left: 0; right: 0; text-align: center;
-  font: var(--t-mono); letter-spacing: 0.34em;
-  color: var(--fg-on-dark-3);
-  opacity: 0; transform: translateY(8px);
-  transition: opacity 600ms var(--ease-out), transform 600ms var(--ease-out);
-  pointer-events: none;
+.pl-pen--blue   { stroke-width: 66; --pl-t: 90ms; --pl-d: 470ms; } /* 66: cubre el vértice redondeado (fondo en y=193.6) */
+.pl-pen--purple { stroke-width: 70; --pl-t: 440ms; --pl-d: 320ms; }
+@keyframes pl-draw { to { stroke-dashoffset: 0; } }
+.pl-dot {
+  transform-box: fill-box; transform-origin: center; transform: scale(0);
+  animation: pl-pop 240ms cubic-bezier(.2, .8, .25, 1.15) var(--pl-t) forwards;
 }
-.preloader__scroll.is-shown { opacity: 0.7; transform: none; }
+.pl-dot--l { --pl-t: 0ms; }
+.pl-dot--r { --pl-t: 650ms; }
+@keyframes pl-pop { to { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .pl-pen { animation: none; stroke-dashoffset: 0; }
+  .pl-dot { animation: none; transform: none; }
+}
 
 /* ---------------------------------------------------------------
    NAV — glass solo aquí (regla DS)

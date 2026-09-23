@@ -14,7 +14,7 @@
   if (/[?&]debug=/.test(location.search)) {
     var probe = document.createElement("script");
     probe.async = false;
-    probe.src = "js/probe.js?v=3";
+    probe.src = "js/probe.js?v=4";
     document.head.appendChild(probe);
   }
   function announceReveal() {
@@ -156,51 +156,49 @@
     ScrollTrigger.config({ ignoreMobileResize: true });
   }
 
-  /* ---------- Preloader ----------
-     Sin espera forzada: se va en cuanto el cometa pinta su primer cuadro, igual
-     en celular y en desktop (menos de 1 s). El mínimo de 5 s que tenía el
-     celular era un parche contra el congelamiento, cuya causa real era el blur
-     de .cosmos (fase 2c). Los shaders igual se compilan antes (readPixels en
-     hero3d.js), detrás del velo. */
+  /* ---------- Preloader (intro) ----------
+     La M se escribe en CSS (~1 s, index.html + components.css). El velo se va en
+     cuanto el cometa pintó su primer cuadro Y el trazo terminó; cualquier toque,
+     tecla o scroll lo termina antes. Sin espera forzada: el mínimo de 5 s del
+     celular era un parche contra el congelamiento (causa real: el blur de .cosmos,
+     fase 2c). Los shaders igual se compilan antes (readPixels en hero3d.js). */
   var pre = document.querySelector("[data-preloader]");
-  var preCount = document.querySelector("[data-preloader-count]");
-  var preScroll = document.querySelector("[data-preloader-scroll]");
   var preDone = false;
   var phoneMode = !!(window.matchMedia && window.matchMedia("(max-width: 760px)").matches);
+  var INTRO_INPUTS = ["touchstart", "pointerdown", "wheel", "keydown", "scroll"];
 
-  // "SCROLL" aparece abajo del loader al llegar a 50%
-  var scrollCueShown = false;
-  function maybeShowScroll(v) {
-    if (!scrollCueShown && preScroll && v >= 50) { preScroll.classList.add("is-shown"); scrollCueShown = true; }
-  }
-
-  var fake = { v: 0 };
-  var fakeTween = gsap.to(fake, {
-    v: 92, duration: 2.2, ease: "power2.out",
-    onUpdate: function () { if (preCount) preCount.textContent = String(Math.round(fake.v)).padStart(2, "0"); maybeShowScroll(fake.v); }
-  });
-  var finishPreloader = function () {
+  function finishPreloader(instant) {
     if (preDone || !pre) return;
-    if (fakeTween) fakeTween.kill();
-    gsap.to(fake, {
-      v: 100, duration: 0.4, ease: "power1.in",
-      onUpdate: function () { if (preCount) preCount.textContent = String(Math.round(fake.v)); },
-      onComplete: function () {
-        if (preDone) return;
-        preDone = true;
-        // celular: abrir con las partículas ya en reposo (no espera nada: syncFx fija
-        // el objetivo según el scroll y settleNow clava shown = target en este instante)
-        if (phoneMode && window.MVHERO && window.MVHERO.settleNow) { syncFx(); window.MVHERO.settleNow(); }
-        pre.classList.add("is-done");
-        announceReveal();
-        setTimeout(introHero, 250);
-      }
-    });
-  };
-  // sin MVHERO (WebGL no disponible) no hay cometa que esperar
-  if (!window.MVHERO || window.MVHERO.painted) { setTimeout(finishPreloader, 150); }
-  else { window.addEventListener("mvhero:painted", function () { setTimeout(finishPreloader, 150); }, { once: true }); }
-  window.addEventListener("load", function () { setTimeout(finishPreloader, 3000); }); // red de seguridad
+    preDone = true;
+    INTRO_INPUTS.forEach(function (ev) { window.removeEventListener(ev, onIntroInput, true); });
+    // celular: abrir con las partículas ya en reposo (no espera nada: syncFx fija
+    // el objetivo según el scroll y settleNow clava shown = target en este instante)
+    if (phoneMode && window.MVHERO && window.MVHERO.settleNow) { syncFx(); window.MVHERO.settleNow(); }
+    if (instant) pre.classList.add("is-instant");
+    pre.classList.add("is-done");
+    announceReveal();
+    if (instant) introHero(true);
+    else setTimeout(introHero, 250);
+  }
+  function onIntroInput() { finishPreloader(false); }
+
+  var cometReady = !window.MVHERO || !!window.MVHERO.painted; // sin WebGL no hay cometa que esperar
+  var traced = false;
+  function tryFinish() {
+    if (cometReady && traced) setTimeout(function () { finishPreloader(false); }, 150);
+  }
+  function onTraced() { if (!traced) { traced = true; tryFinish(); } }
+  if (!cometReady) {
+    window.addEventListener("mvhero:painted", function () { cometReady = true; tryFinish(); }, { once: true });
+  }
+  // fin del trazo: la animación del último punto (puede haber terminado antes de este script)
+  var lastStroke = pre && pre.querySelector("[data-pl-last]");
+  var strokeAnims = (lastStroke && lastStroke.getAnimations) ? lastStroke.getAnimations() : [];
+  if (strokeAnims.length && strokeAnims[0].finished) strokeAnims[0].finished.then(onTraced, onTraced);
+  else if (lastStroke) lastStroke.addEventListener("animationend", onTraced, { once: true });
+  setTimeout(onTraced, 1800);                                            // si la animación no corre
+  window.addEventListener("load", function () { setTimeout(function () { finishPreloader(false); }, 3000); }); // red de seguridad
+  INTRO_INPUTS.forEach(function (ev) { window.addEventListener(ev, onIntroInput, { passive: true, capture: true }); });
 
   /* ---------- Hero: intro + scrub de ensamble ---------- */
   var heroTitleWords = wordSets.length ? wordSets[0].words : [];
@@ -490,6 +488,14 @@
       card.style.setProperty("--sry", (c * 16).toFixed(2) + "deg");
     });
   }
+
+  /* ---------- Sin intro si llegas a una sección (#servicios) o regresas con "Atrás" ---------- */
+  (function () {
+    var nav = (window.performance && performance.getEntriesByType) ? performance.getEntriesByType("navigation")[0] : null;
+    var deepLink = false;
+    if (location.hash.length > 1) { try { deepLink = !!document.querySelector(location.hash); } catch (e) {} }
+    if (deepLink || (nav && nav.type === "back_forward")) finishPreloader(true);
+  })();
 
   /* ---------- Recalcular triggers con el layout FINAL ----------
      El pin de servicios agrega ~2400px de spacer; los triggers creados
