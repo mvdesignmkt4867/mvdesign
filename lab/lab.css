@@ -1,4 +1,4 @@
-/* MV Design · Lab — HUD mínimo sobre el WebGL (lenguaje Igloo: mono en esquinas) */
+/* MV Design · Lab — HUD en las esquinas + textos que viven dentro del espacio 3D */
 @font-face { font-family: "Montserrat"; font-style: normal; font-weight: 600 700; font-display: swap; src: url("../assets/fonts/montserrat-latin.woff2") format("woff2"); }
 @font-face { font-family: "Montserrat"; font-style: italic; font-weight: 600 700; font-display: swap; src: url("../assets/fonts/montserrat-italic-latin.woff2") format("woff2"); }
 @font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 500; font-display: swap; src: url("../assets/fonts/jetbrains-mono-latin.woff2") format("woff2"); }
@@ -15,16 +15,18 @@ html, body { height: 100%; background: var(--ink); color: var(--fg); overflow: h
 body { font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; -webkit-font-smoothing: antialiased; overscroll-behavior: none; touch-action: none; }
 a { color: inherit; text-decoration: none; }
 button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
-ol { list-style: none; }
+ol, ul { list-style: none; }
 :focus-visible { outline: 2px solid #2BCCD9; outline-offset: 3px; border-radius: 6px; }
 
 .gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+/* capa CSS3D: los textos viven en el mismo espacio que la cámara */
+.world { position: fixed !important; inset: 0; z-index: 4; pointer-events: none; }
 
 .hud { position: fixed; z-index: 5; padding: var(--pad); pointer-events: none; }
 .hud a, .hud button { pointer-events: auto; }
 .hud--tl { top: 0; left: 0; }
 .hud--tr { top: 0; right: 0; text-align: right; }
-.hud--bl { bottom: 0; left: 0; display: flex; flex-direction: column; gap: 14px; }
+.hud--bl { bottom: 0; left: 0; display: flex; flex-direction: column; gap: 14px; transition: opacity .6s ease; }
 .mono { font-size: 12px; line-height: 1.45; letter-spacing: .02em; color: var(--fg-2); }
 .mono--dim { color: var(--fg-3); margin-bottom: 10px; }
 .manifesto { max-width: 34ch; margin-left: auto; }
@@ -35,73 +37,97 @@ ol { list-style: none; }
 .idx { top: 0; left: 50%; transform: translateX(-50%); }
 .idx ol { display: flex; gap: 22px; }
 .idx button {
-  display: inline-flex; align-items: center; gap: 10px; padding: 6px 0;
+  position: relative; display: inline-flex; align-items: center; gap: 10px; padding: 6px 0;
   font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--fg-3); white-space: nowrap;
   transition: color .4s ease;
 }
 .idx button span { opacity: .6; }
-.idx button { position: relative; }
 .idx button::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--grad); transform: scaleX(0); transform-origin: 0 50%; transition: transform .6s var(--ease); }
 .idx button:hover, .idx button[aria-current] { color: #fff; }
 .idx button[aria-current]::after { transform: none; }
 
-/* escenas */
-.stage { position: fixed; inset: 0; z-index: 4; pointer-events: none; }
-.stage::before {   /* velo a la izquierda para leer sobre el 3D (no en la firma) */
-  content: ""; position: absolute; inset: 0; opacity: 0; transition: opacity 1s ease;
-  background: linear-gradient(90deg, rgba(7,7,11,.8) 0%, rgba(7,7,11,.45) 40%, rgba(7,7,11,0) 62%);
-}
-body:not([data-scene="0"]) .stage::before { opacity: 1; }
+/* ---------- escenas: bloques centrados, sin fondo, en el espacio ---------- */
 .scene {
-  position: absolute; left: var(--pad); right: var(--pad); bottom: clamp(96px, 16vh, 170px);
-  max-width: 820px;
-  opacity: 0; transform: translateY(28px); visibility: hidden;
-  transition: opacity .7s cubic-bezier(.2,.8,.25,1), transform 1s var(--ease), visibility 0s linear .8s;
+  width: min(1120px, 92vw); text-align: center; color: #fff;
 }
-.scene.is-active { opacity: 1; transform: none; visibility: visible; transition-delay: .15s, .15s, 0s; }
-.scene a, .scene button { pointer-events: auto; }
-.kicker { color: var(--fg-3); margin-bottom: 18px; letter-spacing: .12em; text-transform: uppercase; font-size: 11px; }
+.scene::before {   /* sombra suave detrás del texto: se lee sobre partículas y anillos */
+  content: ""; position: absolute; inset: -14% -8%; z-index: -1; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(7,7,11,.72), rgba(7,7,11,.4) 62%, rgba(7,7,11,0));
+}
+.scene--hero::before { inset: -30% 4%; background: radial-gradient(closest-side, rgba(7,7,11,.45), rgba(7,7,11,0)); }
+.scene a, .scene button, .scene .g-item { pointer-events: auto; }
+.kicker { color: var(--fg-3); margin-bottom: 18px; letter-spacing: .14em; text-transform: uppercase; font-size: 11px; }
 .title {
-  font: 700 clamp(44px, 6.6vw, 120px)/.92 "Montserrat", sans-serif; letter-spacing: -.045em;
-  color: #fff; text-shadow: 0 10px 60px rgba(7,7,11,.55);
+  font: 700 clamp(40px, 6vw, 104px)/.92 "Montserrat", sans-serif; letter-spacing: -.045em;
+  color: #fff;   /* sin text-shadow: un blur grande en texto 3D se re-pinta en cada cuadro del vuelo */
 }
-.title--2 { font-size: clamp(34px, 4.4vw, 76px); line-height: .98; letter-spacing: -.04em; max-width: 15ch; text-wrap: balance; }
+.title--2 { font-size: clamp(30px, 4.1vw, 66px); line-height: .98; letter-spacing: -.04em; max-width: 16ch; margin: 0 auto; text-wrap: balance; }
 .grad {
   font-style: italic; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent;
   padding-right: .06em;
 }
 
-.trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; margin-top: 30px; max-width: 760px; }
+.trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin: 30px auto 0; max-width: 700px; }
 .trio p { font-size: 12px; line-height: 1.55; color: var(--fg-2); border-top: 1px solid var(--line); padding-top: 14px; }
 .trio strong { display: block; margin-bottom: 6px; font: 600 15px/1.2 "Montserrat", sans-serif; color: #fff; letter-spacing: -.01em; }
 
-.svc-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 36px; margin-top: 28px; max-width: 760px; }
-.svc-list li { display: grid; grid-template-columns: 32px 1fr; padding: 11px 0; border-top: 1px solid var(--line); }
-.svc-list span { font-size: 11px; color: var(--fg-3); padding-top: 3px; }
-.svc-list b { font: 600 16px/1.25 "Montserrat", sans-serif; color: #fff; letter-spacing: -.01em; }
-.svc-list i { grid-column: 2; font-style: normal; font-size: 11px; color: var(--fg-3); margin-top: 3px; }
+.svc-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 30px; margin: 34px auto 0; max-width: 980px; text-align: left; }
+.svc-grid li { display: grid; grid-template-columns: 30px 1fr; padding: 13px 0 15px; border-top: 1px solid var(--line); }
+.svc-grid span { font-size: 11px; color: var(--fg-3); padding-top: 3px; }
+.svc-grid b { font: 600 16px/1.25 "Montserrat", sans-serif; color: #fff; letter-spacing: -.01em; }
+.svc-grid i { grid-column: 2; font-style: normal; font-size: 11px; color: var(--fg-3); margin-top: 4px; }
 
-.case-cap { margin-top: 28px; max-width: 520px; }
-.case-cap__meta { color: var(--fg-3); letter-spacing: .06em; }
-.case-cap__name { margin-top: 6px; font: 600 clamp(20px, 2vw, 28px)/1.15 "Montserrat", sans-serif; color: #fff; letter-spacing: -.02em; }
-.case-cap__row { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
-.chip { padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; font-size: 11px; color: var(--fg-2); margin-right: 6px; }
-.arrow { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); font-size: 15px; transition: background .3s, border-color .3s; }
-.arrow:hover { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.3); }
+/* ---------- galería de casos: todos a la vista; el que tocas se expande ---------- */
+.gallery { display: flex; gap: 10px; width: min(1080px, 90vw); height: min(44vh, 430px); height: min(44svh, 430px); margin: 30px auto 0; }
+.g-item {
+  position: relative; flex: 1 1 0; min-width: 0; overflow: hidden; cursor: pointer;
+  border-radius: 18px; border: 1px solid rgba(255,255,255,.14); background: #0d0d14;
+  transition: flex .8s var(--ease), border-color .4s ease;
+}
+.g-item img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform 1.4s var(--ease); }
+.g-item::after {   /* velo: las cerradas no deslumbran (las fotos claras quedan en su lugar) */
+  content: ""; position: absolute; inset: 0; background: rgba(7,7,11,.46); transition: opacity .6s ease;
+}
+.g-item::before {  /* degradado para el pie de foto de la abierta */
+  content: ""; position: absolute; inset: auto 0 0 0; height: 66%; z-index: 1; opacity: 0; transition: opacity .6s ease;
+  background: linear-gradient(180deg, rgba(7,7,11,0), rgba(7,7,11,.72) 45%, rgba(7,7,11,.94));
+}
+.g-num { position: absolute; top: 14px; left: 16px; z-index: 2; color: rgba(255,255,255,.8); font-size: 11px; }
+.g-cap {
+  position: absolute; left: 22px; right: 22px; bottom: 20px; z-index: 2; text-align: left;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+  opacity: 0; transform: translateY(14px); transition: opacity .5s ease, transform .8s var(--ease);
+}
+.g-cap .mono { color: var(--fg-2); font-size: 11px; letter-spacing: .06em; }
+.g-cap b { font: 600 clamp(18px, 1.8vw, 26px)/1.1 "Montserrat", sans-serif; letter-spacing: -.02em; color: #fff; white-space: nowrap; }
+.chip { margin-top: 4px; padding: 6px 11px; border: 1px solid rgba(255,255,255,.25); border-radius: 999px; font-size: 10.5px; color: #fff; background: rgba(7,7,11,.35); }
+@media (hover: hover) {
+  .gallery:hover .g-item { flex: .75 1 0; }
+  .gallery .g-item:hover { flex: 3.6 1 0; border-color: rgba(255,255,255,.4); }
+  .g-item:hover::after { opacity: 0; }
+  .g-item:hover::before, .g-item:hover .g-cap { opacity: 1; transform: none; }
+  .g-item:hover img { transform: scale(1.04); }
+}
+@media (hover: none) { .gallery.has-open .g-item { flex: .75 1 0; } }
+.gallery .g-item.is-open, .gallery .g-item:focus-visible { flex: 3.6 1 0; border-color: rgba(255,255,255,.4); }
+.g-item.is-open::after, .g-item:focus-visible::after { opacity: 0; }
+.g-item.is-open::before, .g-item.is-open .g-cap, .g-item:focus-visible::before, .g-item:focus-visible .g-cap { opacity: 1; transform: none; }
 
-.ctas { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+/* ---------- contacto ---------- */
+.ctas { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 30px; }
 .pill {
   display: inline-flex; align-items: center; gap: 12px; padding: 15px 22px 15px 18px; border-radius: 999px;
   font: 600 13px/1 "Montserrat", sans-serif; letter-spacing: .04em;
   transition: transform .4s var(--ease), background .3s;
 }
 .pill:hover { transform: translateY(-2px); }
-.pill--light { background: #fff; color: #07070B; box-shadow: 0 30px 60px -20px rgba(98,92,217,.45), 0 8px 24px -12px rgba(43,204,217,.4); }
+.pill--light { background: #fff; color: #07070B; }   /* sin sombras difusas: viven dentro del 3D */
 .pill--ghost { border: 1px solid rgba(255,255,255,.22); color: #fff; padding-left: 22px; }
 .pill--ghost:hover { background: rgba(255,255,255,.07); }
 .restart { margin-top: 22px; color: var(--fg-3); letter-spacing: .08em; text-transform: uppercase; font-size: 11px; }
 .restart:hover { color: #fff; }
 
+/* ---------- HUD inferior ---------- */
 .scroll-cue { display: inline-flex; align-items: center; gap: 12px; color: var(--fg-3); transition: opacity .6s ease; }
 .scroll-cue i { width: 1px; height: 34px; background: rgba(255,255,255,.18); position: relative; overflow: hidden; display: block; }
 .scroll-cue i::after { content: ""; position: absolute; inset: 0; background: #2BCCD9; animation: cue 2.2s cubic-bezier(.2,.8,.25,1) infinite; }
@@ -119,35 +145,56 @@ body:not([data-scene="0"]) .scroll-cue { opacity: 0; }
   transition: opacity .5s ease, transform .5s var(--ease);
 }
 body[data-scene="4"] .wa { opacity: 0; transform: translateY(12px); pointer-events: none; }
+.idx__t { display: inline; }
 .wa__dot { width: 9px; height: 9px; border-radius: 50%; background: #25D366; box-shadow: 0 0 0 4px rgba(37,211,102,.18); flex: none; }
 
-.curtain { position: fixed; inset: 0; z-index: 20; background: var(--ink); pointer-events: none; transition: opacity 1.4s ease; }
+.curtain {
+  position: fixed; inset: 0; z-index: 20; background: var(--ink); pointer-events: none; transition: opacity 1.4s ease;
+  animation: curtain-safe .8s ease 7s forwards;   /* red de seguridad si el JS no arranca */
+}
 .curtain.is-off { opacity: 0; }
+@keyframes curtain-safe { to { opacity: 0; } }
+
+/* sin WebGL / sin JS: los textos se leen como página normal */
+html:not(.is-3d) body { overflow: auto; touch-action: auto; }
+html:not(.is-3d) .stage { position: relative; z-index: 4; display: grid; gap: 16vh; padding: 150px var(--pad) 160px; }
+html:not(.is-3d) .scene { margin: 0 auto; }
+html:not(.is-3d) .scene::before { display: none; }
+html:not(.is-3d) .idx, html:not(.is-3d) .restart, html:not(.is-3d) .scroll-cue { display: none; }
+html:not(.is-3d) .g-cap { opacity: 1; transform: none; }
+html:not(.is-3d) .g-item::before { opacity: 1; }
+html:not(.is-3d) .g-item::after { opacity: 0; }
 
 @media (max-width: 1180px) {
-  .idx { display: none; }
+  .hud--tr { display: none; }
+  .idx { left: auto; right: 0; transform: none; }
+  .idx ol { gap: 14px; }
+  .idx button { padding: 8px 2px; }
+  .idx__t { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
 @media (max-width: 720px) {
   .hud--tr { display: none; }
-  .scene { bottom: 104px; }
-  .stage::before { background: linear-gradient(0deg, rgba(7,7,11,.85) 0%, rgba(7,7,11,.5) 40%, rgba(7,7,11,0) 62%); }
-  .title--2 { font-size: clamp(30px, 8.4vw, 44px); }
-  .trio { grid-template-columns: 1fr; gap: 10px; margin-top: 20px; }
+  .title--2 { font-size: clamp(28px, 8vw, 40px); }
+  .trio { grid-template-columns: 1fr; gap: 10px; margin-top: 20px; text-align: left; }
   .trio p { font-size: 11px; padding-top: 10px; }
   .trio strong { font-size: 14px; margin-bottom: 3px; }
-  .svc-list { grid-template-columns: 1fr; margin-top: 18px; }
-  .svc-list li { padding: 7px 0; }
-  .svc-list b { font-size: 14px; }
-  .svc-list i { display: none; }
+  .svc-grid { grid-template-columns: 1fr; margin-top: 18px; }
+  .svc-grid li { padding: 8px 0; }
+  .svc-grid b { font-size: 14px; }
+  .svc-grid i { display: none; }
+  .gallery { flex-direction: column; height: min(50vh, 480px); height: min(50svh, 480px); width: 86vw; gap: 8px; margin-top: 20px; }
+  body[data-scene="3"] .wa { opacity: 0; transform: translateY(12px); pointer-events: none; }
+  .g-item { border-radius: 14px; }
+  .g-cap { left: 16px; bottom: 14px; }
+  .g-cap b { font-size: 18px; }
   .ctas { flex-direction: column; align-items: stretch; }
   .pill { justify-content: center; }
   .wa { left: var(--pad); right: var(--pad); justify-content: center; }
   .hud--bl { padding-bottom: 88px; }
-  .scene[data-scene="4"] { bottom: 56px; }
-  body[data-scene="4"] .hud--bl { opacity: 0; }
+  body[data-scene="4"] .hud--bl, body[data-scene="3"] .hud--bl { opacity: 0; }
   .scroll-cue { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .scene, .curtain, .stage::before { transition: none; }
+  .curtain, .g-item, .g-item img, .g-cap { transition: none; }
   .scroll-cue i::after { animation: none; }
 }

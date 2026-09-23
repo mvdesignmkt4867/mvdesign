@@ -10,7 +10,8 @@
   <link rel="icon" type="image/svg+xml" href="../assets/logos/mv-design-mark-color.svg" />
   <link rel="preload" href="../assets/fonts/montserrat-latin.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="preload" href="../assets/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
-  <link rel="stylesheet" href="lab.css?v=7" />
+  <link rel="stylesheet" href="lab.css?v=14" />
+  <noscript><style>.curtain { display: none; }</style></noscript>
   <script type="importmap">
   {
     "imports": {
@@ -23,7 +24,7 @@
 <body data-scene="0">
   <canvas class="gl" data-gl aria-hidden="true"></canvas>
 
-  <!-- HUD: texto real en el HTML (SEO y lectores de pantalla), encima del WebGL -->
+  <!-- HUD fijo en las esquinas -->
   <header class="hud hud--tl">
     <a class="brand" href="../" aria-label="MV Design, inicio">
       <img src="../assets/logos/mv-design-mark-color.svg" alt="" width="28" height="28" />
@@ -39,21 +40,22 @@
 
   <nav class="hud idx" aria-label="Escenas">
     <ol>
-      <li><button type="button" data-go="0" aria-current="step"><span>01</span>La firma</button></li>
-      <li><button type="button" data-go="1"><span>02</span>Manifiesto</button></li>
-      <li><button type="button" data-go="2"><span>03</span>Servicios</button></li>
-      <li><button type="button" data-go="3"><span>04</span>Casos</button></li>
-      <li><button type="button" data-go="4"><span>05</span>Contacto</button></li>
+      <li><button type="button" data-go="0" aria-current="step"><span>01</span><span class="idx__t">La firma</span></button></li>
+      <li><button type="button" data-go="1"><span>02</span><span class="idx__t">Manifiesto</span></button></li>
+      <li><button type="button" data-go="2"><span>03</span><span class="idx__t">Servicios</span></button></li>
+      <li><button type="button" data-go="3"><span>04</span><span class="idx__t">Casos</span></button></li>
+      <li><button type="button" data-go="4"><span>05</span><span class="idx__t">Contacto</span></button></li>
     </ol>
   </nav>
 
+  <!-- Texto real (SEO y lectores de pantalla). Con 3D, cada escena se coloca dentro del espacio. -->
   <main class="stage">
-    <section class="scene is-active" data-scene="0" aria-label="La firma">
+    <section class="scene scene--hero" data-scene="0" aria-label="La firma">
       <p class="kicker mono">01 / 05 · La firma</p>
       <h1 class="title">Diseñamos<br />lo que <em class="grad">vendes</em>.</h1>
     </section>
 
-    <section class="scene" data-scene="1" aria-label="Manifiesto" inert>
+    <section class="scene" data-scene="1" aria-label="Manifiesto">
       <p class="kicker mono">02 / 05 · Manifiesto</p>
       <h2 class="title title--2">Una marca bien construida se nota sin <em class="grad">explicarse</em>.</h2>
       <div class="trio">
@@ -63,10 +65,10 @@
       </div>
     </section>
 
-    <section class="scene" data-scene="2" aria-label="Servicios" inert>
+    <section class="scene" data-scene="2" aria-label="Servicios">
       <p class="kicker mono">03 / 05 · Servicios</p>
       <h2 class="title title--2">Toda la cadena creativa, <em class="grad">sin intermediarios</em>.</h2>
-      <ol class="svc-list">
+      <ol class="svc-grid">
         <li><span>01</span><b>Branding estratégico</b><i>Naming · Identidad · Brandbook</i></li>
         <li><span>02</span><b>Redes sociales</b><i>Contenido · Comunidad · Pauta</i></li>
         <li><span>03</span><b>Web, apps y automatizaciones</b><i>Editorial · E-commerce · 3D inmersiva</i></li>
@@ -76,21 +78,39 @@
       </ol>
     </section>
 
-    <section class="scene" data-scene="3" aria-label="Casos" inert>
+    <section class="scene" data-scene="3" aria-label="Casos">
       <p class="kicker mono">04 / 05 · Casos</p>
       <h2 class="title title--2">Marcas que hoy se ven como lo que <em class="grad">son</em>.</h2>
-      <div class="case-cap" aria-live="polite">
-        <p class="mono case-cap__meta"><span data-case-count>01 / 05</span> · <span data-case-sector>Inmobiliario · Urbanismo</span></p>
-        <p class="case-cap__name" data-case-name>GU · Gestión Urbanística</p>
-        <p class="case-cap__row">
-          <span class="chip mono" data-case-chip>Web 3D inmersiva</span>
-          <button type="button" class="arrow" data-case-prev aria-label="Caso anterior">←</button>
-          <button type="button" class="arrow" data-case-next aria-label="Caso siguiente">→</button>
-        </p>
-      </div>
+      <ul class="gallery" data-gallery>
+        <li class="g-item" tabindex="0">
+          <img src="../assets/img/case-gu-poster.jpg" alt="Web 3D inmersiva de GU · Gestión Urbanística" decoding="async" fetchpriority="low" />
+          <span class="g-num mono">01</span>
+          <div class="g-cap"><span class="mono">Inmobiliario · Urbanismo</span><b>GU · Gestión Urbanística</b><span class="chip mono">Web 3D inmersiva</span></div>
+        </li>
+        <li class="g-item" tabindex="0">
+          <img src="../assets/img/case-vistareal.jpg" alt="Sitio web de Vista Real Country Club" decoding="async" fetchpriority="low" />
+          <span class="g-num mono">02</span>
+          <div class="g-cap"><span class="mono">Club deportivo · Hospitalidad</span><b>Vista Real Country Club</b><span class="chip mono">Web institucional</span></div>
+        </li>
+        <li class="g-item" tabindex="0">
+          <img src="../assets/img/case-blak.jpg" alt="Local de Blak Coffee &amp; Co — café de especialidad" decoding="async" fetchpriority="low" />
+          <span class="g-num mono">03</span>
+          <div class="g-cap"><span class="mono">Cafetería</span><b>Blak Coffee &amp; Co</b><span class="chip mono">Branding integral</span></div>
+        </li>
+        <li class="g-item" tabindex="0">
+          <img src="../assets/img/case-protect.jpg" alt="Tienda Shopify de Protect Diversity — dermocosmética vegana" decoding="async" fetchpriority="low" />
+          <span class="g-num mono">04</span>
+          <div class="g-cap"><span class="mono">Dermocosmética vegana</span><b>Protect Diversity</b><span class="chip mono">E-commerce · Shopify</span></div>
+        </li>
+        <li class="g-item" tabindex="0">
+          <img src="../assets/img/case-manzzani.jpg" alt="Tienda en línea Manzzani en Shopify" decoding="async" fetchpriority="low" />
+          <span class="g-num mono">05</span>
+          <div class="g-cap"><span class="mono">Manzanas gourmet</span><b>Manzzani</b><span class="chip mono">Shopify + redes</span></div>
+        </li>
+      </ul>
     </section>
 
-    <section class="scene" data-scene="4" aria-label="Contacto" inert>
+    <section class="scene scene--contact" data-scene="4" aria-label="Contacto">
       <p class="kicker mono">05 / 05 · Contacto</p>
       <h2 class="title title--2">Hagamos que tu marca <em class="grad">venda</em>.</h2>
       <div class="ctas">
@@ -117,6 +137,14 @@
 
   <div class="curtain" data-curtain aria-hidden="true"></div>
 
-  <script type="module" src="lab.js?v=22"></script>
+  <script>
+    // Safari anterior a 16.4 no entiende import maps: sin 3D, la página se lee normal y sin telón
+    (function () {
+      var c = document.querySelector("[data-curtain]"), off = function () { c && c.classList.add("is-off"); };
+      if (!(window.HTMLScriptElement && HTMLScriptElement.supports && HTMLScriptElement.supports("importmap"))) off();
+      setTimeout(function () { if (!document.documentElement.classList.contains("is-3d")) off(); }, 4000);
+    })();
+  </script>
+  <script type="module" src="lab.js?v=34"></script>
 </body>
 </html>
