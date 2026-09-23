@@ -17,8 +17,10 @@ import { MeshSurfaceSampler } from "three/addons/math/MeshSurfaceSampler.js";
 /* Destinos por estado. u = coordenada de la partícula en las texturas de datos */
 const TARGET_GLSL = /* glsl */ `
 uniform sampler2D tHome, tRing, tHelix;
-uniform float uTime, uA, uB, uC, uRot, uPlanet, uTilt, uMScale, uRingS;
-uniform vec3 uStart, uEnd; uniform vec2 uAxis, uDust; uniform float uRingZ;
+uniform float uTime, uA, uB, uC, uRot, uPlanet, uMScale, uRingS;
+uniform vec3 uStart, uEnd; uniform vec2 uAxis; uniform float uRingZ;
+uniform vec4 uSpiral;  // espiral de rubros · x: altura del primer rubro, y: caída por rubro, z: radio, w: giro actual
+uniform vec2 uSpiralK; // x: ángulo por rubro, y: cuántos rubros
 float mvStag(float u, float s){ return smoothstep(0., 1., clamp(u * 1.6 - s * .6, 0., 1.)); }
 vec3 mvRotY(vec3 p, float a){ float c = cos(a), s = sin(a); return vec3(p.x * c + p.z * s, p.y, -p.x * s + p.z * c); }
 // devuelve el destino; en w, cuánto "viaja" ahora (0 = asentada)
@@ -33,14 +35,16 @@ vec4 mvTarget(vec2 u){
   vec3 helix = vec3(uAxis.x + cos(th) * hx.y, uAxis.y + sin(th) * hx.y * .9, hx.z);
   float eA = mvStag(uA, seed), eC = mvStag(uC, rg.w), eB = mvStag(uB, 1. - seed);
   vec3 t = mix(mix(mix(mp + uStart, ring, eA), helix, eC), mp + uEnd, eB);
-  // casos: TODAS forman el círculo de partículas donde orbitan las fichas (sin logo);
-  // al pasar al cierre se sueltan en cascada y arman la M
+  // casos: TODAS forman la cinta de la espiral de rubros (por dentro de las fichas: no les pasan encima)
+  // y giran con ella; al pasar al cierre se sueltan en cascada y arman la M al pie de la espiral
   float dsel = mvStag(uPlanet, fract(seed * 7.13)) * eB;
-  float dr = mix(uDust.x, uDust.y, (fract(seed * 13.7) + fract(seed * 5.31)) * .5);   // más denso a media banda
-  float da = rg.x + uTime * (1.1 / dr);
-  vec3 dl = vec3(cos(da) * dr, (fract(seed * 29.3) - .5) * .2, sin(da) * dr);
-  vec3 dust = uEnd + vec3(dl.x, dl.y - dl.z * sin(uTilt), dl.z * cos(uTilt));
-  t = mix(t, dust, dsel);
+  // posición a lo largo (la semilla, así llegan en orden), ancho y grosor de la cinta con azar independiente
+  // (de la misma semilla saldrían líneas, no una banda)
+  float along = fract(seed * 7.13) * (uSpiralK.y + .9) - .7;                  // en rubros: un poco antes del primero y después del último
+  float sa = along * uSpiralK.x + uSpiral.w + uTime * .04 + (fract(rg.x * .15915) - .5) * .32;
+  float sr = uSpiral.z * (.52 + .38 * rg.w);
+  vec3 spiral = vec3(uEnd.x + sin(sa) * sr, uSpiral.x - along * uSpiral.y + rg.z * 1.7, uEnd.z + cos(sa) * sr);
+  t = mix(t, spiral, dsel);
   float travel = sin(eA * 3.14159) + sin(eC * 3.14159) + sin(eB * 3.14159) + sin(dsel * 3.14159);
   return vec4(t, clamp(travel, 0., 1.));
 }
@@ -158,7 +162,7 @@ void main(){
 const RENDER_VERT = /* glsl */ `
 ${BLAST_GLSL}
 uniform sampler2D tPos, tVel;
-uniform float uPx, uFocus, uAperture, uMirror, uAlpha, uReflect, uSim;
+uniform float uPx, uFocus, uAperture, uMirror, uAlpha, uReflect, uSim, uFloorY;
 uniform vec3 uRayO, uRayD; uniform float uMouse, uMouseK;
 attribute vec2 aRef; attribute vec3 aCol; attribute float aSeed;
 varying vec3 vC; varying float vA; varying float vCoc;
@@ -172,7 +176,7 @@ void main(){
   vec3 w = p - uRayO; float tr = dot(w, uRayD);
   float near = uMouse * smoothstep(.45 * uMouseK, 0., length(w - uRayD * tr)) * step(0., tr);
   float blastLit; mvBlastDisp(p, aSeed, blastLit);                              // (antes de reflejar: la onda vive en el mundo)
-  if (uMirror > .5) p.y = -p.y;
+  if (uMirror > .5) p.y = 2. * uFloorY - p.y;                                  // espejo sobre el piso de la escena
   vec4 mv = modelViewMatrix * vec4(p, 1.);
   float z = -mv.z;
   float coc = clamp(abs(z - uFocus) * uAperture, 0., 1.);                     // profundidad de campo
@@ -184,7 +188,7 @@ void main(){
   float asmW = max(1. - mvStag(uA, aSeed), mvStag(uB, 1. - aSeed));            // 1 = forma la M
   float tw = mix(.72 + .28 * sin(uTime * (1.3 + aSeed * 2.1) + aSeed * 50.), 1., asmW * .75);
   vA = tw / (1. + coc * coc * 5.) * smoothstep(1., 3.5, z) * uAlpha * mix(1., .55, calm);
-  if (uMirror > .5) vA *= .7 * smoothstep(-1.8, 0., p.y) * uReflect;
+  if (uMirror > .5) vA *= .7 * smoothstep(-1.8, 0., p.y - uFloorY) * uReflect;
   blastLit = min(blastLit, 1.);
   vA *= 1. + blastLit * .35;                                                    // la onda del clic: crecen y brillan un poco al pasar
   gl_PointSize *= 1. + blastLit * .7;                                           // (más tamaño que brillo: el color de marca no se satura)
@@ -269,7 +273,7 @@ export function createParticles({ renderer, geos, holderMatrix, mobile, reduced,
     tHome: { value: tHome }, tRing: { value: tRing }, tHelix: { value: tHelix },
     uTime: { value: 0 }, uA: { value: 0 }, uB: { value: 0 }, uC: { value: 0 }, uRot: { value: 0 },
     uStart: { value: new THREE.Vector3() }, uEnd: { value: new THREE.Vector3() },
-    uPlanet: { value: 0 }, uTilt: { value: 0.15 }, uDust: { value: new THREE.Vector2(3.2, 5.6) },
+    uPlanet: { value: 0 }, uSpiral: { value: new THREE.Vector4(1.9, 2, 3, 0) }, uSpiralK: { value: new THREE.Vector2(Math.PI / 3, 6) },
     uMScale: { value: 1 }, uRingS: { value: 1 }, uMouseK: { value: 1 },
     uAxis: { value: new THREE.Vector2(0, 1.9) }, uRingZ: { value: -4.2 },
     uRayO: { value: new THREE.Vector3() }, uRayD: { value: new THREE.Vector3(0, 0, -1) }, uMouse: { value: 0 },
@@ -313,7 +317,7 @@ export function createParticles({ renderer, geos, holderMatrix, mobile, reduced,
   const renderUniforms = (mirror) => Object.assign({}, shared, {
     tPos: { value: null }, tVel: { value: null }, uSim: { value: gpu ? 1 : 0 },
     uPx: { value: 1 }, uFocus: { value: 12 }, uAperture: { value: mobile ? 0.04 : 0.05 },
-    uMirror: { value: mirror ? 1 : 0 }, uAlpha: { value: 1 }, uReflect: { value: 0 }
+    uMirror: { value: mirror ? 1 : 0 }, uAlpha: { value: 1 }, uReflect: { value: 0 }, uFloorY: { value: 0 }
   });
   const mk = (mirror) => {
     const pts = new THREE.Points(geo, new THREE.ShaderMaterial({
@@ -338,6 +342,7 @@ export function createParticles({ renderer, geos, holderMatrix, mobile, reduced,
     set px(v) { points.material.uniforms.uPx.value = v; },
     set focus(v) { points.material.uniforms.uFocus.value = v; },
     set reflect(v) { reflection.material.uniforms.uReflect.value = v; reflection.visible = v > 0.001; },   // sin piso: no se dibuja
+    set floorY(v) { reflection.material.uniforms.uFloorY.value = v; },
     update(dt, t) {
       shared.uTime.value = t;
       if (!gpu) return;

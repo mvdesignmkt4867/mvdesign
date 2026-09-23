@@ -56,7 +56,7 @@ ol, ul { list-style: none; }
 }
 html.is-3d .scene--hero .title { font-size: max(clamp(40px, 6.4vw, 108px), min(calc(var(--h, 100vh) * .108), 11.6vw)); }   /* la firma, más grande */
 .scene--hero::before { inset: -30% 4%; background: radial-gradient(closest-side, rgba(7,7,11,.45), rgba(7,7,11,0)); }
-.scene a, .scene button, .scene .g-item { pointer-events: auto; }
+.scene a, .scene button { pointer-events: auto; }
 .kicker { color: var(--fg-3); margin-bottom: 18px; letter-spacing: .14em; text-transform: uppercase; font-size: 11px; }
 .title {
   font: 700 clamp(40px, 6vw, 104px)/.92 "Montserrat", sans-serif; letter-spacing: -.045em;
@@ -113,61 +113,103 @@ html.is-3d .scene--ring.is-compact .trio .desc, html.is-3d .scene--ring.is-compa
 }
 html.is-3d .scene--ring.is-compact .svc-grid b { font-size: calc(var(--u) * 3.5); line-height: 1.55; white-space: nowrap; }
 
-/* ---------- galería de casos: todos a la vista; el que tocas se expande ---------- */
-.gallery { display: flex; gap: 10px; width: min(1080px, 90vw); height: min(44vh, 430px); height: min(44svh, 430px); margin: 30px auto 0; }
-.g-item {
-  position: relative; flex: 1 1 0; min-width: 0; overflow: hidden; cursor: pointer;
-  border-radius: 18px; border: 1px solid rgba(255,255,255,.14); background: #0d0d14;
-  transition: flex .8s var(--ease), border-color .4s ease;
-}
-.g-item img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform 1.4s var(--ease); }
-.g-item::after {   /* velo: las cerradas no deslumbran (las fotos claras quedan en su lugar) */
-  content: ""; position: absolute; inset: 0; background: rgba(7,7,11,.46); transition: opacity .6s ease;
-}
-.g-item::before {  /* degradado para el pie de foto de la abierta */
-  content: ""; position: absolute; inset: auto 0 0 0; height: 66%; z-index: 1; opacity: 0; transition: opacity .6s ease;
-  background: linear-gradient(180deg, rgba(7,7,11,0), rgba(7,7,11,.72) 45%, rgba(7,7,11,.94));
-}
-.g-num { position: absolute; top: 14px; left: 16px; z-index: 2; color: rgba(255,255,255,.8); font-size: 11px; }
-.g-cap {
-  position: absolute; left: 22px; right: 22px; bottom: 20px; z-index: 2; text-align: left;
-  display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
-  opacity: 0; transform: translateY(14px); transition: opacity .5s ease, transform .8s var(--ease);
-}
-.g-cap .mono { color: var(--fg-2); font-size: 11px; letter-spacing: .06em; }
-.g-cap b { font: 600 clamp(18px, 1.8vw, 26px)/1.1 "Montserrat", sans-serif; letter-spacing: -.02em; color: #fff; white-space: nowrap; }
+/* ---------- casos por rubro ----------
+   Sin 3D: la lista de rubros y proyectos se lee como página. Con 3D: los rubros son una espiral (WebGL),
+   esta lista queda para lectores de pantalla y el panel [data-rpanel] muestra los proyectos del rubro elegido. */
+.rubros { width: min(1080px, 92vw); margin: 28px auto 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 26px 34px; text-align: left; }
+.rubro__name { font: 700 24px/1.1 "Montserrat", sans-serif; letter-spacing: -.02em; color: #fff; }
+.rubro__full { margin: 6px 0 12px; color: var(--fg-3); }
+.rubro__list { display: grid; gap: 8px; }
+.proj { border-top: 1px solid var(--line); padding-top: 8px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.proj__name { font: 600 15px/1.25 "Montserrat", sans-serif; color: #fff; }
+.proj__sector, .proj__chip { font-size: 11px; color: var(--fg-3); }
+.proj__desc { flex-basis: 100%; font-size: 12px; line-height: 1.55; color: var(--fg-2); }
 .chip { margin-top: 4px; padding: 6px 11px; border: 1px solid rgba(255,255,255,.25); border-radius: 999px; font-size: 10.5px; color: #fff; background: rgba(7,7,11,.35); }
-@media (hover: hover) {
-  .gallery:hover .g-item { flex: .75 1 0; }
-  .gallery .g-item:hover { flex: 3.6 1 0; border-color: rgba(255,255,255,.4); }
-  .g-item:hover::after { opacity: 0; }
-  .g-item:hover::before, .g-item:hover .g-cap { opacity: 1; transform: none; }
-  .g-item:hover img { transform: scale(1.04); }
-}
-@media (hover: none) { .gallery.has-open .g-item { flex: .75 1 0; } }
-.gallery .g-item.is-open, .gallery .g-item:focus-visible { flex: 3.6 1 0; border-color: rgba(255,255,255,.4); }
-.g-item.is-open::after, .g-item:focus-visible::after { opacity: 0; }
-.g-item.is-open::before, .g-item.is-open .g-cap, .g-item:focus-visible::before, .g-item:focus-visible .g-cap { opacity: 1; transform: none; }
+.chip--cta { padding: 9px 16px; font-size: 11px; letter-spacing: .06em; border-color: rgba(255,255,255,.4); transition: background .3s, border-color .3s, transform .4s var(--ease); }
+.chip--cta:hover { background: rgba(255,255,255,.1); border-color: #fff; transform: translateY(-1px); }
 
-/* ---------- casos en órbita: título arriba, el planeta en medio, el pie con el caso abajo ---------- */
+/* ---------- espiral de rubros: título arriba, la ficha del rubro en medio, el pie abajo ---------- */
 html.is-3d .scene--cases {
   height: calc(100vh - 150px); height: calc(100svh - 150px);
   display: flex; flex-direction: column; justify-content: space-between; align-items: center;
 }
 html.is-3d .scene--cases::before { display: none; }
 html.is-3d .scene--cases, html.is-3d .scene--cases .cases-head { pointer-events: none; }
-html.is-3d .scene--cases .gallery {   /* en 3D la lista sólo existe para lectores de pantalla */
+html.is-3d .scene--cases .rubros {   /* en 3D la lista sólo existe para lectores de pantalla */
   position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
 }
 .orbit-cap { display: none; }
 html.is-3d .orbit-cap { display: flex; align-items: center; gap: 18px; pointer-events: auto; }
 .orbit-cap__txt { display: flex; flex-direction: column; align-items: center; gap: 6px; width: min(380px, 58vw); min-height: 92px; }   /* tamaño fijo: las flechas no brincan */
-.orbit-cap .chip.is-empty { visibility: hidden; }
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .orbit-cap__txt .mono { color: var(--fg-3); font-size: 11px; letter-spacing: .08em; }
 .orbit-cap__txt b { font: 600 clamp(18px, 1.9vw, 26px)/1.15 "Montserrat", sans-serif; letter-spacing: -.02em; color: #fff; }
-.arrow { width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); font-size: 15px; color: #fff; transition: background .3s, border-color .3s; flex: none; }
+.arrow { width: 42px; height: 42px; border-radius: 50%; border: 1px solid rgba(255,255,255,.28); background: rgba(7,7,11,.62); font-size: 15px; color: #fff; transition: background .3s, border-color .3s; flex: none; }
 .arrow:hover { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.3); }
+
+/* ---------- panel de un rubro: en horizontal vive en el espacio libre de la derecha (la espiral se corre a la izquierda) ---------- */
+.rpanel {
+  position: fixed; z-index: 6; top: 0; right: 0; bottom: 0; width: min(54vw, 780px);
+  padding: 108px var(--pad) 96px 16px; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y;
+  scrollbar-width: none; visibility: hidden; pointer-events: none;
+}
+.rpanel::-webkit-scrollbar { display: none; }
+html:not(.is-3d) .rpanel { display: none; }
+.rpanel.is-open { visibility: visible; pointer-events: auto; }
+.rpanel.is-closing { pointer-events: none; }
+.rpanel__head { margin-bottom: 24px; transition: opacity .35s ease; }
+.rpanel__close { color: var(--fg-2); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; padding: 8px 0; margin-bottom: 14px; transition: color .3s; }
+.rpanel__close:hover { color: #fff; }
+.rpanel .kicker { margin-bottom: 10px; }
+.rpanel__title { font: 700 clamp(34px, 3.6vw, 58px)/1 "Montserrat", sans-serif; letter-spacing: -.045em; color: #fff; outline: none; }
+.rpanel__sub { margin-top: 10px; color: var(--fg-3); }
+.rpanel__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 14px; transition: opacity .35s ease; }
+.rpanel.has-detail .rpanel__grid, .rpanel.has-detail .rpanel__head { opacity: 0; pointer-events: none; }
+.sub {
+  display: flex; flex-direction: column; width: 100%; height: 100%; text-align: left; overflow: hidden;
+  border: 1px solid var(--line); border-radius: 16px; background: #0c0b15;
+  transition: border-color .3s, transform .5s var(--ease);
+}
+.sub:hover { border-color: rgba(255,255,255,.4); transform: translateY(-3px); }
+.sub__logo {
+  position: relative; aspect-ratio: 16 / 10; display: flex; align-items: center; justify-content: center; padding: 0 12%;
+  background: radial-gradient(120% 100% at 85% 0%, rgba(98,92,217,.28), rgba(98,92,217,0) 62%), #0e0c19;
+  border-bottom: 1px solid var(--line);
+}
+.sub__logo img { position: absolute; left: 17%; top: 20%; width: 66%; height: 60%; object-fit: contain; }   /* todas del mismo alto, sin importar la forma del logo */
+.sub__word { font: 700 clamp(15px, 1.5vw, 20px)/1.1 "Montserrat", sans-serif; letter-spacing: -.02em; text-align: center; color: #fff; }
+.sub__name { font: 600 14px/1.25 "Montserrat", sans-serif; color: #fff; padding: 12px 14px 3px; }
+.sub__meta { font-size: 10.5px; color: var(--fg-3); padding: 0 14px 13px; letter-spacing: .04em; }
+/* la ficha del caso: se expande desde su subficha y ocupa el panel */
+.rpanel__detail {
+  position: absolute; top: 108px; left: 16px; right: var(--pad); overflow: hidden;
+  border: 1px solid rgba(255,255,255,.2); border-radius: 22px; background: #0b0a13; transform-origin: 50% 50%;
+}
+.rpanel__detail[hidden] { display: none; }
+.rpanel__back {
+  position: absolute; top: 14px; left: 14px; z-index: 2; padding: 9px 15px; border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.3); background: rgba(7,7,11,.72); color: #fff;
+  font-size: 11px; letter-spacing: .08em; text-transform: uppercase; transition: background .3s;
+}
+.rpanel__back:hover { background: rgba(7,7,11,.92); }
+.det__media { aspect-ratio: 16 / 9; background: #0e0c19; }
+.det__media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.det__media--logo { position: relative; display: flex; align-items: center; justify-content: center; padding: 0 12%; background: radial-gradient(90% 120% at 80% 0%, rgba(98,92,217,.32), rgba(98,92,217,0) 60%), radial-gradient(70% 90% at 10% 100%, rgba(43,204,217,.14), rgba(43,204,217,0) 60%), #0e0c19; }
+.det__media--logo img { position: absolute; left: 22%; top: 16%; width: 56%; height: 68%; object-fit: contain; }
+.det__media--logo .sub__word { font-size: clamp(26px, 3vw, 44px); }
+.det__body { padding: 22px 26px 26px; }
+.det__meta { font-size: 11px; color: var(--fg-3); letter-spacing: .06em; }
+.det__name { margin-top: 8px; font: 700 clamp(24px, 2.4vw, 34px)/1.05 "Montserrat", sans-serif; letter-spacing: -.035em; color: #fff; outline: none; }
+.det__desc { margin-top: 12px; font-size: 13px; line-height: 1.65; color: var(--fg-2); max-width: 60ch; }
+.det__desc.is-soon { color: var(--fg-3); }
+.det__ctas { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.det__ctas .pill { padding: 12px 18px; font-size: 13px; }
+/* con un rubro abierto: el WhatsApp flotante se quita (el panel ya ofrece "quiero algo así") */
+body.rp-open .wa { opacity: 0; transform: translateY(12px); pointer-events: none; }
+body.rp-open .hud--tr { opacity: 0; }
+.hud--tl .mono { transition: opacity .5s ease; }
+@media (max-aspect-ratio: 4/5) { body.rp-open .hud--tl .mono, body.rp-open .hud--bl { opacity: 0; } }
+.hud--tr { transition: opacity .5s ease; }
 
 /* ---------- contacto ---------- */
 .ctas { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 30px; }
@@ -217,12 +259,6 @@ html:not(.is-3d) .stage { position: relative; z-index: 4; display: grid; gap: 16
 html:not(.is-3d) .scene { margin: 0 auto; }
 html:not(.is-3d) .scene::before { display: none; }
 html:not(.is-3d) .idx, html:not(.is-3d) .restart, html:not(.is-3d) .scroll-cue { display: none; }
-html:not(.is-3d) .g-cap { opacity: 1; transform: none; }
-html:not(.is-3d) .g-item::before { opacity: 1; }
-html:not(.is-3d) .g-item::after { opacity: 0; }
-html:not(.is-3d) .gallery { height: auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
-html:not(.is-3d) .g-item { flex: none; aspect-ratio: 4 / 3; }
-html:not(.is-3d) .g-cap b { white-space: normal; }
 
 @media (max-width: 1180px) {
   .hud--tr { display: none; }
@@ -241,13 +277,9 @@ html:not(.is-3d) .g-cap b { white-space: normal; }
   .svc-grid li { padding: 8px 0; }
   .svc-grid b { font-size: 14px; }
   .svc-grid i { display: none; }
-  .gallery { flex-direction: column; height: min(50vh, 480px); height: min(50svh, 480px); width: 86vw; gap: 8px; margin-top: 20px; }
   html.is-3d .scene--cases { height: calc(100vh - 140px); height: calc(100svh - 140px); }
   .orbit-cap { gap: 10px; }
   body[data-scene="3"] .wa { opacity: 0; transform: translateY(12px); pointer-events: none; }
-  .g-item { border-radius: 14px; }
-  .g-cap { left: 16px; bottom: 14px; }
-  .g-cap b { font-size: 18px; }
   .ctas { flex-direction: column; align-items: stretch; }
   .pill { justify-content: center; }
   .wa { left: var(--pad); right: var(--pad); justify-content: center; }
@@ -256,6 +288,23 @@ html:not(.is-3d) .g-cap b { white-space: normal; }
   .scroll-cue { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .curtain, .g-item, .g-item img, .g-cap { transition: none; }
+  .curtain, .sub, .rpanel__grid, .rpanel__head { transition: none; }
   .scroll-cue i::after { animation: none; }
+}
+
+/* vertical (mismo corte que lab.js: ancho/alto < 0.8): el panel es una hoja que sube desde abajo */
+@media (max-aspect-ratio: 4/5) {
+  .rpanel {
+    top: auto; left: 0; width: auto; height: 60vh; height: 60svh;
+    padding: 20px 16px calc(28px + env(safe-area-inset-bottom));
+    border-radius: 22px 22px 0 0; border-top: 1px solid rgba(255,255,255,.18); background: rgba(9,9,15,.95);
+  }
+  .rpanel__head { margin-bottom: 16px; }
+  .rpanel__close { margin-bottom: 6px; }
+  .rpanel__title { font-size: 30px; }
+  .rpanel__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .sub__name { font-size: 13px; padding: 10px 12px 2px; }
+  .sub__meta { padding: 0 12px 11px; }
+  .rpanel__detail { top: 12px; left: 12px; right: 12px; margin-bottom: 20px; }
+  .det__body { padding: 18px 18px 20px; }
 }

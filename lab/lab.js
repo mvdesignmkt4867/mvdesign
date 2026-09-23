@@ -18,7 +18,7 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { CSS3DRenderer, CSS3DObject } from "three/addons/renderers/CSS3DRenderer.js";
-import { createParticles, BLAST_GLSL, BLAST_N } from "./particles.js?v=19";
+import { createParticles, BLAST_GLSL, BLAST_N } from "./particles.js?v=20";
 
 const canvas = document.querySelector("[data-gl]");
 const curtain = document.querySelector("[data-curtain]");
@@ -257,9 +257,10 @@ const ambGeo = new THREE.BufferGeometry();
 const ap = new Float32Array(AMB * 3), aseed = new Float32Array(AMB), atint = new Float32Array(AMB * 3);
 const tints = [[0.78, 0.82, 1.0], [0.78, 0.82, 1.0], [0.78, 0.82, 1.0], [0.62, 0.35, 0.95], [0.3, 0.85, 0.95]];   // casi blanco, con toques de marca
 for (let i = 0; i < AMB; i++) {
-  ap[i * 3] = (Math.random() - 0.5) * (Math.random() < 0.7 ? 16 : 28);   // más densas cerca del camino de la cámara
-  ap[i * 3 + 1] = 0.3 + Math.random() * 7.2;
-  ap[i * 3 + 2] = 9 - Math.random() * 62;                       // del hero (z +9) al cierre (z -53)
+  const deep = Math.random() < 0.3;                             // una parte baja con la espiral de rubros hasta el cierre
+  ap[i * 3] = (Math.random() - 0.5) * (deep ? 20 : Math.random() < 0.7 ? 16 : 28);   // más densas cerca del camino de la cámara
+  ap[i * 3 + 1] = deep ? -15 + Math.random() * 17 : 0.3 + Math.random() * 7.2;
+  ap[i * 3 + 2] = deep ? -22 - Math.random() * 34 : 9 - Math.random() * 62;          // del hero (z +9) al cierre (z -53)
   aseed[i] = Math.random();
   atint.set(tints[Math.floor(Math.random() * tints.length)], i * 3);
 }
@@ -392,19 +393,39 @@ async function buildM() {
 }
 
 const raycaster = new THREE.Raycaster();
-/* ---------- Casos: fichas en órbita alrededor de la M (el planeta) ---------- */
-// son planos WebGL: las de atrás pasan DETRÁS del logo; se pintan con alfa 0 para salir del bloom y del
-// tono de cámara, así cada foto conserva su color real (sin quemarse)
-const CASES = [
-  { img: "../assets/img/case-gu-poster.jpg", name: "GU · Gestión Urbanística", sector: "Inmobiliario · Urbanismo", chip: "Web 3D inmersiva" },
-  { img: "../assets/img/case-vistareal.jpg", name: "Vista Real Country Club", sector: "Club deportivo · Hospitalidad", chip: "Web institucional" },
-  { img: "../assets/img/case-blak.jpg", name: "Blak Coffee & Co", sector: "Cafetería", chip: "Branding integral" },
-  { img: "../assets/img/case-protect.jpg", name: "Protect Diversity", sector: "Dermocosmética vegana", chip: "E-commerce · Shopify" },
-  { img: "../assets/img/case-manzzani.jpg", name: "Manzzani", sector: "Manzanas gourmet", chip: "Shopify + redes" }
-];
+/* ---------- Casos: espiral de rubros que baja ----------
+   Cada rubro es una ficha en una espiral: un gesto baja una estación y la espiral gira 60°.
+   Las partículas son la cinta de la espiral; al final se sueltan y arman la M abajo (el cierre).
+   Al elegir un rubro, la espiral se corre a la izquierda y sus proyectos (subfichas) salen de la
+   ficha hacia el espacio libre de la derecha; cada subficha abre la ficha del caso. */
 const CARD_AR = 1.55, TAU = Math.PI * 2;
+// el contenido vive en el HTML (sirve sin 3D y para lectores de pantalla); aquí sólo se lee
+const RUBROS = [...document.querySelectorAll("[data-rubro]")].map((el) => ({
+  id: el.dataset.rubro,
+  name: el.querySelector(".rubro__name").textContent.trim(),
+  full: el.querySelector(".rubro__full").textContent.trim(),
+  projects: [...el.querySelectorAll(".proj")].map((li) => ({
+    name: li.querySelector(".proj__name").textContent.trim(),
+    logo: li.dataset.logo || "", img: li.dataset.img || "", alt: li.dataset.alt || "", url: li.dataset.url || "",
+    sector: li.querySelector(".proj__sector")?.textContent.trim() || "",
+    chip: li.querySelector(".proj__chip")?.textContent.trim() || "",
+    desc: li.querySelector(".proj__desc")?.textContent.trim() || ""
+  }))
+}));
+const NR = RUBROS.length;
+// estaciones de cámara: 0 inicio · 1 manifiesto · 2 servicios · Q0.. un rubro cada una · QLAST contacto
+const Q0 = 3, QLAST = Q0 + NR;
+// la "escena" que ven los efectos (0..4): dentro de la espiral siempre es 3
+const sceneP = (q) => (q <= Q0 ? q : q <= Q0 + NR - 1 ? Q0 : Q0 + (q - (Q0 + NR - 1)));
+const stationOf = (s) => (s < Q0 ? s : s === Q0 ? Q0 : QLAST);
+// geometría de la espiral (buildPath la ajusta a la pantalla)
+const SPI = { R: 3, drop: 2, cardW: 2.3, yTop: AXIS_Y, yM: AXIS_Y - 12.5, camD: 8.7, stepA: TAU / 6 };
+// giro de la espiral: llega girando desde servicios, cada estación gira 60° y sigue girando hacia el cierre
+const spinAt = (q) => (q < Q0 ? (Q0 - q) * 1.4 : -(q - Q0) * SPI.stepA);
+const pad2 = (n) => String(n).padStart(2, "0");
+
 const cardGeo = new THREE.PlaneGeometry(1, 1);
-const cards = CASES.map((cs, i) => {
+const cards = RUBROS.map((r, i) => {
   const u = {
     uMap: { value: null }, uCover: { value: new THREE.Vector2(1, 1) }, uAspect: { value: CARD_AR },
     uBright: { value: 1 }, uEdge: { value: 0.4 }, uTime: ringTime
@@ -425,51 +446,275 @@ const cards = CASES.map((cs, i) => {
         gl_FragColor = vec4(c, 0.);                                            // alfa 0: color exacto, fuera del bloom
       }`
   }));
-  m.userData = { i, u, lift: 0, ready: false };
+  m.userData = { i, u, hover: 0, ready: false, canvas: null };
   m.visible = false;
   scene.add(m);
   return m;
 });
-let texturesAsked = false;
-function loadCaseTextures() {
-  if (texturesAsked) return; texturesAsked = true;
-  const loader = new THREE.TextureLoader();
-  cards.forEach((m, i) => loader.load(CASES[i].img, (tx) => {
+
+// SVG → imagen con tamaño propio (Firefox no dibuja en canvas un SVG sin width/height)
+const svgCache = new Map();
+function loadSvg(url) {
+  if (!svgCache.has(url)) svgCache.set(url, fetch(url).then((r) => (r.ok ? r.text() : Promise.reject())).then((txt) => {
+    const vb = /viewBox="([^"]+)"/.exec(txt);
+    if (vb && !/<svg[^>]*\swidth=/.test(txt)) {
+      const [, , w, h] = vb[1].trim().split(/[\s,]+/).map(Number);
+      if (w > 0 && h > 0) txt = txt.replace("<svg", `<svg width="${w}" height="${h}"`);
+    }
+    const src = URL.createObjectURL(new Blob([txt], { type: "image/svg+xml" }));
+    return new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
+  }).catch(() => null));
+  return svgCache.get(url);
+}
+// la ficha de un rubro: vidrio oscuro, número, nombre grande, subrayado de marca y la fila de logos de sus proyectos
+const TEX_W = 1024, TEX_H = Math.round(TEX_W / CARD_AR);
+function drawRubroCard(c, j, logos) {
+  const r = RUBROS[j], g = c.getContext("2d");
+  g.clearRect(0, 0, TEX_W, TEX_H);
+  const bg = g.createLinearGradient(0, 0, TEX_W, TEX_H);
+  bg.addColorStop(0, "#17132b"); bg.addColorStop(0.55, "#0c0a16"); bg.addColorStop(1, "#07070b");
+  g.fillStyle = bg; g.fillRect(0, 0, TEX_W, TEX_H);
+  const glow = g.createRadialGradient(TEX_W * 0.95, 0, 0, TEX_W * 0.95, 0, TEX_W * 0.8);
+  glow.addColorStop(0, "rgba(98,92,217,.45)"); glow.addColorStop(1, "rgba(98,92,217,0)");
+  g.fillStyle = glow; g.fillRect(0, 0, TEX_W, TEX_H);
+  const pad = 72;
+  g.textBaseline = "alphabetic";
+  g.fillStyle = "rgba(255,255,255,.5)"; g.font = '500 26px "JetBrains Mono", monospace';
+  g.fillText(`${pad2(j + 1)} / ${pad2(NR)}  ·  RUBRO`, pad, pad + 22);
+  g.textAlign = "right"; g.fillText("→", TEX_W - pad, pad + 22); g.textAlign = "left";
+  const lines = r.name.split(" / ").map((s, k, a) => (k < a.length - 1 ? s + " /" : s));
+  let size = 128;
+  const setFont = () => { g.font = `700 ${size}px Montserrat, sans-serif`; };
+  setFont();
+  const maxW = TEX_W - pad * 2;
+  while (Math.max(...lines.map((l) => g.measureText(l).width)) > maxW && size > 56) { size -= 4; setFont(); }
+  if ("letterSpacing" in g) g.letterSpacing = `${-size * 0.04}px`;
+  g.fillStyle = "#fff";
+  let y = pad + 44 + size * 0.8;
+  lines.forEach((l, k) => { g.fillText(l, pad - size * 0.03, y); if (k < lines.length - 1) y += size * 0.96; });
+  if ("letterSpacing" in g) g.letterSpacing = "0px";
+  const gr = g.createLinearGradient(pad, 0, pad + 260, 0);
+  gr.addColorStop(0, "#9E43B8"); gr.addColorStop(0.3, "#625CD9"); gr.addColorStop(0.65, "#4892D9"); gr.addColorStop(1, "#2BCCD9");
+  g.fillStyle = gr; g.fillRect(pad, y + 34, 260, 6);
+  g.fillStyle = "rgba(255,255,255,.66)"; g.font = '500 28px "JetBrains Mono", monospace';
+  g.fillText(r.full, pad, y + 94);
+  // logos de sus proyectos, en fila abajo (blancos, un poco atenuados)
+  const row = logos.filter(Boolean).slice(0, 5), slots = 5;
+  const boxW = (TEX_W - pad * 2) / slots, boxH = 78, by = TEX_H - pad - boxH;
+  g.globalAlpha = 0.88;
+  row.forEach((im, k) => {
+    const s = Math.min((boxW - 30) / im.width, boxH / im.height), w = im.width * s, h = im.height * s;
+    g.drawImage(im, pad + k * boxW + (boxW - 30 - w) / 2, by + (boxH - h) / 2, w, h);
+  });
+  g.globalAlpha = 1;
+  const extra = r.projects.length - row.length;
+  if (extra > 0 && row.length) {
+    g.fillStyle = "rgba(255,255,255,.55)"; g.font = '500 26px "JetBrains Mono", monospace';
+    g.fillText(`+${extra}`, pad + row.length * boxW + 4, by + boxH / 2 + 9);
+  }
+}
+let rubroTexAsked = false;
+async function loadRubroTextures() {
+  if (rubroTexAsked) return; rubroTexAsked = true;
+  try { await Promise.all([document.fonts.load("700 120px Montserrat"), document.fonts.load('500 26px "JetBrains Mono"')]); } catch (e) {}
+  cards.forEach(async (m, j) => {
+    const ud = m.userData;
+    ud.canvas = document.createElement("canvas"); ud.canvas.width = TEX_W; ud.canvas.height = TEX_H;
+    const tx = new THREE.CanvasTexture(ud.canvas);
     tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = 8;
-    const ia = tx.image.width / tx.image.height;
-    m.userData.u.uCover.value.set(Math.min(1, CARD_AR / ia), Math.min(1, ia / CARD_AR));
-    m.userData.u.uMap.value = tx; m.userData.ready = true;
-    renderer.initTexture(tx);                       // sube a la GPU ya, no a medio vuelo
-  }));
+    const paint = (logos) => { drawRubroCard(ud.canvas, j, logos); tx.needsUpdate = true; };
+    paint([]);                                         // el nombre ya se ve; los logos llegan después
+    ud.u.uMap.value = tx; ud.ready = true;
+    renderer.initTexture(tx);
+    const logos = await Promise.all(RUBROS[j].projects.map((pr) => (pr.logo ? loadSvg(pr.logo) : null)));
+    paint(logos);
+  });
 }
-setTimeout(loadCaseTextures, 3000);
-let orbitBase = 0, orbitSpeed = 0.2, orbitSel = -1, orbitFocus = -2;
-const capMeta = document.querySelector("[data-cap-meta]"), capName = document.querySelector("[data-cap-name]"), capChip = document.querySelector("[data-cap-chip]");
-const capLive = document.querySelector("[data-cap-live]");
+setTimeout(loadRubroTextures, 2500);
+
+/* pie de la espiral: el rubro al frente, flechas y "ver proyectos" */
+const capMeta = document.querySelector("[data-cap-meta]"), capName = document.querySelector("[data-cap-name]");
+const capOpen = document.querySelector("[data-cap-open]"), capLive = document.querySelector("[data-cap-live]");
+const capPrev = document.querySelector("[data-case-prev]"), capNext = document.querySelector("[data-case-next]");
 const hoverCapable = matchMedia("(hover: hover)").matches;
-function showCaption(i) {
-  if (i === orbitFocus) return;
-  orbitFocus = i;
-  const cs = CASES[i];
-  if (capMeta) capMeta.textContent = cs ? `${String(i + 1).padStart(2, "0")} / 05 · ${cs.sector}` : (hoverCapable ? "Pasa el cursor o elige una ficha" : "Toca una ficha");
-  if (capName) capName.textContent = cs ? cs.name : "Cinco marcas en órbita";
-  if (capChip) { capChip.textContent = cs ? cs.chip : ""; capChip.classList.toggle("is-empty", !cs); }
+let capShown = -1;
+function showRubro(j) {
+  if (j === capShown) return;
+  capShown = j;
+  const r = RUBROS[j];
+  if (capMeta) capMeta.textContent = `${pad2(j + 1)} / ${pad2(NR)} · Rubro`;
+  if (capName) capName.textContent = r.name;
+  if (capOpen) {
+    capOpen.textContent = `Ver ${r.projects.length} proyectos →`;
+    capOpen.setAttribute("aria-label", `Ver los ${r.projects.length} proyectos de ${r.name}`);
+  }
+  capPrev?.setAttribute("aria-label", j === 0 ? "Volver a servicios" : "Rubro anterior");
+  capNext?.setAttribute("aria-label", j === NR - 1 ? "Ir al contacto" : "Rubro siguiente");
+  if (capLive && active === 3) capLive.textContent = `${r.name}. ${r.projects.length} proyectos.`;
 }
-// elegir (clic, toque, flechas): la ficha vuela al centro de la órbita y se presenta grande.
-// Sólo las elecciones explícitas se anuncian al lector de pantalla (el hover no).
-function select(i) {
-  orbitSel = i;
-  if (capLive) capLive.textContent = i >= 0 ? `${CASES[i].name}. ${CASES[i].sector}. ${CASES[i].chip}.` : "";
+const stationRubro = () => clamp(Math.round(prog - Q0), 0, NR - 1);
+capPrev?.addEventListener("click", () => step(-1));
+capNext?.addEventListener("click", () => step(1));
+capOpen?.addEventListener("click", () => openRubro(stationRubro(), capOpen));
+
+/* ---------- Panel de un rubro: subfichas (logo + nombre) y la ficha del caso ---------- */
+const rpEl = document.querySelector("[data-rpanel]");
+const rp = { open: -1, detail: -1, opener: null, tile: null, closeTimer: 0 };
+let rpView = 0;                                    // 0 = espiral al centro · 1 = corrida para dejar espacio al panel
+const EASE = "cubic-bezier(.16,1,.3,1)";
+const WA_URL = "https://wa.me/5214427146255?text=";
+const tmpV = new THREE.Vector3();
+function mk(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+// dónde está la ficha j en pantalla (de ahí salen y ahí regresan las subfichas)
+function cardRect(j) {
+  const m = cards[j];
+  if (!m || !m.visible) return null;
+  m.updateMatrixWorld();
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const [x, y] of [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]) {
+    tmpV.set(x, y, 0).applyMatrix4(m.matrixWorld).project(camera);
+    const sx = (tmpV.x + 1) / 2 * innerWidth, sy = (1 - tmpV.y) / 2 * innerHeight;
+    x0 = Math.min(x0, sx); x1 = Math.max(x1, sx); y0 = Math.min(y0, sy); y1 = Math.max(y1, sy);
+  }
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
-// la ficha más al frente de la órbita ahora mismo
-const frontCard = () => cards.reduce((best, m, i) => (Math.sin(orbitBase + i * TAU / 5) > Math.sin(orbitBase + best * TAU / 5) ? i : best), 0);
-const selectCase = (dirn) => select(orbitSel < 0 ? frontCard() : (orbitSel + dirn + 5) % 5);
-document.querySelector("[data-case-prev]")?.addEventListener("click", () => selectCase(-1));
-document.querySelector("[data-case-next]")?.addEventListener("click", () => selectCase(1));
-// tocar / hacer clic en una ficha la presenta; tocar la presentada o fuera la regresa a la órbita
-// y en cualquier escena, un clic o toque fuera de botones y fichas suelta la explosión invisible
+function flipKeys(elm, rect, tilt) {
+  const b = elm.getBoundingClientRect();
+  if (!rect || !b.width) return null;
+  const dx = rect.x + rect.w / 2 - (b.left + b.width / 2), dy = rect.y + rect.h / 2 - (b.top + b.height / 2);
+  const s = Math.max(0.06, Math.min(rect.w / b.width, rect.h / b.height));
+  return `translate(${dx}px, ${dy}px) scale(${s})${tilt ? " perspective(900px) rotateY(-32deg)" : ""}`;
+}
+// sale del rectángulo `rect` hasta su lugar
+function flipIn(elm, rect, { delay = 0, dur = 820, tilt = false } = {}) {
+  const from = flipKeys(elm, rect, tilt);
+  if (!from) return elm.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 400, delay, fill: "backwards" });
+  return elm.animate([{ transform: from, opacity: 0 }, { transform: "none", opacity: 1 }], { duration: dur, delay, easing: EASE, fill: "backwards" });
+}
+// regresa a `rect` y se desvanece
+function flipOut(elm, rect, { delay = 0, dur = 460 } = {}) {
+  const to = flipKeys(elm, rect, false);
+  if (!to) return elm.animate([{ opacity: 1 }, { opacity: 0 }], { duration: dur, delay, fill: "forwards" });
+  return elm.animate([{ transform: "none", opacity: 1 }, { transform: to, opacity: 0 }], { duration: dur, delay, easing: "cubic-bezier(.55,0,.75,.2)", fill: "forwards" });
+}
+function buildPanel(j) {
+  const r = RUBROS[j];
+  rpEl.textContent = "";
+  const head = mk("header", "rpanel__head");
+  const close = mk("button", "rpanel__close mono", "← Espiral");
+  close.type = "button"; close.setAttribute("aria-label", "Cerrar y volver a la espiral de rubros");
+  close.addEventListener("click", () => closeRubro());
+  const title = mk("h3", "rpanel__title", r.name); title.id = "rpanel-title"; title.tabIndex = -1;
+  head.append(close, mk("p", "kicker mono", `Rubro ${pad2(j + 1)} / ${pad2(NR)}`), title, mk("p", "rpanel__sub mono", r.full));
+  const grid = mk("ul", "rpanel__grid");
+  r.projects.forEach((pr, k) => {
+    const li = mk("li"), b = mk("button", "sub");
+    b.type = "button"; b.setAttribute("aria-label", `${pr.name}: ver el caso`);
+    const box = mk("span", "sub__logo");
+    if (pr.logo) { const im = mk("img"); im.src = pr.logo; im.alt = ""; im.decoding = "async"; box.append(im); }
+    else box.append(mk("span", "sub__word", pr.name));
+    b.append(box, mk("span", "sub__name", pr.name), mk("span", "sub__meta mono", "Ver caso →"));
+    b.addEventListener("click", () => openDetail(k, b));
+    li.append(b); grid.append(li);
+  });
+  const det = mk("article", "rpanel__detail");
+  det.hidden = true; det.setAttribute("aria-labelledby", "rpanel-det-name");
+  rpEl.append(head, grid, det);
+}
+function openRubro(j, opener) {
+  if (j < 0 || j >= NR || rp.open === j) return;
+  clearTimeout(rp.closeTimer);
+  rp.open = j; rp.detail = -1; rp.tile = null;
+  rp.opener = opener || null;
+  buildPanel(j);
+  rpEl.classList.remove("has-detail", "is-closing");
+  rpEl.classList.add("is-open");
+  document.body.classList.add("rp-open");
+  rpEl.inert = false; rpEl.setAttribute("aria-hidden", "false");
+  rpEl.scrollTop = 0;
+  if (!reduced) {
+    const from = cardRect(j);
+    rpEl.querySelector(".rpanel__head").animate([{ opacity: 0, transform: "translateY(14px)" }, { opacity: 1, transform: "none" }],
+      { duration: 700, delay: 160, easing: EASE, fill: "backwards" });
+    rpEl.querySelectorAll(".sub").forEach((b, k) => flipIn(b, from, { delay: 80 + k * 50, dur: 900, tilt: true }));
+  }
+  rpEl.querySelector("#rpanel-title")?.focus({ preventScroll: true });
+  if (capLive) capLive.textContent = `${RUBROS[j].name}: ${RUBROS[j].projects.length} proyectos.`;
+}
+function closeRubro(instant = false) {
+  if (rp.open < 0) return;
+  const j = rp.open;
+  rp.open = -1; rp.detail = -1; rp.tile = null;
+  document.body.classList.remove("rp-open");
+  const hadFocus = rpEl.contains(document.activeElement);
+  const done = () => {
+    if (rp.open >= 0) return;                        // ya se abrió otro rubro
+    rpEl.classList.remove("is-open", "has-detail", "is-closing");
+    rpEl.inert = true; rpEl.setAttribute("aria-hidden", "true");
+    rpEl.textContent = "";
+  };
+  if (instant || reduced) done();
+  else {
+    const to = cardRect(j), subs = [...rpEl.querySelectorAll(".sub")];
+    rpEl.classList.add("is-closing");
+    rpEl.querySelectorAll(".rpanel__head, .rpanel__detail:not([hidden])").forEach((e) => e.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, fill: "forwards" }));
+    subs.forEach((b, k) => flipOut(b, to, { delay: k * 22 }));
+    rp.closeTimer = setTimeout(done, 480 + subs.length * 22);
+  }
+  const o = rp.opener; rp.opener = null;
+  if (hadFocus && o && o.isConnected) o.focus({ preventScroll: true });
+}
+function openDetail(k, tile) {
+  const r = RUBROS[rp.open], pr = r && r.projects[k];
+  if (!pr) return;
+  rp.detail = k; rp.tile = tile;
+  const det = rpEl.querySelector(".rpanel__detail");
+  det.textContent = "";
+  const back = mk("button", "rpanel__back mono", `← ${r.name}`);
+  back.type = "button"; back.setAttribute("aria-label", `Volver a los proyectos de ${r.name}`);
+  back.addEventListener("click", closeDetail);
+  const media = mk("div", "det__media" + (pr.img ? "" : " det__media--logo"));
+  if (pr.img) { const im = mk("img"); im.src = pr.img; im.alt = pr.alt || pr.name; im.decoding = "async"; media.append(im); }
+  else if (pr.logo) { const im = mk("img"); im.src = pr.logo; im.alt = `Logotipo de ${pr.name}`; media.append(im); }
+  else media.append(mk("span", "sub__word", pr.name));
+  const body = mk("div", "det__body");
+  const name = mk("h4", "det__name", pr.name); name.id = "rpanel-det-name"; name.tabIndex = -1;
+  const desc = mk("p", "det__desc", pr.desc || "Muy pronto: fotos, proceso y resultados de este proyecto.");
+  if (!pr.desc) desc.classList.add("is-soon");
+  const ctas = mk("div", "det__ctas");
+  const wa = mk("a", "pill pill--light", "Quiero algo así →");
+  wa.href = WA_URL + encodeURIComponent(`Hola MV Design, vi el caso de ${pr.name} y quiero cotizar algo así. [web · lab]`);
+  wa.target = "_blank"; wa.rel = "noopener";
+  ctas.append(wa);
+  if (pr.url) { const a = mk("a", "pill pill--ghost", "Ver sitio ↗"); a.href = pr.url; a.target = "_blank"; a.rel = "noopener"; ctas.append(a); }
+  body.append(mk("p", "det__meta mono", [pr.sector || r.name, pr.chip].filter(Boolean).join(" · ")), name, desc, ctas);
+  det.append(back, media, body);
+  det.hidden = false;
+  rpEl.classList.add("has-detail");
+  rpEl.scrollTop = 0;
+  if (!reduced) {
+    const b = tile.getBoundingClientRect();
+    flipIn(det, { x: b.left, y: b.top, w: b.width, h: b.height }, { dur: 760 });
+  }
+  name.focus({ preventScroll: true });
+}
+function closeDetail() {
+  const det = rpEl.querySelector(".rpanel__detail"), tile = rp.tile;
+  if (!det || rp.detail < 0) return;
+  rp.detail = -1; rp.tile = null;
+  rpEl.classList.remove("has-detail");
+  const finish = () => { if (rp.detail < 0) { det.hidden = true; det.textContent = ""; } };
+  if (!reduced && tile && tile.isConnected) {
+    const b = tile.getBoundingClientRect();
+    flipOut(det, { x: b.left, y: b.top, w: b.width, h: b.height }, { dur: 420 }).onfinish = finish;
+  } else finish();
+  if (tile && tile.isConnected) tile.focus({ preventScroll: true });
+}
+
+// tocar / hacer clic en una ficha de rubro: si es la del frente, abre sus proyectos; si no, la espiral viaja a ella.
+// En cualquier escena, un clic o toque fuera de botones y fichas suelta la explosión invisible.
 let downX = 0, downY = 0, downT = 0;
-const onUI = (e) => !!(e.target.closest && e.target.closest("button, a, input, .orbit-cap, .hud, .wa"));
+const onUI = (e) => !!(e.target.closest && e.target.closest("button, a, input, .orbit-cap, .hud, .wa, [data-rpanel]"));
 const cardAt = (x, y) => {
   if (active !== 3) return null;
   raycaster.setFromCamera(new THREE.Vector2(x / innerWidth * 2 - 1, -(y / innerHeight) * 2 + 1), camera);
@@ -480,11 +725,17 @@ addEventListener("pointerdown", (e) => {
   if (e.pointerType === "mouse" && e.button === 0 && !onUI(e) && !cardAt(e.clientX, e.clientY)) fireBlast(e.clientX, e.clientY);
 }, { passive: true });
 addEventListener("pointerup", (e) => {
-  if (onUI(e)) return;
+  if (onUI(e) || e.button !== 0) return;
   if (Math.hypot(e.clientX - downX, e.clientY - downY) > 10 || performance.now() - downT > 450) return;
   const hit = cardAt(e.clientX, e.clientY);
-  if (e.pointerType !== "mouse" && e.button === 0 && !hit) fireBlast(e.clientX, e.clientY);   // (el botón lateral del lápiz no)
-  if (active === 3) select(hit && orbitSel !== hit.object.userData.i ? hit.object.userData.i : -1);
+  if (e.pointerType !== "mouse" && !hit) fireBlast(e.clientX, e.clientY);
+  if (hit) {
+    const j = hit.object.userData.i;
+    if (rp.open === j) closeRubro();
+    else if (rp.open >= 0) { closeRubro(); goQ(Q0 + j); }
+    else if (j === stationRubro() && prog === to) openRubro(j);
+    else goQ(Q0 + j);
+  } else if (rp.open >= 0) closeRubro();             // clic en el espacio: de vuelta a la espiral
 }, { passive: true });
 
 /* ---------- Posproceso ---------- */
@@ -582,15 +833,30 @@ function buildPath() {
   mouseRef = portrait ? 13.5 : 12;
   FAR_SUN = k0 - RING_Z + 8;                       // el eclipse nunca se apaga por lejanía en su encuadre (ni en el dolly de entrada)
   FAR_TUN = Math.max(20, dTun + 2);
-  if (portrait) {
-    KEYS.pos = [V(0, 2.3, k0), V(0, AXIS_Y, k1), V(0, AXIS_Y, TUNNEL_END + dTun), V(0, AXIS_Y + 4.2, E + 16.5), V(0, 2.5, E + 20.5)];
-    KEYS.look = [V(0, 0.75, 0), V(0, AXIS_Y, RING_Z), V(0, AXIS_Y, TUNNEL_END), V(0, AXIS_Y + 0.6, E), V(0, 0.35, E)];
-    FOCUS = [k0, dSun, dTun, 17, 20.5];
-  } else {
-    KEYS.pos = [V(0, 2.2, k0), V(0, AXIS_Y, k1), V(0, AXIS_Y, TUNNEL_END + dTun), V(0, AXIS_Y + 1.5, E + 15.4), V(0, 2.3, E + 16.5)];
-    KEYS.look = [V(0, 1.15, 0), V(0, AXIS_Y, RING_Z), V(0, AXIS_Y, TUNNEL_END), V(0, AXIS_Y + 0.35, E), V(0, 0.95, E)];
-    FOCUS = [k0, dSun, dTun, 15, 16.5];
+  // espiral de rubros: la ficha del frente ocupa ~1/3 del alto (horizontal) o ~3/4 del ancho (vertical)
+  const aspect = innerWidth / innerHeight;
+  SPI.R = portrait ? 1.9 : 3.0;
+  SPI.drop = portrait ? 2.3 : 2.0;
+  SPI.cardW = portrait ? 1.9 : 2.3;
+  SPI.yTop = AXIS_Y;
+  SPI.yM = SPI.yTop - (NR - 1) * SPI.drop - (portrait ? 2.8 : 2.5);    // la M del cierre, al pie de la espiral
+  const cardH = SPI.cardW / CARD_AR;
+  SPI.camD = portrait ? SPI.cardW / (0.78 * 2 * tanH * aspect)
+    : Math.max(cardH / (0.34 * 2 * tanH), SPI.cardW / (0.46 * 2 * tanH * aspect));
+  floorEnd.position.y = SPI.yM - AXIS_Y;                                 // el piso del cierre, bajo la M
+  const yM = SPI.yM;
+  // estaciones: inicio, manifiesto, servicios, un rubro cada una (bajando), contacto
+  KEYS.pos = [V(0, portrait ? 2.3 : 2.2, k0), V(0, AXIS_Y, k1), V(0, AXIS_Y, TUNNEL_END + dTun)];
+  KEYS.look = [V(0, portrait ? 0.75 : 1.15, 0), V(0, AXIS_Y, RING_Z), V(0, AXIS_Y, TUNNEL_END)];
+  FOCUS = [k0, dSun, dTun];
+  for (let j = 0; j < NR; j++) {
+    const y = SPI.yTop - j * SPI.drop;
+    KEYS.pos.push(V(0, y + 1.1, E + SPI.R + SPI.camD));
+    KEYS.look.push(V(0, y - 0.5, E));
+    FOCUS.push(SPI.camD);
   }
+  if (portrait) { KEYS.pos.push(V(0, yM + 0.6, E + 20.5)); KEYS.look.push(V(0, yM - 1.55, E)); FOCUS.push(20.5); }
+  else { KEYS.pos.push(V(0, yM + 0.4, E + 16.5)); KEYS.look.push(V(0, yM - 0.95, E)); FOCUS.push(16.5); }
   posCurve = new THREE.CatmullRomCurve3(KEYS.pos, false, "centripetal");
   lookCurve = new THREE.CatmullRomCurve3(KEYS.look, false, "centripetal");
   // cada texto queda de frente a la cámara de su escena, a 1:1 (nítido) cuando llegas.
@@ -602,7 +868,8 @@ function buildPath() {
     const ring = RING_AT[i];
     let ringD = 0;
     const d = ring ? ring[1] : T[i].d, oy = T[i].oy;
-    mLook.lookAt(KEYS.pos[i], KEYS.look[i], THREE.Object3D.DEFAULT_UP);
+    const k = stationOf(i);                          // la estación de cámara de su escena (casos: el primer rubro)
+    mLook.lookAt(KEYS.pos[k], KEYS.look[k], THREE.Object3D.DEFAULT_UP);
     qTmp.setFromRotationMatrix(mLook);
     const s = (2 * d * tanH) / H;                   // unidades de mundo por píxel CSS a esa distancia
     const el = sections[i];
@@ -622,7 +889,8 @@ function buildPath() {
     const fit = ring ? 1 : h > 0 ? Math.min(1, (H - top - bottom) / h) : 1;   // si no cabe, se achica un poco
     const half = (h * fit) / 2;
     const cy = ring ? H / 2 + oy * ringD : clamp(H / 2 + oy * H, top + half, Math.max(top + half, H - bottom - half));
-    o.position.set(0, -(cy - H / 2) * s, -d).applyQuaternion(qTmp).add(KEYS.pos[i]);
+    o.position.set(0, -(cy - H / 2) * s, -d).applyQuaternion(qTmp).add(KEYS.pos[k]);
+    o.userData.base = o.position.clone();            // casos: el texto baja con la cámara de rubro en rubro
     o.quaternion.copy(qTmp);
     o.scale.setScalar(s * fit);
     o.userData.d = d;
@@ -674,7 +942,7 @@ function adaptDpr(raw, moving) {
   else if (med < frameBase * 1.1 && DPR < DPR_MAX) { applyDpr(Math.min(DPR_MAX, DPR * 1.08)); perfSkip = 30; }
 }
 
-/* ---------- Navegación: un gesto = una escena, y cada transición llega y se asienta ---------- */
+/* ---------- Navegación: un gesto = una estación (escena o rubro), y cada transición llega y se asienta ---------- */
 let from = 0, to = 0, tStart = 0, dur = 0, prog = 0, lockUntil = 0, v0 = 0, progVel = 0;
 const now = () => performance.now();
 // posición y velocidad del tramo actual: desde reposo, curva cubic in-out; si ya venía en
@@ -691,20 +959,26 @@ function tween(kt) {
   const dpos = (6 * s2 - 6 * s) * from + (3 * s2 - 4 * s + 1) * m0 + (-6 * s2 + 6 * s) * to;
   return [pos, dpos / dur];
 }
-function goTo(i) {
-  i = clamp(i, 0, LAST);
+// prog / from / to están en estaciones (0..QLAST); dentro de la espiral cada rubro es una estación
+function goQ(i) {
+  i = clamp(Math.round(i), 0, QLAST);
   if (i === to) return;                                 // mismo destino: no se reinicia nada
+  if (rp.open >= 0) closeRubro();
   const moving = prog !== to;
   from = prog; to = i; tStart = now();
   v0 = moving && !reduced ? progVel : 0;
-  dur = reduced ? 0 : 1.55 + 0.3 * Math.max(0, Math.abs(to - from) - 1);
-  lockUntil = tStart + (reduced ? 350 : Math.max(900, dur * 1000 * 0.72));
+  const inSpiral = (x) => x >= Q0 && x <= Q0 + NR - 1, n = Math.abs(to - from);
+  // de rubro a rubro es más ágil; saltos largos (índice) no se eternizan
+  dur = reduced ? 0 : inSpiral(from) && inSpiral(to) ? 1.25 + 0.18 * Math.max(0, n - 1) : Math.min(3.4, 1.55 + 0.3 * Math.max(0, n - 1));
+  lockUntil = tStart + (reduced ? 350 : Math.max(800, dur * 1000 * 0.72));
 }
-const step = (dirn) => goTo(to + dirn);
+const goTo = (s) => goQ(stationOf(clamp(s, 0, LAST)));   // por escena (índice, "volver al inicio")
+const step = (dirn) => goQ(to + dirn);
 // rueda / trackpad: se cuenta UN gesto hasta que la rueda descansa 200 ms (así la inercia no brinca escenas)
 let wheelAcc = 0, lastWheel = 0, gestureUsed = false, wheelAvg = 0;
 addEventListener("wheel", (e) => {
   if (e.ctrlKey) return;                               // pellizco para zoom: se respeta
+  if (rp.open >= 0 && e.target.closest && e.target.closest("[data-rpanel]")) return;   // dentro del panel: scroll normal
   e.preventDefault();
   const t = now();
   let d = e.deltaY; if (e.deltaMode === 1) d *= 16; else if (e.deltaMode === 2) d *= innerHeight;
@@ -716,26 +990,32 @@ addEventListener("wheel", (e) => {
   lastWheel = t;
   if (gestureUsed || t < lockUntil) return;
   wheelAcc += d;
-  if (Math.abs(wheelAcc) >= 36) { gestureUsed = true; wheelAcc = 0; step(Math.sign(d)); }
+  if (Math.abs(wheelAcc) >= 36) { gestureUsed = true; wheelAcc = 0; if (rp.open >= 0) closeRubro(); else step(Math.sign(d)); }
 }, { passive: false });
 // touch: un deslizamiento de ~48 px = una escena
 let ty0 = null, touchUsed = false;
-addEventListener("touchstart", (e) => { ty0 = e.touches[0].clientY; touchUsed = false; }, { passive: true });
+addEventListener("touchstart", (e) => {
+  // dentro del panel el dedo desplaza sus proyectos, no cambia de escena
+  ty0 = rp.open >= 0 && e.target.closest && e.target.closest("[data-rpanel]") ? null : e.touches[0].clientY;
+  touchUsed = false;
+}, { passive: true });
 addEventListener("touchmove", (e) => {
   if (ty0 === null || touchUsed || now() < lockUntil) return;
   const dy = ty0 - e.touches[0].clientY;
-  if (Math.abs(dy) > 48) { touchUsed = true; step(Math.sign(dy)); }
+  if (Math.abs(dy) > 48) { touchUsed = true; if (rp.open >= 0) closeRubro(); else step(Math.sign(dy)); }
 }, { passive: true });
 addEventListener("touchend", () => { ty0 = null; }, { passive: true });
 addEventListener("keydown", (e) => {
   if (e.target.closest && e.target.closest("input, textarea, select")) return;
+  if (e.key === "Escape" && rp.open >= 0) { e.preventDefault(); if (rp.detail >= 0) closeDetail(); else closeRubro(); return; }
+  if (rp.open >= 0 && e.target.closest && e.target.closest("[data-rpanel]")) return;   // dentro del panel: Tab, Enter y flechas normales
   if (e.key === " " && e.target.closest && e.target.closest("button, a, [tabindex], summary")) return;   // Espacio activa el botón enfocado
   if (e.repeat) { if ([" ", "ArrowDown", "ArrowUp", "PageDown", "PageUp"].includes(e.key)) e.preventDefault(); return; }
-  if (active === 3 && (e.key === "ArrowRight" || e.key === "ArrowLeft")) { e.preventDefault(); selectCase(e.key === "ArrowRight" ? 1 : -1); return; }
+  if (active === 3 && (e.key === "ArrowRight" || e.key === "ArrowLeft")) { e.preventDefault(); step(e.key === "ArrowRight" ? 1 : -1); return; }
   if (["ArrowDown", "PageDown"].includes(e.key) || (e.key === " " && !e.shiftKey)) { e.preventDefault(); step(1); }
   else if (["ArrowUp", "PageUp"].includes(e.key) || (e.key === " " && e.shiftKey)) { e.preventDefault(); step(-1); }
   else if (e.key === "Home") { e.preventDefault(); goTo(0); }
-  else if (e.key === "End") { e.preventDefault(); goTo(LAST); }
+  else if (e.key === "End") { e.preventDefault(); goQ(QLAST); }
 });
 document.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => goTo(+b.dataset.go)));
 
@@ -759,6 +1039,7 @@ function setActive(a) {
   document.body.dataset.scene = a;
   // se esconde en contacto (ahí están los dos WhatsApp) y en casos en celular (tapaba la galería)
   if (waFloat) waFloat.inert = a === LAST || (a === 3 && narrowMQ.matches);
+  if (a !== 3 && rp.open >= 0) closeRubro(true);
   idxBtns.forEach((b, i) => { if (i === a) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current"); });
   if (noteEl) noteEl.innerHTML = NOTES[a];
 }
@@ -769,7 +1050,7 @@ let pointerOn = 0, lastMove = 0, overUI = false;
 addEventListener("pointermove", (e) => {
   ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
   pointerOn = 1; lastMove = now();
-  overUI = !!(e.target.closest && e.target.closest(".orbit-cap, .hud, .wa, a, button"));
+  overUI = !!(e.target.closest && e.target.closest(".orbit-cap, .hud, .wa, a, button, [data-rpanel]"));
 }, { passive: true });
 document.documentElement.addEventListener("pointerleave", () => { pointerOn = 0; });
 addEventListener("touchend", () => { pointerOn = 0; }, { passive: true });
@@ -793,13 +1074,13 @@ function frame() {
   const kt = dur > 0 ? clamp((now() - tStart) / (dur * 1000), 0, 1) : 1;
   [prog, progVel] = kt >= 1 ? [to, 0] : tween(kt);
   vel = THREE.MathUtils.lerp(vel, progVel, 0.25);
-  const p = prog;
+  const q = prog, p = sceneP(q);                       // q: estación (con rubros) · p: escena para los efectos (0..4)
   setActive(Math.round(p));
-  if (progEl) progEl.style.transform = `scaleX(${p / LAST})`;
+  if (progEl) progEl.style.transform = `scaleX(${q / QLAST})`;
 
   // cámara sobre la curva + entrada en dolly + deriva con el cursor
-  posCurve.getPoint(p / LAST, camPos);
-  lookCurve.getPoint(p / LAST, camLook);
+  posCurve.getPoint(q / QLAST, camPos);
+  lookCurve.getPoint(q / QLAST, camLook);
   const heroW = 1 - sm(0, 0.6, p), endW = sm(3.4, 4, p);
   if (!reduced) {
     const orbit = (Math.sin(t * 0.11) * (portrait ? 0.018 : 0.05) + smooth.x * 0.06) * Math.max(heroW, endW);   // en celular casi quieta: los botones no se corren
@@ -817,6 +1098,14 @@ function frame() {
   const kick = reduced ? 0 : Math.min(Math.abs(vel), 2.5);
   camera.fov = BASE_FOV + kick * 2;
   camera.updateProjectionMatrix();
+  // con un rubro abierto, la vista se corre (sin cambiar la perspectiva): la espiral queda a la izquierda
+  // en horizontal, o arriba en vertical, y el panel ocupa el espacio libre
+  rpView += ((rp.open >= 0 ? 1 : 0) - rpView) * (1 - Math.exp(-dt * (reduced ? 60 : 4.5)));
+  if (rpView > 0.0005) {
+    const W = innerWidth, H = innerHeight;
+    if (portrait) camera.setViewOffset(W, H, 0, rpView * H * 0.27, W, H);
+    else camera.setViewOffset(W, H, rpView * W * 0.23, 0, W, H);
+  } else if (camera.view && camera.view.enabled) camera.clearViewOffset();
   camera.getWorldDirection(camFwd);
   finalPass.uniforms.uCA.value = BASE_CA + kick * 0.0015;
 
@@ -840,9 +1129,8 @@ function frame() {
   tunnel.forEach((r) => ringDim(r, 0.6 * sm(1.25, 1.9, p) * (1 - sm(2.45, 2.9, p)), FAR_TUN));   // al salir del túnel se apagan
   ringTime.value = t;
 
-  // órbita de casos: inclinación viva del anillo (precesión suave) y tamaño según el alto disponible
-  const orbitFit = portrait ? 1 : clamp((innerHeight - 330) / 570, 0.55, 1);
-  const orbitTilt = (portrait ? 0.38 : 0.12) + (reduced ? 0 : Math.sin(t * 0.21) * 0.03);
+  // espiral de rubros: estación continua (0 = primer rubro) y giro
+  const sIn = clamp(q - Q0, 0, NR - 1), spin = spinAt(q);
 
   // partículas: armar → anillo → túnel → armar de nuevo al final
   if (particles) {
@@ -853,13 +1141,13 @@ function frame() {
     U.uMScale.value = mScale; U.uRingS.value = RING_S; U.uRingZ.value = RING_Z;
     U.uMouseK.value = clamp(camera.position.distanceTo(camLook) / mouseRef, 1, 1.7);   // el remolino del cursor sigue a la distancia
     U.uRot.value = reduced ? 0 : Math.sin(t * 0.23) * 0.22 + smooth.x * 0.1;
-    // casos: las partículas son el anillo de la órbita; en el cierre vuelven y arman la M
+    // casos: las partículas son la cinta de la espiral (gira con ella); en el cierre bajan y arman la M al pie
     U.uPlanet.value = sm(2.2, 2.7, p) * (1 - sm(3.25, 3.85, p));
-    U.uTilt.value = orbitTilt;
-    U.uDust.value.set(portrait ? 1.45 : 2.9 * orbitFit, portrait ? 3.0 : 5.8 * orbitFit);
+    U.uSpiral.value.set(SPI.yTop, SPI.drop, SPI.R, spin);
+    U.uSpiralK.value.set(SPI.stepA, NR);
     const bob = reduced ? 0 : Math.sin(t * 0.6) * 0.04;
     U.uStart.value.set(0, AXIS_Y + bob, 0);
-    U.uEnd.value.set(0, AXIS_Y + bob, END_Z);
+    U.uEnd.value.set(0, SPI.yM + bob, END_Z);
     // cursor: se enciende al moverlo y se relaja si se queda quieto
     const want = reduced ? 0 : pointerOn * (now() - lastMove < 2500 ? 1 : 0.45);
     mouseAmt += (want - mouseAmt) * (1 - Math.exp(-dt * 18));             // responde casi al instante
@@ -867,74 +1155,59 @@ function frame() {
     U.uRayO.value.copy(raycaster.ray.origin); U.uRayD.value.copy(raycaster.ray.direction);
     U.uMouse.value = mouseAmt;
     AU.uRayO.value.copy(raycaster.ray.origin); AU.uRayD.value.copy(raycaster.ray.direction); AU.uMouse.value = mouseAmt;
-    const fi = Math.min(LAST - 1, Math.floor(p)), ff = p - fi;
+    const fi = Math.min(QLAST - 1, Math.floor(q)), ff = q - fi;
     particles.focus = THREE.MathUtils.lerp(FOCUS[fi], FOCUS[fi + 1], ff);
     particles.reflect = Math.max(studio, endStudio);
+    particles.floorY = endStudio > studio ? SPI.yM - AXIS_Y : 0;           // el reflejo del cierre, sobre su propio piso
     particles.update(dt, reduced ? 0 : t);
   }
 
-  // casos: las fichas orbitan la M; entran girando, se detienen con el cursor y se van al pasar al contacto
+  // casos: las fichas de rubro en la espiral. Entran girando desde afuera, la del frente manda
   const cIn = sm(2.3, 2.95, p), cOut = sm(3.2, 3.62, p), cVis = cIn * (1 - cOut);
-  if (p > 1.4) loadCaseTextures();
-  if (active !== 3 && orbitSel >= 0) select(-1);
-  // hover (sólo con mouse, fuera de la interfaz y si no hay una ficha presentada): pausa la órbita
+  if (p > 1.4) loadRubroTextures();
+  const cur = Math.round(sIn);
+  if (cVis > 0.01) showRubro(cur);
+  // hover (sólo con mouse y fuera de la interfaz): la ficha se acerca un poco y se enciende su filo
   let hov = -1;
-  if (cVis > 0.5 && hoverCapable && pointerOn && !overUI && orbitSel < 0) {
+  if (cVis > 0.5 && hoverCapable && pointerOn && !overUI) {
     raycaster.setFromCamera(ndc, camera);
     const hit = raycaster.intersectObjects(cards.filter((m) => m.visible), false)[0];
     if (hit) hov = hit.object.userData.i;
   }
-  const focus = orbitSel >= 0 ? orbitSel : hov;                          // lo elegido manda sobre el hover
-  if (cVis > 0.01) showCaption(focus);
   const wantCursor = hov >= 0 ? "pointer" : "";
   if (document.body.style.cursor !== wantCursor) document.body.style.cursor = wantCursor;
-  orbitSpeed += ((focus >= 0 || reduced ? 0 : 0.2) - orbitSpeed) * (1 - Math.exp(-dt * 3));
-  orbitBase += orbitSpeed * dt;
-  // la órbita cabe en el cuadro: más chica en pantallas bajas o angostas
-  const fitH = orbitFit;
-  const CARD_W = (portrait ? 1.3 : 2.05) * fitH;
-  const halfW = Math.tan(THREE.MathUtils.degToRad(BASE_FOV / 2)) * 15.4 * camera.aspect;
-  const ORB_R = portrait ? 2.2 : Math.max(2.4, Math.min(4.3 * fitH, halfW * 0.92 - CARD_W / 2));
-  const TILT = orbitTilt, PRES = portrait ? 3.3 : 1.75;
-  const C = tmp2.set(0, AXIS_Y + (reduced ? 0 : Math.sin(t * 0.6) * 0.04), END_Z);
-  const presPos = tmp3.copy(C).addScaledVector(camFwd, -2.2);           // al centro, un poco hacia ti
   cards.forEach((m) => {
-    const ud = m.userData, i = ud.i;
-    m.visible = cVis > 0.01 && ud.ready;
+    const ud = m.userData, j = ud.i;
+    const th = j * SPI.stepA + spin;
+    const face = Math.cos(th);                                             // 1 = de frente · <0 = del otro lado del eje
+    m.visible = cVis > 0.01 && ud.ready && face > -0.2 && (j === rp.open || rpView < 0.97);
     if (!m.visible) return;
-    const th = orbitBase + i * TAU / 5 + (1 - cIn) * 2.2;
-    const R = ORB_R * (0.45 + 0.55 * cIn) * (1 + cOut * 0.9);
-    const x = Math.cos(th) * R, z = Math.sin(th) * R;
-    const bob = reduced ? 0 : Math.sin(t * 0.8 + i * 1.7) * 0.09;           // flotan, cada una a su ritmo
-    m.position.set(C.x + x, C.y + bob - z * Math.sin(TILT), C.z + z * Math.cos(TILT));
-    const k = reduced ? 60 : 5;
-    ud.lift += ((i === orbitSel ? 1 : 0) - ud.lift) * (1 - Math.exp(-dt * k));
-    ud.hover = (ud.hover || 0) + ((i === hov ? 1 : 0) - (ud.hover || 0)) * (1 - Math.exp(-dt * 8));
-    const e = ud.lift * ud.lift * (3 - 2 * ud.lift);
-    m.position.lerp(presPos, e);                                           // la elegida vuela al centro
-    m.position.addScaledVector(camFwd, -0.35 * ud.hover);                  // la del hover apenas se acerca
-    const sc = CARD_W * cVis * (1 + (PRES - 1) * e + 0.1 * ud.hover);
+    ud.hover += ((j === hov ? 1 : 0) - ud.hover) * (1 - Math.exp(-dt * 8));
+    const R = SPI.R * (1 + (1 - cIn) * 0.6 + cOut * 0.5) + 0.3 * ud.hover;
+    const bob = reduced ? 0 : Math.sin(t * 0.7 + j * 1.9) * 0.05;
+    m.position.set(Math.sin(th) * R, SPI.yTop - j * SPI.drop + bob, END_Z + Math.cos(th) * R);
+    m.rotation.set(0, th, 0);                                              // mira hacia afuera del eje
+    const sc = SPI.cardW * (0.7 + 0.3 * cIn) * (1 + 0.05 * ud.hover);
     m.scale.set(sc, sc / CARD_AR, 1);
-    m.quaternion.copy(camera.quaternion);                                  // siempre de frente
-    const near = (Math.sin(th) + 1) / 2;
-    let b = 0.5 + 0.5 * near;
-    if (focus >= 0) b = i === focus ? 1.05 : b * 0.5;
+    let b = (0.28 + 0.72 * sm(-0.2, 1, face)) * (j === cur ? 1 : 0.62);
+    if (j !== rp.open) b *= 1 - 0.97 * rpView;                            // con un rubro abierto, las demás se retiran
     ud.u.uBright.value = b;
-    ud.u.uEdge.value = 0.35 + 0.65 * Math.max(e, ud.hover);
+    ud.u.uEdge.value = 0.3 + 0.7 * Math.max(ud.hover, j === cur ? 0.55 : 0, j === rp.open ? 1 : 0);
   });
 
   // textos: aparecen al acercarte, la cámara los atraviesa al seguir
   labels.forEach((o, i) => {
     // Servicios vive a 3 unidades de los casos y la cámara no lo cruza: sale rápido al avanzar para no encimarse
     const vis = i === 2 && p > 2 ? 1 - sm(0.04, 0.18, p - 2) : 1 - sm(0.45, 0.85, Math.abs(p - i));
+    if (i === 3) { o.position.copy(o.userData.base); o.position.y -= SPI.drop * sIn; }   // baja con la cámara de rubro en rubro
     const ratio = tmp.copy(o.position).sub(camera.position).dot(camFwd) / o.userData.d;   // 1 = a 1:1; 0.5 = al doble
-    const op = vis * sm(0.5, 0.78, ratio);
+    const op = vis * sm(0.5, 0.78, ratio) * (i === 3 ? 1 - rpView : 1);   // con un rubro abierto manda el panel
     const on = op > 0.01;
     if (o.visible !== on) o.visible = on;
     const el = sections[i];
     const opS = op.toFixed(3);
     if (el.style.opacity !== opS) el.style.opacity = opS;
-    const inert = vis < 0.6;
+    const inert = vis < 0.6 || (i === 3 && rp.open >= 0);                  // con el panel abierto, el pie de la espiral no se toca
     if (el.inert !== inert) el.inert = inert;
   });
 
@@ -955,8 +1228,8 @@ function frame() {
 
 // para pruebas: ?s=3 abre directo en una escena; ?debug expone el mundo en la consola
 const qsScene = new URLSearchParams(location.search).get("s");
-if (qsScene !== null) { from = to = prog = clamp(Math.round(+qsScene) || 0, 0, LAST); }
-if (/[?&]debug\b/.test(location.search)) window.__lab = { THREE, get dpr() { return DPR; }, renderer, scene, composer, bloom, camera, get particles() { return particles; }, goTo };
+if (qsScene !== null) { from = to = prog = stationOf(clamp(Math.round(+qsScene) || 0, 0, LAST)); }
+if (/[?&]debug\b/.test(location.search)) window.__lab = { THREE, get dpr() { return DPR; }, renderer, scene, composer, bloom, camera, get particles() { return particles; }, goTo, goQ, openRubro, openDetail, get rp() { return rp; }, cards, SPI };
 
 const lift = () => curtain.classList.add("is-off");
 setTimeout(lift, 3500);
