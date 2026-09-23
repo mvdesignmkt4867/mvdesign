@@ -14,6 +14,19 @@
 (function () {
   "use strict";
 
+  /* Diagnóstico (solo con ?debug): la sonda (js/probe.js) elige una condición por
+     recarga para aislar la causa del congelamiento. Sin ?debug nunca actúa. */
+  var DBG = "";
+  if (/[?&]debug=/.test(location.search)) {
+    var dm = location.search.match(/[?&]cond=([a-z0-9]+)/);
+    if (dm) DBG = dm[1];
+    else if (/[?&]debug=auto/.test(location.search)) {
+      try { DBG = localStorage.getItem("mv-probe-cond") || "base"; } catch (e) { DBG = "base"; }
+    }
+  }
+  window.MV_DBG = DBG;
+  if (DBG === "fx0") return; // sin partículas WebGL: ¿el congelamiento sigue?
+
   if (typeof THREE === "undefined") return;
   var mountBack  = document.querySelector("[data-fx-back]");
   var mountFront = document.querySelector("[data-fx-front]");
@@ -47,7 +60,7 @@
   var LEGACY = /[?&]legacy=1/.test(location.search);
   if (LEGACY) document.documentElement.classList.add("fx-legacy");
   var COARSE = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
-  var stats = { resizes: 0, reallocs: 0, k: 1, legacy: LEGACY };
+  var stats = { resizes: 0, reallocs: 0, k: 1, legacy: LEGACY, slow: [] }; // slow: frames >50 ms [fin, ms]
 
   /* Encuadre compensado (fase 2a). Con la barra de Safari visible, el canvas
      (100lvh) es más alto que el área visible (k = visible / canvas < 1). La cámara
@@ -483,6 +496,7 @@
   var headShown = 0; // cabeza suavizada (en unidades de parada)
 
   function frame() {
+    var f0 = performance.now();
     var t = clock.getElapsedTime();
     // el ensamble respira más lento (cinemático); el resto responde ágil
     for (var k in target) {
@@ -506,6 +520,8 @@
     if (front) applySystem(front, t, asm, spn, wv, rf, rp, headNorm, true);
     signalPaint();
 
+    var fd = performance.now() - f0; // costo JS+GL de este frame (para la sonda)
+    if (fd > 50) { stats.slow.push([performance.now(), fd]); if (stats.slow.length > 30) stats.slow.shift(); }
     raf = requestAnimationFrame(frame);
   }
 

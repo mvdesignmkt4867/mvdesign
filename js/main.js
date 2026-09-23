@@ -13,6 +13,7 @@
      Nunca se carga sin ?debug; con ?debug tampoco se envía analítica (MV_TRACK). */
   if (/[?&]debug=/.test(location.search)) {
     var probe = document.createElement("script");
+    probe.async = false;
     probe.src = "js/probe.js";
     document.head.appendChild(probe);
   }
@@ -115,7 +116,7 @@
 
   /* ---------- Lenis ---------- */
   var lenis = null;
-  if (typeof Lenis !== "undefined") {
+  if (typeof Lenis !== "undefined" && window.MV_DBG !== "nolenis") {
     // lento y cinematográfico: las animaciones se aprecian
     lenis = new Lenis({
       duration: 1.75,
@@ -213,7 +214,8 @@
                             // compilar los shaders del cometa ANTES de revelar
     var preT0 = (window.performance && performance.now) ? performance.now() : Date.now();
     var counterShown = 0;
-    var cometPainted = !!(window.MVHERO && window.MVHERO.painted);
+    // sin MVHERO (WebGL no disponible) no hay cometa que esperar: abre en T_MIN
+    var cometPainted = !window.MVHERO || !!window.MVHERO.painted;
     var assemblyKicked = false;
     var forceReady = false; // solo si WebGL falla de verdad
     if (!cometPainted) window.addEventListener("mvhero:painted", function () { cometPainted = true; }, { once: true });
@@ -547,7 +549,9 @@
       document.fonts.ready.then(function () { ScrollTrigger.refresh(); });
     }
     // seguro extra: layouts tardíos (fuentes, restauración de scroll)
-    setTimeout(function () { ScrollTrigger.refresh(); }, 1500);
-    setTimeout(function () { ScrollTrigger.refresh(); }, 3500);
+    if (window.MV_DBG !== "norefresh") {
+      setTimeout(function () { ScrollTrigger.refresh(); }, 1500);
+      setTimeout(function () { ScrollTrigger.refresh(); }, 3500);
+    }
   });
 })();
