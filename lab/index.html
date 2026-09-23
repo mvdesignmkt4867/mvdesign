@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <!-- Laboratorio: prototipo de la experiencia inmersiva. No se indexa. -->
+  <meta name="robots" content="noindex, nofollow" />
+  <title>MV Design · Lab</title>
+  <meta name="theme-color" content="#07070B" />
+  <link rel="icon" type="image/svg+xml" href="../assets/logos/mv-design-mark-color.svg" />
+  <link rel="preload" href="../assets/fonts/montserrat-latin.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="../assets/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="lab.css?v=7" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body data-scene="0">
+  <canvas class="gl" data-gl aria-hidden="true"></canvas>
+
+  <!-- HUD: texto real en el HTML (SEO y lectores de pantalla), encima del WebGL -->
+  <header class="hud hud--tl">
+    <a class="brand" href="../" aria-label="MV Design, inicio">
+      <img src="../assets/logos/mv-design-mark-color.svg" alt="" width="28" height="28" />
+      <span>MV DESIGN</span>
+    </a>
+    <p class="mono">// Estudio de marca y diseño<br />Querétaro, México</p>
+  </header>
+
+  <aside class="hud hud--tr">
+    <p class="mono mono--dim">//////</p>
+    <p class="mono manifesto" data-note>Diseñamos marcas, sitios<br />y contenido con intención<br />comercial. Para que tu<br />cliente te elija.</p>
+  </aside>
+
+  <nav class="hud idx" aria-label="Escenas">
+    <ol>
+      <li><button type="button" data-go="0" aria-current="step"><span>01</span>La firma</button></li>
+      <li><button type="button" data-go="1"><span>02</span>Manifiesto</button></li>
+      <li><button type="button" data-go="2"><span>03</span>Servicios</button></li>
+      <li><button type="button" data-go="3"><span>04</span>Casos</button></li>
+      <li><button type="button" data-go="4"><span>05</span>Contacto</button></li>
+    </ol>
+  </nav>
+
+  <main class="stage">
+    <section class="scene is-active" data-scene="0" aria-label="La firma">
+      <p class="kicker mono">01 / 05 · La firma</p>
+      <h1 class="title">Diseñamos<br />lo que <em class="grad">vendes</em>.</h1>
+    </section>
+
+    <section class="scene" data-scene="1" aria-label="Manifiesto" inert>
+      <p class="kicker mono">02 / 05 · Manifiesto</p>
+      <h2 class="title title--2">Una marca bien construida se nota sin <em class="grad">explicarse</em>.</h2>
+      <div class="trio">
+        <p><strong>Percepción</strong>Tu marca habla antes que tú. Diseñamos cómo te perciben desde el primer contacto.</p>
+        <p><strong>Confianza</strong>Cuando todo se ve igual de cuidado, tu cliente confía y decide más rápido.</p>
+        <p><strong>Conversión</strong>Si entiende a la primera qué vendes y por qué vale, compra sin dudarlo.</p>
+      </div>
+    </section>
+
+    <section class="scene" data-scene="2" aria-label="Servicios" inert>
+      <p class="kicker mono">03 / 05 · Servicios</p>
+      <h2 class="title title--2">Toda la cadena creativa, <em class="grad">sin intermediarios</em>.</h2>
+      <ol class="svc-list">
+        <li><span>01</span><b>Branding estratégico</b><i>Naming · Identidad · Brandbook</i></li>
+        <li><span>02</span><b>Redes sociales</b><i>Contenido · Comunidad · Pauta</i></li>
+        <li><span>03</span><b>Web, apps y automatizaciones</b><i>Editorial · E-commerce · 3D inmersiva</i></li>
+        <li><span>04</span><b>Producción audiovisual</b><i>Foto · Video · Campañas</i></li>
+        <li><span>05</span><b>Gráfica y editorial</b><i>Catálogos · Papelería · Señalética</i></li>
+        <li><span>06</span><b>Medios y performance</b><i>Google Ads · Meta Ads · SEO</i></li>
+      </ol>
+    </section>
+
+    <section class="scene" data-scene="3" aria-label="Casos" inert>
+      <p class="kicker mono">04 / 05 · Casos</p>
+      <h2 class="title title--2">Marcas que hoy se ven como lo que <em class="grad">son</em>.</h2>
+      <div class="case-cap" aria-live="polite">
+        <p class="mono case-cap__meta"><span data-case-count>01 / 05</span> · <span data-case-sector>Inmobiliario · Urbanismo</span></p>
+        <p class="case-cap__name" data-case-name>GU · Gestión Urbanística</p>
+        <p class="case-cap__row">
+          <span class="chip mono" data-case-chip>Web 3D inmersiva</span>
+          <button type="button" class="arrow" data-case-prev aria-label="Caso anterior">←</button>
+          <button type="button" class="arrow" data-case-next aria-label="Caso siguiente">→</button>
+        </p>
+      </div>
+    </section>
+
+    <section class="scene" data-scene="4" aria-label="Contacto" inert>
+      <p class="kicker mono">05 / 05 · Contacto</p>
+      <h2 class="title title--2">Hagamos que tu marca <em class="grad">venda</em>.</h2>
+      <div class="ctas">
+        <a class="pill pill--light" href="https://wa.me/5214427146255?text=Hola%20Fer%2C%20quiero%20cotizar%20un%20proyecto%20con%20MV%20Design.%20%5Bweb%20%C2%B7%20lab%5D" target="_blank" rel="noopener">
+          <span class="wa__dot" aria-hidden="true"></span>Ma. Fernanda · 442 714 6255
+        </a>
+        <a class="pill pill--light" href="https://wa.me/5214421076923?text=Hola%20Gian%20Pietro%2C%20quiero%20cotizar%20un%20proyecto%20con%20MV%20Design.%20%5Bweb%20%C2%B7%20lab%5D" target="_blank" rel="noopener">
+          <span class="wa__dot" aria-hidden="true"></span>Gian Pietro · 442 107 6923
+        </a>
+        <a class="pill pill--ghost" href="mailto:mvdesign.mkt@gmail.com">mvdesign.mkt@gmail.com</a>
+      </div>
+      <button type="button" class="restart mono" data-go="0">↺ Volver al inicio</button>
+    </section>
+  </main>
+
+  <footer class="hud hud--bl">
+    <p class="mono scroll-cue"><i aria-hidden="true"></i>Scroll para descubrir</p>
+    <div class="progress" aria-hidden="true"><span data-prog></span></div>
+  </footer>
+
+  <a class="wa" href="https://wa.me/5214427146255?text=Hola%20MV%20Design%2C%20quiero%20cotizar%20un%20proyecto.%20%5Bweb%20%C2%B7%20lab%5D" target="_blank" rel="noopener">
+    <span class="wa__dot" aria-hidden="true"></span>Cotiza por WhatsApp
+  </a>
+
+  <div class="curtain" data-curtain aria-hidden="true"></div>
+
+  <script type="module" src="lab.js?v=22"></script>
+</body>
+</html>
