@@ -241,11 +241,16 @@ body.rp-open .hud--tr { opacity: 0; }
 .restart:hover { color: #fff; }
 
 /* ---------- HUD inferior ---------- */
-.scroll-cue { display: inline-flex; align-items: center; gap: 12px; color: var(--fg-3); transition: opacity .6s ease; }
-.scroll-cue i { width: 1px; height: 34px; background: rgba(255,255,255,.18); position: relative; overflow: hidden; display: block; }
-.scroll-cue i::after { content: ""; position: absolute; inset: 0; background: #2BCCD9; animation: cue 2.2s cubic-bezier(.2,.8,.25,1) infinite; }
+/* pista de deslizar: abajo al centro (en celular, sobre el botón de WhatsApp) */
+.swipe-hint {
+  position: fixed; z-index: 5; left: 50%; bottom: calc(var(--pad) + 6px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 10px; color: #C3C6D2; letter-spacing: .14em; text-transform: uppercase; font-size: 11px;
+  pointer-events: none; transition: opacity .6s ease;
+}
+.swipe-hint i { width: 1px; height: 30px; background: rgba(255,255,255,.2); position: relative; overflow: hidden; display: block; order: -1; }
+.swipe-hint i::after { content: ""; position: absolute; inset: 0; background: #2BCCD9; animation: cue 2.2s cubic-bezier(.2,.8,.25,1) infinite; }
+body:not([data-scene="0"]) .swipe-hint, html.hint-done .swipe-hint, html:not(.is-3d) .swipe-hint { opacity: 0; }
 @keyframes cue { 0% { transform: translateY(-100%); } 70%, 100% { transform: translateY(100%); } }
-body:not([data-scene="0"]) .scroll-cue { opacity: 0; }
 .progress { width: 120px; height: 1px; background: rgba(255,255,255,.14); overflow: hidden; }
 .progress span { display: block; height: 100%; background: var(--grad); transform-origin: 0 50%; transform: scaleX(0); }
 
@@ -262,9 +267,15 @@ body[data-scene="4"] .wa { opacity: 0; transform: translateY(12px); pointer-even
 .wa__dot { width: 9px; height: 9px; border-radius: 50%; background: #25D366; box-shadow: 0 0 0 4px rgba(37,211,102,.18); flex: none; }
 
 .curtain {
-  position: fixed; inset: 0; z-index: 20; background: var(--ink); pointer-events: none; transition: opacity 1.4s ease;
+  position: fixed; inset: 0; z-index: 20; background: var(--ink); pointer-events: none; transition: opacity 1.1s ease;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px;
   animation: curtain-safe .8s ease 7s forwards;   /* red de seguridad si el JS no arranca */
 }
+.curtain__m { width: 56px; height: 56px; opacity: .92; }
+.curtain__bar { width: 120px; height: 1px; background: rgba(255,255,255,.14); overflow: hidden; }
+.curtain__bar i { display: block; height: 100%; background: var(--grad); transform-origin: 0 50%; transform: scaleX(var(--load, .1)); transition: transform .5s var(--ease); }
+/* la entrada: primero la M, luego el titular; el HUD y los botones llegan al final (lab.js quita la clase) */
+html.is-intro .hud, html.is-intro .wa, html.is-intro .swipe-hint { opacity: 0; }
 .curtain.is-off { opacity: 0; }
 @keyframes curtain-safe { to { opacity: 0; } }
 
@@ -273,7 +284,7 @@ html:not(.is-3d) body { overflow: auto; touch-action: auto; }
 html:not(.is-3d) .stage { position: relative; z-index: 4; display: grid; gap: 16vh; padding: 150px var(--pad) 160px; }
 html:not(.is-3d) .scene { margin: 0 auto; }
 html:not(.is-3d) .scene::before { display: none; }
-html:not(.is-3d) .idx, html:not(.is-3d) .restart, html:not(.is-3d) .scroll-cue { display: none; }
+html:not(.is-3d) .idx, html:not(.is-3d) .restart { display: none; }
 
 @media (max-width: 1180px) {
   .hud--tr { display: none; }
@@ -300,11 +311,12 @@ html:not(.is-3d) .idx, html:not(.is-3d) .restart, html:not(.is-3d) .scroll-cue {
   .wa { left: calc(var(--pad) + env(safe-area-inset-left, 0px)); right: calc(var(--pad) + env(safe-area-inset-right, 0px)); justify-content: center; }
   .hud--bl { padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
   body[data-scene="4"] .hud--bl, body[data-scene="3"] .hud--bl { opacity: 0; }
-  .scroll-cue { display: none; }
+  .swipe-hint { bottom: calc(var(--pad) + 62px + env(safe-area-inset-bottom, 0px)); }
+  .progress { display: none; }                         /* en celular, la línea suelta sobraba */
 }
 @media (prefers-reduced-motion: reduce) {
   .curtain, .sub, .rpanel__grid, .rpanel__head { transition: none; }
-  .scroll-cue i::after { animation: none; }
+  .swipe-hint i::after { animation: none; }
 }
 
 /* vertical (mismo corte que lab.js: ancho/alto < 0.8, estricto): el panel es una hoja sólida que sube desde abajo */

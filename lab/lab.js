@@ -22,6 +22,9 @@ import { createParticles, BLAST_GLSL, BLAST_N } from "./particles.js?v=21";
 
 const canvas = document.querySelector("[data-gl]");
 const curtain = document.querySelector("[data-curtain]");
+// progreso real del telón: CSS y fuentes 10 % · three 40 % · SVG 55 % · partículas 85 % · primer cuadro 100 %
+const setLoad = (v) => curtain && curtain.style.setProperty("--load", v);
+setLoad(0.4);
 const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const mobile = matchMedia("(max-width: 760px), (pointer: coarse)").matches;
 const LAST = 4;        // escenas 0..4
@@ -355,6 +358,7 @@ function paintGradient(geo, g) {
 let particles = null;
 async function buildM() {
   const svgText = await (await fetch("../assets/logos/mv-design-mark-color.svg")).text();
+  setLoad(0.55);
   const data = new SVGLoader().parse(svgText);
   const box = new THREE.Box3(), geos = [];
   const shapes = data.paths.map((path) => SVGLoader.createShapes(path));
@@ -379,6 +383,7 @@ async function buildM() {
   const tear = shapes[1] && shapes[1][0] ? shapes[1][0].getPoints(96) : null;
   const exclude = tear ? [{ geo: 0, poly: tear, margin: 8 }] : [];
   particles = createParticles({ renderer, geos, holderMatrix: holder.matrix, mobile, reduced, exclude, blast: BLAST });
+  setLoad(0.85);
   particles.px = DPR * (mobile ? 0.8 : 1);
   particles.points.renderOrder = 1;
   particles.reflection.renderOrder = -2;            // debajo del piso: el piso la vela
@@ -1164,8 +1169,10 @@ const NOTES = [
 let active = -1;
 const waFloat = document.querySelector(".wa");
 const narrowMQ = matchMedia("(max-width: 720px)");
+try { if (sessionStorage.getItem("mv-hint")) document.documentElement.classList.add("hint-done"); } catch (e) {}
 function setActive(a) {
   if (a === active) return;
+  if (active === 0 && a > 0) { document.documentElement.classList.add("hint-done"); try { sessionStorage.setItem("mv-hint", "1"); } catch (e) {} }
   active = a;
   document.body.dataset.scene = a;
   // se esconde en contacto (ahí están los dos WhatsApp) y en casos en celular (tapaba la galería)
@@ -1193,6 +1200,9 @@ const clock = new THREE.Clock();
 const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), tmp3 = new THREE.Vector3(), camFwd = new THREE.Vector3();
 const railPos = new THREE.Vector3(), cssFwd = new THREE.Vector3();
 let t0 = null, lastT = 0, mouseAmt = 0, camSpd = 0, railInit = false;
+let userMoved = false, peekT0 = -1, peekN = 0, peekV = 0;
+// cualquier gesto cancela el asomo y adelanta la entrada del HUD
+for (const ev of ["wheel", "touchstart", "keydown", "pointerdown"]) addEventListener(ev, () => { userMoved = true; if (lifted) revealHud(); }, { passive: true, capture: true });
 
 
 function frame() {
@@ -1212,8 +1222,17 @@ function frame() {
   if (progEl) progEl.style.transform = `scaleX(${q / QLAST})`;
 
   // cámara sobre la curva + entrada en dolly + deriva con el cursor
-  posCurve.getPoint(q / QLAST, camPos);
-  lookCurve.getPoint(q / QLAST, camLook);
+  // asomo: sin gesto, 3.5 s después de la intro la cámara se asoma a la escena siguiente y regresa (máx. 2)
+  if (!userMoved && !reduced && peekN < 2 && lifted && to === 0 && prog === 0 && peekT0 < 0 && now() - liftedAt > 7700 + peekN * 6000) peekT0 = now();
+  let peek = 0;
+  if (peekT0 >= 0) {
+    const e = (now() - peekT0) / 1000;
+    peek = e < 0.7 ? 0.06 * (1 - Math.pow(1 - e / 0.7, 3)) : e < 1.6 ? 0.06 * (1 - easeInOut((e - 0.7) / 0.9)) : 0;
+    if (e >= 1.6) { peekT0 = -1; peekN++; }
+  }
+  peekV = userMoved ? peekV * Math.exp(-dt * 8) : peek;                   // un gesto lo cancela sin brinco
+  posCurve.getPoint(clamp(q + peekV, 0, QLAST) / QLAST, camPos);
+  lookCurve.getPoint(clamp(q + peekV, 0, QLAST) / QLAST, camLook);
   // velocidad real de la cámara sobre su riel (u/s): de aquí sale el efecto de velocidad
   if (railInit && dt > 0) camSpd += (camPos.distanceTo(railPos) / dt - camSpd) * (1 - Math.exp(-dt * 10));
   railPos.copy(camPos); railInit = true;
@@ -1332,6 +1351,7 @@ function frame() {
 
   // textos: aparecen al acercarte, la cámara los atraviesa al seguir
   const jumpA = Math.round(sceneP(from)), jumpB = Math.round(sceneP(to));
+  const introText = reduced ? 1 : sm(0.42, 0.62, intro);
   labels.forEach((o, i) => {
     // un texto a la vez: el que sale se va en el primer tramo y el que llega aparece al final, con su objeto ya formado.
     // Servicios vive a 3 unidades de los casos y la cámara no lo cruza: sale aún antes al avanzar.
@@ -1342,7 +1362,8 @@ function frame() {
     if (jumpA !== jumpB && Math.abs(jumpB - jumpA) >= 2 && i !== jumpA && i !== jumpB) vis = 0;
     if (i === 3) { o.position.copy(o.userData.base); o.position.y -= SPI.drop * sIn; }   // baja con la cámara de rubro en rubro
     const ratio = tmp.copy(o.position).sub(cssCam.position).dot(cssFwd) / o.userData.d;   // 1 = a 1:1; 0.5 = al doble
-    const op = vis * sm(0.5, 0.78, ratio) * (i === 3 ? 1 - rpView : 1);   // con un rubro abierto manda el panel
+    const op = vis * sm(0.5, 0.78, ratio) * (i === 3 ? 1 - rpView : 1)   // con un rubro abierto manda el panel
+      * (i === 0 ? introText : 1);                                        // el titular llega cuando la M ya se lee
     const on = (i === 3 ? op / Math.max(0.001, 1 - rpView) : op) > 0.01;   // (casos: se desvanece, no se quita del DOM)
     if (o.visible !== on) o.visible = on;
     const el = sections[i];
@@ -1372,7 +1393,27 @@ const qsScene = new URLSearchParams(location.search).get("s");
 if (qsScene !== null) { from = to = prog = stationOf(clamp(Math.round(+qsScene) || 0, 0, LAST)); }
 if (/[?&]debug\b/.test(location.search)) window.__lab = { THREE, get dpr() { return DPR; }, renderer, scene, composer, bloom, camera, get particles() { return particles; }, goTo, goQ, openRubro, openDetail, get rp() { return rp; }, cards, SPI };
 
-const lift = () => curtain.classList.add("is-off");
-setTimeout(lift, 3500);
+// la entrada: el telón se levanta cuando todo está listo y ahí arranca el reloj de la intro
+// (antes corría debajo del telón). Primero la M y el anillo, luego el titular, al final HUD, botón y pista
+const introEls = () => [".hud--tl", ".idx", ".hud--tr", ".hud--bl", ".wa", "[data-hint]"].map((s) => document.querySelector(s)).filter(Boolean);
+let revealed = false, liftedAt = 0;
+function revealHud() {
+  if (revealed) return; revealed = true;
+  document.documentElement.classList.remove("is-intro");
+  if (reduced) return;
+  introEls().forEach((el, i) => el.animate([{ opacity: 0, translate: "0 6px" }, { opacity: 1, translate: "0 0" }],
+    { duration: 480, delay: i < 4 ? i * 70 : 600, easing: "cubic-bezier(.16,1,.3,1)", fill: "backwards" }));
+}
+let lifted = false;
+function lift() {
+  if (lifted) return; lifted = true;
+  setLoad(1);
+  curtain.classList.add("is-off");
+  t0 = null;                                         // la intro (dolly y titular) empieza aquí, a la vista
+  liftedAt = now();
+  setTimeout(revealHud, reduced ? 0 : 2800);
+}
+if (!reduced) document.documentElement.classList.add("is-intro");
+setTimeout(lift, 6500);                              // red de seguridad (el telón de CSS se va a los 7 s)
 frame();
-buildM().catch((err) => console.error(err)).finally(() => requestAnimationFrame(lift));
+buildM().catch((err) => console.error(err)).finally(() => requestAnimationFrame(() => requestAnimationFrame(lift)));
