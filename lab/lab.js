@@ -22,7 +22,7 @@ import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { CSS3DRenderer, CSS3DObject } from "three/addons/renderers/CSS3DRenderer.js";
 import { createParticles, BLAST_GLSL, BLAST_N } from "./particles.js?v=27";
 import { ICON_DRAW } from "./rubro-icons.js?v=1";
-import { createSound } from "./sound.js?v=7";
+import { createSound } from "./sound.js?v=9";
 
 const canvas = document.querySelector("[data-gl]");
 const curtain = document.querySelector("[data-curtain]");
