@@ -16,6 +16,8 @@
   <meta name="geo.position" content="20.5888;-100.3899" />
   <meta name="ICBM" content="20.5888, -100.3899" />
 
+  <meta property="fb:app_id" content="2955276911531585" />
+
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="es_MX" />
   <meta property="og:site_name" content="MV Design" />
@@ -51,26 +53,26 @@
   <script type="importmap">
   {
     "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+      "three": "/vendor/three-0.170.0/build/three.module.min.js",
+      "three/addons/": "/vendor/three-0.170.0/examples/jsm/"
     }
   }
   </script>
-  <!-- three.js y sus módulos en paralelo desde el inicio (sin esto llegan en cascada de 3–4 niveles y el telón tarda) -->
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
-  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" />
-  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/renderers/CSS3DRenderer.js" />
-  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/loaders/SVGLoader.js" />
-  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/postprocessing/EffectComposer.js" />
-  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/postprocessing/RenderPass.js" />
-  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/postprocessing/UnrealBloomPass.js" />
-  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/postprocessing/ShaderPass.js" />
-  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/postprocessing/Pass.js" />
-  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/postprocessing/MaskPass.js" />
-  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/shaders/CopyShader.js" />
-  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/shaders/LuminosityHighPassShader.js" />
-  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/misc/GPUComputationRenderer.js" />
-  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/math/MeshSurfaceSampler.js" />
+  <!-- three.js (servido desde el propio dominio, copia verificada de npm) y sus módulos en paralelo desde el inicio:
+       sin esto llegan en cascada de 3–4 niveles y el telón tarda -->
+  <link rel="modulepreload" href="/vendor/three-0.170.0/build/three.module.min.js" />
+  <link rel="modulepreload" href="/vendor/three-0.170.0/examples/jsm/renderers/CSS3DRenderer.js" />
+  <link rel="modulepreload" href="/vendor/three-0.170.0/examples/jsm/loaders/SVGLoader.js" />
+  <link rel="modulepreload" href="/vendor/three-0.170.0/examples/jsm/postprocessing/EffectComposer.js" />
+  <link rel="modulepreload" href="/vendor/three-0.170.0/examples/jsm/postprocessing/RenderPass.js" />
+  <link rel="modulepreload" href="/vendor/three-0.170.0/examples/jsm/postprocessing/UnrealBloomPass.js" />
+  <link rel="modulepreload" href="/vendor/three-0.170.0/examples/jsm/postprocessing/ShaderPass.js" />
+  <link rel="modulepreload" href="/vendor/three-0.170.0/examples/jsm/postprocessing/Pass.js" />
+  <link rel="modulepreload" href="/vendor/three-0.170.0/examples/jsm/postprocessing/MaskPass.js" />
+  <link rel="modulepreload" href="/vendor/three-0.170.0/examples/jsm/shaders/CopyShader.js" />
+  <link rel="modulepreload" href="/vendor/three-0.170.0/examples/jsm/shaders/LuminosityHighPassShader.js" />
+  <link rel="modulepreload" href="/vendor/three-0.170.0/examples/jsm/misc/GPUComputationRenderer.js" />
+  <link rel="modulepreload" href="/vendor/three-0.170.0/examples/jsm/math/MeshSurfaceSampler.js" />
 
   <script type="application/ld+json">
   {
