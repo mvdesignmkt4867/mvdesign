@@ -259,7 +259,7 @@ void main(){
   float tw = mix(.72 + .28 * sin(uTime * (1.3 + aSeed * 2.1) + aSeed * 50.), 1., max(asmW * .75, (wP + wK) * .6));
   vA = tw / (1. + coc * coc * 5.) * smoothstep(1., 3.5, z) * uAlpha * mix(1., .55, calm);
   if (uMirror > .5) vA *= .7 * smoothstep(-1.8, 0., p.y - uFloorY) * uReflect;
-  vA *= mix(1., smoothstep(0., .09, aS) * smoothstep(1., .91, aS), wS);    // la cinta fluye: entran y salen por los extremos sin verse el regreso
+  vA *= mix(1., smoothstep(.03, .12, aS) * smoothstep(1., .91, aS), wS);    // la cinta fluye: entran y salen por los extremos sin verse el regreso
   blastLit = min(blastLit, 1.);
   vA *= 1. + blastLit * .35;                                                    // la onda del clic: crecen y brillan un poco al pasar
   gl_PointSize *= 1. + blastLit * .7;                                           // (más tamaño que brillo: el color de marca no se satura)

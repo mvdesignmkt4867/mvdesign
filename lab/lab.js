@@ -20,9 +20,9 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { CSS3DRenderer, CSS3DObject } from "three/addons/renderers/CSS3DRenderer.js";
-import { createParticles, BLAST_GLSL, BLAST_N } from "./particles.js?v=26";
+import { createParticles, BLAST_GLSL, BLAST_N } from "./particles.js?v=27";
 import { ICON_DRAW } from "./rubro-icons.js?v=1";
-import { createSound } from "./sound.js?v=2";
+import { createSound } from "./sound.js?v=3";
 
 const canvas = document.querySelector("[data-gl]");
 const curtain = document.querySelector("[data-curtain]");
@@ -633,7 +633,7 @@ const nearestRubro = () => clamp(Math.round(to) - Q0, 0, NR - 1);
 // abre el rubro j; si la espiral no está justo en su ficha, primero se acomoda y abre al llegar
 let pendingOpen = null;
 function openOrAlign(j, opener) {
-  if (Math.abs(prog - (Q0 + j)) < 0.02 && Math.abs(to - prog) < 0.02) { if (free) { to = prog = Q0 + j; } openRubro(j, opener); return; }
+  if (Math.abs(prog - (Q0 + j)) < 0.02 && Math.abs(to - prog) < 0.02) { if (free) { free = false; to = from = prog = Q0 + j; } tf = null; openRubro(j, opener); return; }
   goQ(Q0 + j);
   pendingOpen = { j, opener: opener || null };
 }
@@ -1273,7 +1273,7 @@ function goQ(i) {
 }
 const goTo = (s) => goQ(stationOf(clamp(s, 0, LAST)));   // por escena (índice, "volver al inicio")
 // siguiente / anterior estación; entre dos fichas (scroll libre), la que sigue en esa dirección
-const step = (dirn) => goQ((dirn > 0 ? Math.floor(to + 1e-3) : Math.ceil(to - 1e-3)) + dirn);
+const step = (dirn) => goQ(Math.round(to) + dirn);   // (entre dos fichas: desde la que muestra el pie)
 // rueda / trackpad: se cuenta UN gesto hasta que la rueda descansa 200 ms (así la inercia no brinca escenas)
 let wheelAcc = 0, lastWheel = 0, gestureUsed = false, wheelAvg = 0, gestureEdge = 0, freeOver = 0, edgeHitT = 0;
 addEventListener("wheel", (e) => {
@@ -1328,11 +1328,19 @@ addEventListener("touchstart", (e) => {
   ty0 = (rp.open >= 0 && t?.closest("[data-rpanel]")) || (pk.open >= 0 && t?.closest("[data-psheet]")) || t?.closest("[data-idx]") ? null : e.touches[0].clientY;
   touchUsed = false; tf = null;
   // casos: el dedo arrastra la espiral (scroll libre, con inercia al soltar)
-  if (ty0 !== null && inSpiral() && now() >= lockUntil) tf = { y0: ty0, q0: free ? to : prog, edge: edgeOf(), ly: ty0, lt: now(), v: 0 };
+  if (ty0 !== null && !onUI(e) && inSpiral() && now() >= lockUntil) {
+    if (free) { to = from = prog; }                     // el dedo detiene la inercia donde está
+    tf = { y0: ty0, q0: prog, edge: edgeOf(), ly: ty0, lt: now(), v: 0, drag: false };
+  }
 }, { passive: true });
 addEventListener("touchmove", (e) => {
   if (tf) {
-    const y = e.touches[0].clientY, dy = tf.y0 - y, px = innerHeight * 0.42;   // ~0.4 de pantalla = un rubro
+    const y = e.touches[0].clientY, px = innerHeight * 0.42;   // ~0.4 de pantalla = un rubro
+    if (!tf.drag) {                                     // un toque con temblor no arrastra (mismo umbral que el toque: 10 px)
+      if (Math.abs(tf.y0 - y) < 10) return;
+      tf.drag = true; tf.y0 -= Math.sign(tf.y0 - y) * 10; tf.ly = y; tf.lt = now();   // arranca sin brinco
+    }
+    const dy = tf.y0 - y;
     let want = tf.q0 + dy / px;
     if (want > QEND || want < Q0) {
       const out = want > QEND ? 1 : -1;
@@ -1349,7 +1357,7 @@ addEventListener("touchmove", (e) => {
   if (Math.abs(dy) > 48) { touchUsed = true; idxMenu(false); if (pk.open >= 0) closePk(); else if (rp.open >= 0) closeRubro(); else step(Math.sign(dy)); }
 }, { passive: true });
 addEventListener("touchend", () => {
-  if (tf && free) {                                     // inercia al soltar: sigue un poco y frena sola
+  if (tf && tf.drag && free && rp.open < 0 && !reduced) {   // inercia al soltar: sigue un poco y frena sola
     if (now() - tf.lt < 120 && Math.abs(tf.v) > 0.25) setFree(to + clamp(tf.v, -6, 6) * 0.35);
   }
   tf = null; ty0 = null;
@@ -1357,6 +1365,7 @@ addEventListener("touchend", () => {
 addEventListener("keydown", (e) => {
   if (e.target.closest && e.target.closest("input, textarea, select")) return;
   if (pk.open >= 0) { if (e.key === "Escape") { e.preventDefault(); closePk(); } return; }   // la hoja es modal: Tab, Enter y flechas dentro
+  if (e.key === "Escape" && pendingOpen) { pendingOpen = null; e.preventDefault(); return; }   // (un rubro que iba a abrirse al acomodarse)
   if (idxNav?.classList.contains("is-open")) {                                               // menú del índice (celular)
     const k = idxBtns.indexOf(document.activeElement);
     if (e.key === "Escape") { e.preventDefault(); idxMenu(false, true); return; }
@@ -1446,6 +1455,7 @@ const idxNav = document.querySelector("[data-idx]"), idxToggle = document.queryS
 const idxNum = document.querySelector("[data-idx-num]"), idxName = document.querySelector("[data-idx-name]");
 function idxMenu(open, focusToggle = false, byKey = false) {
   if (!idxNav || idxNav.classList.contains("is-open") === open) return;
+  if (open) pendingOpen = null;
   idxNav.classList.toggle("is-open", open);
   idxToggle?.setAttribute("aria-expanded", open ? "true" : "false");
   if (open && byKey) (idxBtns[active] || idxBtns[0])?.focus({ preventScroll: true });   // con teclado, el foco entra a la lista
