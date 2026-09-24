@@ -391,19 +391,29 @@ html.is-short body[data-scene="proceso"] .hud-note-m, html.is-short body[data-sc
 .swipe-hint {
   position: fixed; z-index: 5; left: 50%; bottom: calc(var(--pad) + 6px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
   display: flex; flex-direction: column; align-items: center; gap: 10px; color: #C3C6D2; letter-spacing: .14em; text-transform: uppercase; font-size: 11px;
-  pointer-events: none; transition: opacity .6s ease, transform .9s cubic-bezier(.16,1,.3,1);
+  pointer-events: none; transition: opacity .6s ease;
 }
 .swipe-hint i { width: 1px; height: 30px; background: rgba(255,255,255,.2); position: relative; overflow: hidden; display: block; order: -1; }
 .swipe-hint i::after { content: ""; position: absolute; inset: 0; background: #2BCCD9; animation: cue 2.2s cubic-bezier(.2,.8,.25,1) infinite; }
 body:not([data-scene="inicio"]) .swipe-hint, html.hint-done .swipe-hint:not(.is-tap), html:not(.is-3d) .swipe-hint { opacity: 0; }
-/* "Toca": sobre la M, un anillo que late (lab.js lo coloca con --tx/--ty sobre el centro de la M) */
-.swipe-hint.is-tap { pointer-events: auto; cursor: pointer; transform: translate(-50%, 0) translate(var(--tx, 0px), var(--ty, 0px)); color: #fff; gap: 12px; }
-.swipe-hint.is-tap i { width: 46px; height: 46px; border-radius: 50%; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.55); overflow: visible; }
+/* guía del inicio (lab.js la coloca con --hx/--hy): "Tap" = anillo que late sobre la M; "Scroll" = cápsula con un punto que baja,
+   centrada entre el titular y el WhatsApp. Es el mismo ícono: el círculo se vuelve cápsula mientras baja */
+.swipe-hint.is-placed { left: 0; top: 0; bottom: auto; transform: translate(var(--hx, 50vw), var(--hy, 80vh)) translate(-50%, -50%); }
+.swipe-hint.is-moving { transition: opacity .6s ease, transform 1s cubic-bezier(.16,1,.3,1); }
+.swipe-hint.is-placed i { transition: width .7s cubic-bezier(.16,1,.3,1), height .7s cubic-bezier(.16,1,.3,1), border-radius .7s cubic-bezier(.16,1,.3,1), background .4s; }
+.swipe-hint.is-tap { pointer-events: auto; cursor: pointer; color: #fff; gap: 12px; }
+.swipe-hint.is-tap i, .swipe-hint.is-scroll i { border: 1px solid rgba(255,255,255,.55); overflow: visible; }
+.swipe-hint.is-tap i { width: 46px; height: 46px; border-radius: 23px; background: rgba(255,255,255,.06); }
 .swipe-hint.is-tap i::after { inset: -1px; border-radius: 50%; background: none; border: 1px solid #2BCCD9; animation: tap-ring 1.8s cubic-bezier(.2,.8,.25,1) infinite; }
-.swipe-hint.is-tap i::before { content: ""; position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: #fff; }
+.swipe-hint.is-tap i::before, .swipe-hint.is-scroll i::before { content: ""; position: absolute; left: 50%; width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; background: #fff; }
+.swipe-hint.is-tap i::before { top: 50%; margin-top: -3px; }
 .swipe-hint.is-tap::before { content: ""; position: absolute; inset: -14px -18px; }   /* área táctil amplia */
-.swipe-hint.is-swap { opacity: 0 !important; }
+.swipe-hint.is-scroll { gap: 10px; }
+.swipe-hint.is-scroll i { width: 22px; height: 36px; border-radius: 11px; background: transparent; overflow: hidden; }
+.swipe-hint.is-scroll i::after { display: none; }
+.swipe-hint.is-scroll i::before { top: 7px; width: 4px; height: 4px; margin-left: -2px; background: #2BCCD9; animation: scroll-dot 1.9s cubic-bezier(.3,0,.3,1) infinite; }
 @keyframes tap-ring { 0% { transform: scale(1); opacity: .9; } 100% { transform: scale(1.9); opacity: 0; } }
+@keyframes scroll-dot { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: 1; } 75% { transform: translateY(17px); opacity: 0; } 100% { transform: translateY(17px); opacity: 0; } }
 @keyframes cue { 0% { transform: translateY(-100%); } 70%, 100% { transform: translateY(100%); } }
 /* sonido: barras que se mueven mientras suena */
 .snd, .idx .snd--m { display: none; }
@@ -594,5 +604,5 @@ html.contact-bare body[data-scene="contacto"] .hud-note-m { display: none; }
 .snd-hint::before { content: ""; position: absolute; left: 50%; top: -4px; width: 8px; height: 8px; margin-left: -4px; background: inherit; transform: rotate(45deg); border-radius: 1px; }
 .snd-hint.is-above::before { top: auto; bottom: -4px; }
 .snd-hint.is-on { opacity: 1; translate: 0 0; }
-@media (prefers-reduced-motion: reduce) { .snd-hint, .swipe-hint { transition: none; } .swipe-hint.is-tap i::after { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .snd-hint, .swipe-hint, .swipe-hint i { transition: none !important; } .swipe-hint.is-tap i::after, .swipe-hint.is-scroll i::before { animation: none; } }
 body:not([data-scene="inicio"]) .swipe-hint.is-tap { pointer-events: none; }

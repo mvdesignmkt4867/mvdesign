@@ -893,13 +893,13 @@ const cardAt = (x, y) => {
 addEventListener("pointerdown", (e) => {
   if (!lifted) return;
   downX = e.clientX; downY = e.clientY; downT = performance.now();
-  if (e.pointerType === "mouse" && e.button === 0 && !onUI(e) && !cardAt(e.clientX, e.clientY)) fireBlast(e.clientX, e.clientY);
+  if (e.pointerType === "mouse" && e.button === 0 && !onUI(e) && !cardAt(e.clientX, e.clientY)) { fireBlast(e.clientX, e.clientY); if (active === 0) tapped(); }
 }, { passive: true });
 addEventListener("pointerup", (e) => {
   if (!lifted || onUI(e) || e.button !== 0) return;
   if (Math.hypot(e.clientX - downX, e.clientY - downY) > 10 || performance.now() - downT > 450) return;
   const hit = cardAt(e.clientX, e.clientY);
-  if (e.pointerType !== "mouse" && !hit) fireBlast(e.clientX, e.clientY);
+  if (e.pointerType !== "mouse" && !hit) { fireBlast(e.clientX, e.clientY); if (active === 0) tapped(); }
   if (hit) {
     const j = hit.object.userData.i;
     if (rp.open === j) closeRubro();
@@ -1568,7 +1568,7 @@ addEventListener("click", (e) => {
 sndUI();
 // el navegador solo deja arrancar el sonido con un toque, clic o tecla (en iPhone un deslizamiento no cuenta, y en
 // computadora la rueda tampoco): tras el primer gesto que no lo logra, una pista discreta junto al botón, una vez por visita
-const sndHint = Object.assign(document.createElement("p"), { className: "snd-hint mono", textContent: "Toca para escuchar" });
+const sndHint = Object.assign(document.createElement("p"), { className: "snd-hint mono", textContent: "Tap para escuchar" });
 sndHint.setAttribute("aria-hidden", "true");
 document.body.append(sndHint);
 let sndHintDone = false, sndHintT = 0;
@@ -1586,45 +1586,60 @@ function sndHintMaybe() {
 }
 snd.onChange(() => { if (snd.playing) { clearTimeout(sndHintT); sndHint.classList.remove("is-on"); } });
 
-/* ---------- "Toca" sobre la M del inicio ----------
-   Si al abrir el sonido todavía no puede sonar (iPhone, o Chrome en una primera visita), la pista de abajo empieza como un
-   botón sobre la M: al tocarlo la M explota y la música entra en el mismo gesto; después baja y se vuelve "Desliza" */
+/* ---------- Guía del inicio: "Tap" → "Scroll" ----------
+   Primero un botón sobre la M ("Tap"; "Click" con mouse): al tocarlo la M explota y la música entra en el mismo gesto
+   (el único que el iPhone acepta para el sonido). Ese mismo ícono baja al espacio entre el titular y el WhatsApp y se
+   vuelve "Scroll" (una cápsula con un punto que baja). Así se guía: tap (música y explosión) y luego scroll */
 const hintEl = document.querySelector("[data-hint]"), hintTx = document.querySelector("[data-hint-t]");
 const fineMQ = matchMedia("(hover: hover) and (pointer: fine)");
 const mScr = new THREE.Vector3();
-let tapOn = false, tapX = -1, tapY = -1;
-function tapShow(test) {
-  if (!hintEl || !hintTx || tapOn || (!test && (!snd.on || snd.playing))) return;
-  tapOn = true;
-  hintEl.classList.add("is-tap");
-  hintTx.textContent = fineMQ.matches ? "Clic" : "Toca";
-  hintEl.removeAttribute("aria-hidden"); hintEl.tabIndex = 0; hintEl.setAttribute("aria-label", "Activar el sonido");
-  tapPlace(true);
+let hintMode = "", tapX = -1, tapY = -1, hintHX = -1, hintHY = -1, hintN = 0;
+function setHint(m) {
+  if (!hintEl || !hintTx || m === hintMode) return;
+  const first = !hintMode;
+  hintMode = m;
+  hintEl.classList.add("is-placed");
+  if (!first && !reduced) { hintEl.classList.add("is-moving"); setTimeout(() => hintEl.classList.remove("is-moving"), 1000); }
+  hintEl.classList.toggle("is-tap", m === "tap");
+  hintEl.classList.toggle("is-scroll", m === "scroll");
+  hintTx.textContent = m === "tap" ? (fineMQ.matches ? "Click" : "Tap") : "Scroll";
+  if (m === "tap") { hintEl.removeAttribute("aria-hidden"); hintEl.tabIndex = 0; hintEl.setAttribute("aria-label", "Activar el sonido"); }
+  else { hintEl.setAttribute("aria-hidden", "true"); hintEl.tabIndex = -1; hintEl.removeAttribute("aria-label"); }
+  hintTick(true);
 }
-function tapPlace(force) {                           // sobre el centro de la M (se sigue mientras la cámara entra)
-  if (!tapOn) return;
-  mScr.set(0, AXIS_Y, 0).project(camera);
-  const x = (mScr.x + 1) / 2 * innerWidth, y = (1 - mScr.y) / 2 * innerHeight;
-  if (!force && Math.abs(x - tapX) < 0.5 && Math.abs(y - tapY) < 0.5) return;
-  tapX = x; tapY = y;
-  const b = parseFloat(getComputedStyle(hintEl).bottom) || 0, h = hintEl.offsetHeight;
-  hintEl.style.setProperty("--tx", `${(x - innerWidth / 2).toFixed(1)}px`);
-  hintEl.style.setProperty("--ty", `${(y - (innerHeight - b - h / 2)).toFixed(1)}px`);
+function hintTick(force) {                            // tap: sobre la M · scroll: centrado entre el titular y el WhatsApp
+  if (!hintMode || active !== 0) return;
+  let x, y;
+  const h = hintEl.offsetHeight;
+  if (hintMode === "tap") {
+    mScr.set(0, AXIS_Y, 0).project(camera);
+    x = (mScr.x + 1) / 2 * innerWidth; y = (1 - mScr.y) / 2 * innerHeight;
+    tapX = x; tapY = y;
+    y += h / 2 - 23;                                   // (el centro del anillo cae en el centro de la M)
+  } else {
+    if (!force && (hintN++ % 8)) return;               // (el hueco cambia poco: se mide cada 8 cuadros)
+    const h1 = sections[0].querySelector("h1")?.getBoundingClientRect();
+    let low = innerHeight - 24 - SAFE_B;
+    const wr = waFloat?.getBoundingClientRect();
+    if (wr && getComputedStyle(waFloat).opacity !== "0" && wr.left < innerWidth / 2 && wr.right > innerWidth / 2) low = wr.top;
+    x = innerWidth / 2;
+    y = h1 ? (h1.bottom + low) / 2 : low - h;
+    if (h1 && low - h1.bottom < h + 16) y = low - h / 2 - 8;
+  }
+  if (!force && Math.abs(x - hintHX) < 0.5 && Math.abs(y - hintHY) < 0.5) return;
+  hintHX = x; hintHY = y;
+  hintEl.style.setProperty("--hx", `${x.toFixed(1)}px`);
+  hintEl.style.setProperty("--hy", `${y.toFixed(1)}px`);
 }
-function tapDone() {                                 // ya suena: el botón baja y se vuelve "Desliza"
-  if (!tapOn) return;
-  tapOn = false;
-  hintEl.classList.add("is-swap");
-  setTimeout(() => {
-    hintEl.classList.remove("is-tap");
-    hintEl.style.removeProperty("--tx"); hintEl.style.removeProperty("--ty");
-    hintTx.textContent = "Desliza";
-    hintEl.setAttribute("aria-hidden", "true"); hintEl.tabIndex = -1; hintEl.removeAttribute("aria-label");
-    requestAnimationFrame(() => hintEl.classList.remove("is-swap"));
-  }, reduced ? 0 : 280);
+function hintStart() {                                // al levantar el telón
+  if (!hintEl) return;
+  const locked = snd.on && !snd.playing;
+  if (document.documentElement.classList.contains("hint-done") && !locked) return;   // (ya recorrió la página en esta visita)
+  setHint("tap");
 }
-hintEl?.addEventListener("click", () => { if (tapOn) fireBlast(tapX, tapY); });   // (el sonido se desbloquea en este mismo gesto)
-snd.onChange(() => { if (snd.playing) tapDone(); });
+function tapped() { if (hintMode === "tap") setHint("scroll"); }
+hintEl?.addEventListener("click", () => { if (hintMode === "tap") { fireBlast(tapX, tapY); tapped(); } });   // (el sonido se desbloquea en este mismo gesto)
+snd.onChange(() => { if (snd.playing) tapped(); });
 
 /* ---------- Cursor: rayo en el mundo para empujar partículas ---------- */
 const ndc = new THREE.Vector2(), smooth = new THREE.Vector2(), swayT = new THREE.Vector2();
@@ -1890,7 +1905,7 @@ function frame() {
   if (dq !== detentQ) { if (dq >= 0 && detentQ >= 0) { snd.detent(); snd.step(dq - detentQ); } detentQ = dq; }   // (y el coro da un paso)
   if (kt >= 1 && prog === to) { const sA = Math.round(sceneP(to)); if (sA !== arrivedS) { if (arrivedS >= 0) snd.arrive(sA); arrivedS = sA; } }
 
-  if (tapOn) tapPlace();
+  if (hintMode) hintTick();
   composer.render();
   css.render(cssScene, cssCam);
   requestAnimationFrame(frame);
@@ -1919,7 +1934,7 @@ const qsScene = new URLSearchParams(location.search).get("s");
 const hashScene = SLUGS.indexOf(location.hash.slice(1));
 if (qsScene !== null) { from = to = prog = stationOf(clamp(Math.round(+qsScene) || 0, 0, LAST)); }
 else if (hashScene > 0) { from = to = prog = stationOf(hashScene); }
-if (/[?&]debug\b/.test(location.search)) window.__lab = { THREE, get dpr() { return DPR; }, renderer, scene, composer, bloom, camera, get particles() { return particles; }, goTo, goQ, openRubro, openDetail, get rp() { return rp; }, loseGL: () => renderer.forceContextLoss(), restoreGL: () => renderer.forceContextRestore(), get nav() { return { prog, to, free, lockUntil: lockUntil - now() }; }, cards, SPI, SC, anchorUI, labels, tapShow: () => tapShow(true), tapDone, sections, snd };
+if (/[?&]debug\b/.test(location.search)) window.__lab = { THREE, get dpr() { return DPR; }, renderer, scene, composer, bloom, camera, get particles() { return particles; }, goTo, goQ, openRubro, openDetail, get rp() { return rp; }, loseGL: () => renderer.forceContextLoss(), restoreGL: () => renderer.forceContextRestore(), get nav() { return { prog, to, free, lockUntil: lockUntil - now() }; }, cards, SPI, SC, anchorUI, labels, hint: (m) => setHint(m), sections, snd };
 
 // la entrada: el telón se levanta cuando todo está listo y ahí arranca el reloj de la intro
 // (antes corría debajo del telón). Primero la M y el anillo, luego el titular, al final HUD, botón y pista
@@ -1943,7 +1958,7 @@ function lift() {
   liftedAt = now();
   perf?.lifted();
   snd.autostart();                                   // si el navegador ya lo permite, la música entra con la escena
-  tapShow();                                         // si no, el "Toca" sobre la M
+  hintStart();                                       // la guía: "Tap" sobre la M
   setTimeout(revealHud, reduced ? 0 : 2800);
 }
 if (!reduced) document.documentElement.classList.add("is-intro");
