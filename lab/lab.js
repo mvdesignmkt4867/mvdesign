@@ -1430,7 +1430,12 @@ addEventListener("keydown", (e) => {
     const dy = { ArrowDown: 60, ArrowUp: -60, PageDown: rpEl.clientHeight * 0.85, PageUp: -rpEl.clientHeight * 0.85, " ": (e.shiftKey ? -1 : 1) * rpEl.clientHeight * 0.85 }[e.key];
     if (dy !== undefined) { e.preventDefault(); rpEl.scrollBy({ top: dy, behavior: reduced ? "auto" : "smooth" }); return; }
   }
-  if (e.key === " " && e.target.closest && e.target.closest('button, a[href], summary, [tabindex]:not([tabindex="-1"])')) return;   // Espacio activa el botón enfocado
+  if (e.key === " " && e.target.closest && e.target.closest('button, a[href], summary, [tabindex]:not([tabindex="-1"])')) {
+    // Espacio activa el botón enfocado. En "Tap" la M explota al presionar (como el mouse: la música puede pasar la guía
+    // a "Scroll" antes del click del keyup); la guía ya en "Scroll", o fuera del inicio, deja que Espacio baje
+    const onHint = e.target.closest("[data-hint]");
+    if (!onHint || (hintMode === "tap" && active === 0)) { if (onHint) hintBlast(); return; }
+  }
   if (e.repeat) { if ([" ", "ArrowDown", "ArrowUp", "PageDown", "PageUp"].includes(e.key)) e.preventDefault(); return; }
   // (sólo las teclas que navegan marcan la llegada con teclado: Tab y las demás no mueven el foco)
   if (active === SC.casos && (e.key === "ArrowRight" || e.key === "ArrowLeft")) { e.preventDefault(); navByKey = true; step(e.key === "ArrowRight" ? 1 : -1); return; }
@@ -1624,11 +1629,12 @@ snd.onChange(() => { if (snd.playing) { clearTimeout(sndHintT); sndHint.classLis
 const hintEl = document.querySelector("[data-hint]"), hintTx = document.querySelector("[data-hint-t]");
 const fineMQ = matchMedia("(hover: hover) and (pointer: fine)");
 const mScr = new THREE.Vector3();
-let hintMode = "", tapX = -1, tapY = -1, hintHX = -1, hintHY = -1, hintN = 0;
+let hintMode = "", tapX = -1, tapY = -1, hintHX = -1, hintHY = -1, hintN = 0, hintBlasted = false;
 function setHint(m) {
   if (!hintEl || !hintTx || m === hintMode) return;
   const first = !hintMode;
   hintMode = m;
+  if (m === "tap") hintBlasted = false;               // (una explosión por cada "Tap")
   hintEl.classList.add("is-placed");
   if (!first && !reduced) { hintEl.classList.add("is-moving"); setTimeout(() => hintEl.classList.remove("is-moving"), 1000); }
   hintEl.classList.toggle("is-tap", m === "tap");
@@ -1669,8 +1675,38 @@ function hintStart() {                                // al levantar el telón
   document.documentElement.classList.remove("hint-done");   // (la guía se muestra completa: tap y luego scroll; vuelve a marcarse al salir del inicio)
   setHint("tap");
 }
-function tapped() { if (hintMode === "tap") setHint("scroll"); }
-hintEl?.addEventListener("click", () => { if (hintMode === "tap") { fireBlast(tapX, tapY); tapped(); } });   // (el sonido se desbloquea en este mismo gesto)
+// El toque en "Tap" se resuelve con el puntero, no con el click: ese mismo gesto enciende la música y, al sonar, la guía
+// pasaría a "Scroll" antes de que llegue el click (en iPhone, siempre), y la M ya no explotaría.
+// Como en el lienzo: con mouse explota al presionar; con el dedo, al soltar un toque (< 20 px). Un deslizamiento que
+// empieza sobre "Tap" no explota ni gasta la guía. Mientras se presiona, el cambio a "Scroll" espera a que se suelte
+let hintPress = null, hintTapEndT = -1e9;
+function tapped() {
+  const p = hintPress;
+  if (p) {                                             // (se aplica al soltar; si el soltar nunca llega, a los 3 s)
+    if (!p.defer) { p.defer = true; setTimeout(() => { if (hintPress === p) { hintPress = null; tapped(); } }, 3000); }
+    return;
+  }
+  if (hintMode === "tap") { hintTapEndT = now(); setHint("scroll"); }
+}
+function hintBlast() { if (hintBlasted) return; hintBlasted = true; fireBlast(tapX, tapY); }
+hintEl?.addEventListener("pointerdown", (e) => {
+  if (hintMode !== "tap" || e.button !== 0 || (e.pointerType === "mouse" && e.ctrlKey)) return;   // (ctrl-clic en Mac = menú)
+  if (hintPress && now() - hintPress.t < 3000) return;                      // (otro dedo durante el toque: cuenta el primero)
+  hintPress = { id: e.pointerId, type: e.pointerType, x: e.clientX, y: e.clientY, t: now(), defer: false };
+  if (e.pointerType === "mouse") hintBlast();
+});
+const hintRelease = (e, ok) => {
+  if (!hintPress || (e && e.pointerId !== hintPress.id)) return;
+  const p = hintPress; hintPress = null;
+  if (ok && Math.hypot(e.clientX - p.x, e.clientY - p.y) < (p.type === "mouse" ? 10 : 20)) { hintBlast(); tapped(); }
+  else if (p.defer || p.type === "mouse") tapped();    // (la música entró durante la presión, o el mouse ya explotó: cambia la guía)
+};
+addEventListener("pointerup", (e) => hintRelease(e, true), true);          // (en la ventana: el mouse puede soltarse fuera del botón)
+addEventListener("pointercancel", (e) => hintRelease(e, false), true);
+for (const [t, ev] of [[window, "blur"], [document, "visibilitychange"], [hintEl, "contextmenu"]]) t?.addEventListener(ev, () => hintRelease(null, false));
+hintEl?.addEventListener("click", () => {                                    // (teclado: Enter o Espacio)
+  if (active === 0 && (hintMode === "tap" || now() - hintTapEndT < 1200)) { hintBlast(); tapped(); }
+});
 snd.onChange(() => { if (snd.playing) tapped(); });
 
 /* ---------- Cursor: rayo en el mundo para empujar partículas ---------- */
