@@ -9,7 +9,8 @@
    · Brillos: tonos altos que aparecen y se desvanecen muy despacio (sin ataque: no son campanas).
    · Viajar ilumina: con la velocidad de la cámara el coro se abre y los brillos suben.
    · Sin compresor que bombee: sólo un limitador suave para los picos.
-   Efectos: "piu" de bláster en cada clic (el clic en el vacío suma una estela de polvo de estrellas);
+   · Monjes: canto "Om" en re grave; cada paso del scroll es un nuevo "Om" (A → U → M) y quieto se sostiene en "Mmm".
+   Efectos: vibración "Om" corta en cada clic (más grave en el vacío, con la explosión de partículas);
    onda suave con vibrato al pasar el mouse; holograma al abrir/cerrar; una onda por etapa del
    proceso; en el cierre, el coro se ilumina despacio.
    Los navegadores sólo dejan sonar tras un toque, clic o tecla: `unlock()` se llama ahí.
@@ -32,14 +33,20 @@ const STEP_MIN = 0.9;                                 // s entre pasos (un scrol
 const CHORDS = PROG;                                  // (efectos: notas del acorde que suena)
 const SPARK = [[74, 76, 78], [74, 76, 78], [73, 76, 80], [73, 76, 78], [74, 76, 78], [73, 76, 80], [73, 78, 81]];
 const PROC_NOTES = [62, 64, 66, 69, 71];             // proceso: una onda por etapa, subiendo
+// canto "Om": la vocal pasa de A (abierta) a U y termina en M (boca cerrada). Formantes de voz grave de hombre
+const OM = {
+  a: { f: [700, 1150, 2600], g: [3.4, 2.4, 0.8], n: 0.3 },
+  u: { f: [330, 820, 2250], g: [3.2, 1.2, 0.2], n: 0.7 },
+  m: { f: [260, 700, 2200], g: [0.5, 0.08, 0.001], n: 1.6 }
+};
 const KEY = "mv-sound";
-const VOL = 0.72;
+const VOL = 0.62;
 
 export function createSound({ reduced = false } = {}) {
   let on = true;
   try { on = localStorage.getItem(KEY) !== "0"; } catch (e) {}
   let ctx = null, started = false, scene = 0, lastHover = 0, lastSpeedSet = 0, lastPew = 0, bankIdx = 0;
-  let progIdx = 0, melIdx = 0, lastStepT = -9, pendingDir = 0, stepTimer = 0, sop = null;
+  let progIdx = 0, melIdx = 0, lastStepT = -9, pendingDir = 0, stepTimer = 0, sop = null, chantAmp, chantF, chantN;
   let master, music, fx, rev, echoIn, choirIn, choirOut, sparkBus, sparkGlow, sparks, airGain;
   const banks = [];
   const listeners = new Set();
@@ -101,7 +108,7 @@ export function createSound({ reduced = false } = {}) {
     const hum = ctx.createBiquadFilter(); hum.type = "lowpass"; hum.frequency.value = 600; hum.Q.value = 0.7;
     lfo(0.05, 110, hum.frequency);                                          // respira muy lento
     const nasal = ctx.createBiquadFilter(); nasal.type = "peaking"; nasal.frequency.value = 260; nasal.Q.value = 1.1; nasal.gain.value = 5;
-    const humG = ctx.createGain(); humG.gain.value = 1.0;
+    const humG = ctx.createGain(); humG.gain.value = 0.7;
     choirIn.connect(hum); hum.connect(nasal); nasal.connect(humG); humG.connect(choirOut);
     const breathe = ctx.createGain(); breathe.gain.value = 1; lfo(0.09, 0.1, breathe.gain);   // respira muy poco (sin bajones)
     choirOut.connect(breathe); breathe.connect(music);
@@ -129,6 +136,24 @@ export function createSound({ reduced = false } = {}) {
       return o;
     });
     sop = { g: sopG, oscs: sopOscs };
+    // monjes: canto "Om" en re grave (unísono desafinado, la quinta y una voz subgrave), en el templo (reverb)
+    chantAmp = ctx.createGain(); chantAmp.gain.value = 0;
+    const cIn = ctx.createGain();
+    const cvib = ctx.createOscillator(), cvibG = ctx.createGain(); cvib.frequency.value = 4.1; cvibG.gain.value = 5; cvib.connect(cvibG); cvib.start();
+    [[38, -6, 0.08], [38, 6, 0.08], [45, 3, 0.04], [26, 0, 0.045]].forEach(([m, c, g0]) => {
+      const o = ctx.createOscillator(); o.type = "sawtooth"; o.frequency.value = mtof(m); o.detune.value = c; cvibG.connect(o.detune);
+      const g = ctx.createGain(); g.gain.value = g0; o.connect(g); g.connect(cIn); o.start();
+    });
+    chantF = [0, 1, 2].map((k) => {
+      const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.Q.value = [6, 8, 10][k]; bp.frequency.value = OM.m.f[k];
+      const g = ctx.createGain(); g.gain.value = OM.m.g[k];
+      cIn.connect(bp); bp.connect(g); g.connect(chantAmp);
+      return { bp, g };
+    });
+    const nas = ctx.createBiquadFilter(); nas.type = "lowpass"; nas.frequency.value = 380; nas.Q.value = 0.7;
+    chantN = ctx.createGain(); chantN.gain.value = OM.m.n;
+    cIn.connect(nas); nas.connect(chantN); chantN.connect(chantAmp);
+    chantAmp.connect(music);
     // pedal de re, muy suave y quieto (calidez sin peso)
     // el zumbido del universo: re grave y muy grave, que vibran despacio (pares apenas desafinados)
     [[38, 0, 0.034], [38, 0.21, 0.02], [45, 0, 0.012], [26, 0, 0.026], [26, 0.13, 0.014]].forEach(([m, beat, gain]) => {
@@ -174,7 +199,24 @@ export function createSound({ reduced = false } = {}) {
     choirOut.gain.linearRampToValueAtTime(1, now + 5);
     banks[0].g.gain.setValueAtTime(1, now);
     setScene(scene, true);
-    sop.g.gain.setValueAtTime(0, now); sop.g.gain.linearRampToValueAtTime(1, now + 7);   // la soprano entra después del coro
+    sop.g.gain.setValueAtTime(0, now); sop.g.gain.linearRampToValueAtTime(0.6, now + 7);   // la línea de zumbido entra después
+    chantAmp.gain.setValueAtTime(0, now); chantAmp.gain.linearRampToValueAtTime(1, now + 3);
+    om(now + 0.4);                                           // el primer "Om"
+  }
+  // un "Om": nueva respiración, la vocal abre en A, pasa por U y se cierra en M (ahí se sostiene)
+  function vowelTo(v, t, tc) {
+    chantF.forEach(({ bp, g }, k) => { bp.frequency.setTargetAtTime(v.f[k], t, tc); g.gain.setTargetAtTime(v.g[k], t, tc); });
+    chantN.gain.setTargetAtTime(v.n, t, tc);
+  }
+  function om(t) {
+    chantF.forEach(({ bp, g }) => { bp.frequency.cancelScheduledValues(t); g.gain.cancelScheduledValues(t); });
+    chantN.gain.cancelScheduledValues(t);
+    vowelTo(OM.a, t, 0.12);
+    vowelTo(OM.u, t + 1.1, 0.35);
+    vowelTo(OM.m, t + 2.2, 0.5);
+    chantAmp.gain.cancelScheduledValues(t);
+    chantAmp.gain.setTargetAtTime(0.55, t, 0.06);
+    chantAmp.gain.setTargetAtTime(1, t + 0.12, 0.35);
   }
   // el coro cambia de acorde (fundido cruzado entre bancos: ninguna voz desliza su tono)
   function choirTo(chord, now) {
@@ -200,6 +242,7 @@ export function createSound({ reduced = false } = {}) {
     const c = Math.floor(melIdx / 2);
     if (c !== progIdx) { progIdx = c; choirTo(PROG[progIdx], now); }
     sing(MELODY[melIdx], now + 0.05);
+    om(now);                                                 // cada paso del scroll: un nuevo "Om"
     lastStepT = now;
   }
   function stepMusic(dir) {
@@ -259,24 +302,28 @@ export function createSound({ reduced = false } = {}) {
     o.connect(g); g.connect(p); p.connect(fx); p.connect(echoIn);
     o.start(t); v.start(t); o.stop(t + attack + release + 0.1); v.stop(t + attack + release + 0.1);
   }
-  // bláster "piu": dos tonos que caen en picada por un pasabanda
-  function pew(k = 1, gain = 0.14) {
+  // el clic: una vibración "Om" corta y grave (O → M), con un latido (una voz a +3.5 Hz) y un sub que la sostiene
+  function omPulse(deep = false, gain = 0.1) {
     if (!live()) return;
     const t = ctx.currentTime;
-    if (t - lastPew < 0.05) return;
+    if (t - lastPew < 0.15) return;
     lastPew = t;
-    const r = k * (0.9 + Math.random() * 0.2);
-    const mk = (type, f0, f1, dur, g0, delay = 0) => {
-      const tt = t + delay, o = ctx.createOscillator(); o.type = type;
-      o.frequency.setValueAtTime(f0 * r, tt); o.frequency.exponentialRampToValueAtTime(f1 * r, tt + dur);
-      const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.Q.value = 3;
-      bp.frequency.setValueAtTime(f0 * r * 1.2, tt); bp.frequency.exponentialRampToValueAtTime(f1 * r * 1.6, tt + dur);
-      const g = ctx.createGain(); env(g, tt, 0.003, g0, dur);
-      o.connect(bp); bp.connect(g); g.connect(fx); g.connect(echoIn);
-      o.start(tt); o.stop(tt + dur + 0.05);
-    };
-    mk("sawtooth", 1900, 240, 0.2, gain);
-    mk("triangle", 2600, 340, 0.15, gain * 0.4, 0.012);
+    const f0 = mtof(deep ? 33 : 38), end = t + 1.9;
+    const src = ctx.createGain();
+    [[0, -4, 0.7], [0, 4, 0.7], [3.5, 0, 0.5]].forEach(([hz, c, g0]) => {
+      const o = ctx.createOscillator(); o.type = "sawtooth"; o.frequency.value = f0 + hz; o.detune.value = c;
+      const g = ctx.createGain(); g.gain.value = g0; o.connect(g); g.connect(src); o.start(t); o.stop(end);
+    });
+    const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.Q.value = 6;
+    bp.frequency.setValueAtTime(420, t); bp.frequency.exponentialRampToValueAtTime(260, t + 0.8);   // "Ooo" → "mmm"
+    const bpG = ctx.createGain(); bpG.gain.setValueAtTime(2.2, t); bpG.gain.setTargetAtTime(0.4, t + 0.5, 0.3);
+    const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 360;
+    const out = ctx.createGain(); env(out, t, 0.07, gain, 1.7);
+    src.connect(bp); bp.connect(bpG); bpG.connect(out); src.connect(lp); lp.connect(out);
+    const sub = ctx.createOscillator(); sub.type = "sine"; sub.frequency.value = f0 / 2;
+    const sg = ctx.createGain(); env(sg, t, 0.1, gain * 0.9, 1.6);
+    sub.connect(sg); sg.connect(fx); sub.start(t); sub.stop(end);
+    out.connect(fx); out.connect(echoIn);
   }
   const chordNote = (k) => PROG[progIdx][k % 5];
   return {
@@ -285,7 +332,7 @@ export function createSound({ reduced = false } = {}) {
     get debug() { return { ctx, master }; },               // (pruebas: ?debug)
     onChange(f) { listeners.add(f); },
     unlock,
-    toggle() { if (on && !started) { unlock(); return; } setOn(!on); if (on) setTimeout(() => pew(1.1, 0.1), 80); },
+    toggle() { if (on && !started) { unlock(); return; } setOn(!on); if (on) setTimeout(() => omPulse(false, 0.08), 80); },
     scene: setScene,
     step: stepMusic,                                         // (espiral: cada ficha que pasa es un paso del coro)
     // viajar ilumina: con la velocidad de la cámara el coro abre sus vocales, los brillos y el aire suben
@@ -300,13 +347,9 @@ export function createSound({ reduced = false } = {}) {
       choirIn.gain.setTargetAtTime(1 + k * 0.25, now, 0.5);
     },
     arrive() {},                                             // (la llegada ya la hace el acorde que entra)
-    // clic en el vacío: el disparo (piu) y una estela de polvo de estrellas que sube y se desvanece
-    blast() {
-      if (!live()) return;
-      pew(0.85, 0.16);
-      SPARK[scene].forEach((m, i) => wave(m - 12, { gain: 0.009, attack: 0.12 + i * 0.05, release: 1.4, when: 0.05, depth: 8, vib: 5 }));
-    },
-    pew: () => pew(1, 0.13),
+    // clic en el vacío: la vibración "Om" más grave (acompaña la explosión de partículas)
+    blast() { omPulse(true, 0.13); },
+    pew: () => omPulse(false, 0.1),                          // (clic en botones y enlaces)
     // pasar el mouse: una onda suave con vibrato (textos agudos; botones un poco más graves, que suben)
     hover(kind = "text") {
       if (!live()) return;
