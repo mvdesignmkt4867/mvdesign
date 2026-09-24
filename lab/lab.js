@@ -624,11 +624,18 @@ function showRubro(j) {
   capNext?.setAttribute("aria-label", j === NR - 1 ? "Ir a paquetes" : "Rubro siguiente");
   if (capLive && active === SC.casos) capLive.textContent = `${r.name}. ${r.projects.length} proyectos.`;
 }
-const stationRubro = () => clamp(Math.round(prog - Q0), 0, NR - 1);
-const settledRubro = () => (prog === to && to >= Q0 && to <= Q0 + NR - 1 ? to - Q0 : -1);   // -1 = en camino: no se abre nada
+// el rubro al frente (o al que vas): con el scroll libre la espiral puede quedar entre dos fichas
+const nearestRubro = () => clamp(Math.round(to) - Q0, 0, NR - 1);
+// abre el rubro j; si la espiral no está justo en su ficha, primero se acomoda y abre al llegar
+let pendingOpen = null;
+function openOrAlign(j, opener) {
+  if (Math.abs(prog - (Q0 + j)) < 0.02 && Math.abs(to - prog) < 0.02) { if (free) { to = prog = Q0 + j; } openRubro(j, opener); return; }
+  goQ(Q0 + j);
+  pendingOpen = { j, opener: opener || null };
+}
 capPrev?.addEventListener("click", () => step(-1));
 capNext?.addEventListener("click", () => step(1));
-capOpen?.addEventListener("click", () => { const j = settledRubro(); if (j >= 0) openRubro(j, capOpen); });
+capOpen?.addEventListener("click", () => { if (active === SC.casos) openOrAlign(nearestRubro(), capOpen); });
 
 /* ---------- Panel de un rubro: subfichas (logo + nombre) y la ficha del caso ---------- */
 const rpEl = document.querySelector("[data-rpanel]");
@@ -874,7 +881,7 @@ addEventListener("pointerup", (e) => {
     const j = hit.object.userData.i;
     if (rp.open === j) closeRubro();
     else if (rp.open >= 0) { closeRubro(); goQ(Q0 + j); }
-    else if (j === settledRubro()) openRubro(j);
+    else if (j === nearestRubro()) openOrAlign(j);
     else goQ(Q0 + j);
   } else if (rp.open >= 0) closeRubro();             // clic en el espacio: de vuelta a la espiral
 }, { passive: true });
@@ -1179,6 +1186,15 @@ function adaptDpr(raw, moving) {
 
 /* ---------- Navegación: un gesto = una estación (escena o rubro), y cada transición llega y se asienta ---------- */
 let from = 0, to = 0, tStart = 0, dur = 0, prog = 0, lockUntil = 0, v0 = 0, progVel = 0;
+// casos: la espiral se recorre con scroll LIBRE (sin pausa por ficha). `free` = prog persigue a `to` con suavizado
+let free = false;
+const QEND = Q0 + NR - 1;                               // el último rubro
+const FREE_PX = 380;                                    // px de rueda por rubro
+function setFree(q) { free = true; pendingOpen = null; to = from = clamp(q, Q0, QEND); dur = 0; }
+// ¿estamos (o vamos) dentro de la espiral? (con un panel u hoja abiertos, no)
+const inSpiral = () => rp.open < 0 && pk.open < 0 && to >= Q0 && to <= QEND && prog >= Q0 - 0.05 && prog <= QEND + 0.05;
+// en qué extremo de la espiral estás quieto: -1 el primer rubro, 1 el último, 0 ninguno
+const edgeOf = () => (Math.abs(prog - to) > 0.05 ? 0 : Math.abs(to - Q0) < 0.02 ? -1 : Math.abs(to - QEND) < 0.02 ? 1 : 0);
 const now = () => performance.now();
 // curva del viaje: cubic-bezier(.45, 0, .1, 1). El gesto se nota desde el primer cuadro
 // (al 25 % del tiempo ya va ~23 % del tramo) y la llegada frena largo y se asienta. Tabla de 65 muestras
@@ -1210,6 +1226,7 @@ function goQ(i) {
   i = clamp(Math.round(i), 0, QLAST);
   idxMenu(false);
   if (i === to) return;                                 // mismo destino: no se reinicia nada
+  free = false; pendingOpen = null;
   if (rp.open >= 0) closeRubro(false, "nav");
   if (pk.open >= 0) closePk("nav");
   const moving = prog !== to;
@@ -1223,18 +1240,21 @@ function goQ(i) {
     arc += a.distanceTo(b); a.copy(b);
   }
   dur = reduced ? 0 : hops <= 1 ? clamp(1.05 + 0.04 * arc, 1.15, 1.85) : clamp(1.3 + 0.025 * arc, 1.6, 2.6);
+  const part = Math.abs(to - from) < 0.999;             // acomodarse a una ficha desde el scroll libre: corto
+  if (part && !reduced) dur = clamp(0.35 + Math.abs(to - from) * 0.9, 0.35, 1.15);
   // si venía en movimiento: la tangente de salida no puede llevar la cámara más allá del destino ni en sentido
   // contrario (condición de Fritsch–Carlson, |m0| ≤ 3·|D|). Sin esto, un cambio de destino a media carrera
   // se pasaba de largo, q < 0, y la curva leía points[-1] (la página se congelaba)
   const Dq = to - from;
   if (v0 * Dq < 0) v0 = Math.sign(v0) * Math.min(Math.abs(v0), 0.6 / dur);   // contra la marcha: frena corto (se pasa ≤ ~0.1 estación), no en seco
   else if (Math.abs(v0 * dur) > 3 * Math.abs(Dq)) v0 = Math.sign(Dq) * 3 * Math.abs(Dq) / dur;
-  lockUntil = tStart + (reduced ? 350 : Math.max(800, dur * 1000 * 0.72));
+  lockUntil = tStart + (reduced ? 350 : Math.max(part ? 0 : 800, dur * 1000 * 0.72));
 }
 const goTo = (s) => goQ(stationOf(clamp(s, 0, LAST)));   // por escena (índice, "volver al inicio")
-const step = (dirn) => goQ(to + dirn);
+// siguiente / anterior estación; entre dos fichas (scroll libre), la que sigue en esa dirección
+const step = (dirn) => goQ((dirn > 0 ? Math.floor(to + 1e-3) : Math.ceil(to - 1e-3)) + dirn);
 // rueda / trackpad: se cuenta UN gesto hasta que la rueda descansa 200 ms (así la inercia no brinca escenas)
-let wheelAcc = 0, lastWheel = 0, gestureUsed = false, wheelAvg = 0;
+let wheelAcc = 0, lastWheel = 0, gestureUsed = false, wheelAvg = 0, gestureEdge = 0, freeOver = 0;
 addEventListener("wheel", (e) => {
   if (e.ctrlKey) return;                               // pellizco para zoom: se respeta
   if (pk.open >= 0 && e.target.closest && e.target.closest("[data-psheet]")) return;   // dentro de la hoja: su propio scroll
@@ -1246,30 +1266,68 @@ addEventListener("wheel", (e) => {
   const t = now();
   let d = e.deltaY; if (e.deltaMode === 1) d *= 16; else if (e.deltaMode === 2) d *= innerHeight;
   const ad = Math.abs(d);
-  if (t - lastWheel > 200) { wheelAcc = 0; gestureUsed = false; }
+  let fresh = false;
+  if (t - lastWheel > 200) { wheelAcc = 0; gestureUsed = false; fresh = true; }
   // la inercia sólo decae: si el empuje vuelve a crecer de golpe, es un gesto nuevo
-  else if (gestureUsed && t >= lockUntil && ad > Math.max(14, wheelAvg * 2.5)) { gestureUsed = false; wheelAcc = 0; }
+  else if (gestureUsed && t >= lockUntil && ad > Math.max(14, wheelAvg * 2.5)) { gestureUsed = false; wheelAcc = 0; fresh = true; }
+  if (fresh) { gestureEdge = edgeOf(); freeOver = 0; }   // dónde empezó este gesto (para salir de la espiral)
   wheelAvg = wheelAvg * 0.75 + ad * 0.25;
   lastWheel = t;
   if (gestureUsed || t < lockUntil) return;
+  // casos: scroll libre por la espiral. En sus extremos se detiene; un gesto NUEVO que empuja hacia afuera
+  // pasa a la escena vecina (así una inercia fuerte no se salta paquetes ni proceso)
+  if (inSpiral()) {
+    idxMenu(false);
+    let want = (free ? to : prog) + d / FREE_PX;
+    if (want > QEND || want < Q0) {
+      const out = want > QEND ? 1 : -1;
+      if (gestureEdge === out) {
+        freeOver += Math.abs(d);
+        if (freeOver > 60) { gestureUsed = true; goQ(out > 0 ? QEND + 1 : Q0 - 1); return; }
+      }
+      want = out > 0 ? QEND : Q0;
+    }
+    setFree(want);
+    return;
+  }
   wheelAcc += d;
   if (Math.abs(wheelAcc) >= 36) { gestureUsed = true; wheelAcc = 0; idxMenu(false); if (pk.open >= 0) closePk(); else if (rp.open >= 0) closeRubro(); else step(Math.sign(d)); }
 }, { passive: false });
 // touch: un deslizamiento de ~48 px = una escena
-let ty0 = null, touchUsed = false;
+let ty0 = null, touchUsed = false, tf = null;
 addEventListener("touchstart", (e) => {
   // dentro del panel el dedo desplaza sus proyectos, no cambia de escena
   // (y en la hoja de paquetes y en el índice abierto, tampoco)
   const t = e.target.closest ? e.target : null;
   ty0 = (rp.open >= 0 && t?.closest("[data-rpanel]")) || (pk.open >= 0 && t?.closest("[data-psheet]")) || t?.closest("[data-idx]") ? null : e.touches[0].clientY;
-  touchUsed = false;
+  touchUsed = false; tf = null;
+  // casos: el dedo arrastra la espiral (scroll libre, con inercia al soltar)
+  if (ty0 !== null && inSpiral() && now() >= lockUntil) tf = { y0: ty0, q0: free ? to : prog, edge: edgeOf(), ly: ty0, lt: now(), v: 0 };
 }, { passive: true });
 addEventListener("touchmove", (e) => {
+  if (tf) {
+    const y = e.touches[0].clientY, dy = tf.y0 - y, px = innerHeight * 0.42;   // ~0.4 de pantalla = un rubro
+    let want = tf.q0 + dy / px;
+    if (want > QEND || want < Q0) {
+      const out = want > QEND ? 1 : -1;
+      if (tf.edge === out && Math.abs(dy) > 48) { tf = null; touchUsed = true; goQ(out > 0 ? QEND + 1 : Q0 - 1); return; }   // gesto nuevo desde el extremo: sale
+      want = out > 0 ? QEND : Q0;
+    }
+    const tt = now(), inst = ((tf.ly - y) / px) / Math.max(8, tt - tf.lt) * 1000;
+    tf.v = tf.v * 0.5 + inst * 0.5; tf.ly = y; tf.lt = tt;
+    setFree(want);
+    return;
+  }
   if (ty0 === null || touchUsed || now() < lockUntil) return;
   const dy = ty0 - e.touches[0].clientY;
   if (Math.abs(dy) > 48) { touchUsed = true; idxMenu(false); if (pk.open >= 0) closePk(); else if (rp.open >= 0) closeRubro(); else step(Math.sign(dy)); }
 }, { passive: true });
-addEventListener("touchend", () => { ty0 = null; }, { passive: true });
+addEventListener("touchend", () => {
+  if (tf && free) {                                     // inercia al soltar: sigue un poco y frena sola
+    if (now() - tf.lt < 120 && Math.abs(tf.v) > 0.25) setFree(to + clamp(tf.v, -6, 6) * 0.35);
+  }
+  tf = null; ty0 = null;
+}, { passive: true });
 addEventListener("keydown", (e) => {
   if (e.target.closest && e.target.closest("input, textarea, select")) return;
   if (pk.open >= 0) { if (e.key === "Escape") { e.preventDefault(); closePk(); } return; }   // la hoja es modal: Tab, Enter y flechas dentro
@@ -1466,14 +1524,23 @@ function frame() {
   const t = clock.getElapsedTime();
   if (t0 === null) { t0 = t; lastT = t; }
   const raw = t - lastT, dt = Math.min(0.05, raw); lastT = t;
-  adaptDpr(raw, prog !== to);
+  adaptDpr(raw, prog !== to || free && Math.abs(progVel) > 0.01);
   const intro = reduced ? 1 : Math.min(1, (t - t0) / 4.2);
   const k = easeOut(intro);
   smooth.lerp(swayT, 0.06);
 
   // transición: de una escena a la otra con llegada suave
-  const kt = dur > 0 ? clamp((now() - tStart) / (dur * 1000), 0, 1) : 1;
-  [prog, progVel] = kt >= 1 ? [to, 0] : tween(kt);
+  let kt = 1;
+  if (free) {                                            // scroll libre en la espiral: sigue al dedo / la rueda con suavizado
+    const prev = prog;
+    prog += (to - prog) * (1 - Math.exp(-dt * (reduced ? 60 : 7)));
+    if (Math.abs(to - prog) < 5e-4) prog = to;
+    progVel = dt > 0 ? (prog - prev) / dt : 0;
+  } else {
+    kt = dur > 0 ? clamp((now() - tStart) / (dur * 1000), 0, 1) : 1;
+    [prog, progVel] = kt >= 1 ? [to, 0] : tween(kt);
+  }
+  if (pendingOpen && prog === to && to === Q0 + pendingOpen.j) { const o = pendingOpen; pendingOpen = null; openRubro(o.j, o.opener); }
   prog = clamp(prog, 0, QLAST);                           // red de seguridad: el riel no tiene nada fuera de 0..QLAST
   if (navByKey && kt >= 1) {
     navByKey = false;
@@ -1613,7 +1680,7 @@ function frame() {
   const cIn = sm(3.3, 3.95, p), cOut = sm(4.2, 4.62, p), cVis = crossC ? 0 : cIn * (1 - cOut);
   if (p > 1.4) loadRubroTextures();
   const cur = Math.round(sIn);
-  if (cVis > 0.01) showRubro(to >= Q0 && to <= Q0 + NR - 1 ? to - Q0 : cur);   // en camino: el rubro al que vas
+  if (cVis > 0.01) showRubro(to >= Q0 - 0.5 && to <= QEND + 0.5 ? nearestRubro() : cur);   // en camino: el rubro al que vas
   // hover (sólo con mouse y fuera de la interfaz): la ficha se acerca un poco y se enciende su filo
   let hov = -1;
   if (cVis > 0.5 && hoverCapable && pointerOn && !overUI) {
@@ -1691,7 +1758,7 @@ const qsScene = new URLSearchParams(location.search).get("s");
 const hashScene = SLUGS.indexOf(location.hash.slice(1));
 if (qsScene !== null) { from = to = prog = stationOf(clamp(Math.round(+qsScene) || 0, 0, LAST)); }
 else if (hashScene > 0) { from = to = prog = stationOf(hashScene); }
-if (/[?&]debug\b/.test(location.search)) window.__lab = { THREE, get dpr() { return DPR; }, renderer, scene, composer, bloom, camera, get particles() { return particles; }, goTo, goQ, openRubro, openDetail, get rp() { return rp; }, cards, SPI, SC, anchorUI, openPk, closePk, labels, sections };
+if (/[?&]debug\b/.test(location.search)) window.__lab = { THREE, get dpr() { return DPR; }, renderer, scene, composer, bloom, camera, get particles() { return particles; }, goTo, goQ, openRubro, openDetail, get rp() { return rp; }, get nav() { return { prog, to, free, lockUntil: lockUntil - now() }; }, cards, SPI, SC, anchorUI, openPk, closePk, labels, sections };
 
 // la entrada: el telón se levanta cuando todo está listo y ahí arranca el reloj de la intro
 // (antes corría debajo del telón). Primero la M y el anillo, luego el titular, al final HUD, botón y pista
