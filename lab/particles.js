@@ -2,7 +2,8 @@
    MV Design · Lab — partículas de marca con física en GPU
    Cada partícula tiene posición y velocidad reales (GPGPU):
    un resorte la lleva a su destino (la M, el anillo de acreción,
-   la hélice del túnel o la M del final), un campo de flujo sin
+   la hélice del túnel, el hilo del proceso, la cinta de la espiral,
+   los marcos de los paquetes o la M del final), un campo de flujo sin
    divergencia le da corrientes, y el cursor la empuja y la hace
    girar; al soltarla regresa con inercia.
    Render: núcleo nítido + halo, profundidad de campo (bokeh),
@@ -14,15 +15,59 @@ import * as THREE from "three";
 import { GPUComputationRenderer } from "three/addons/misc/GPUComputationRenderer.js";
 import { MeshSurfaceSampler } from "three/addons/math/MeshSurfaceSampler.js";
 
-/* Destinos por estado. u = coordenada de la partícula en las texturas de datos */
+/* Destinos por estado. u = coordenada de la partícula en las texturas de datos
+   Cadena (cada estado sube de 0 a 1 en su frontera y ahí se queda):
+   M → anillo (uA) → hélice (uC) → hilo del proceso (uProc) → espiral de rubros (uPlanet) → marcos de paquetes (uPack) → M del cierre (uB) */
 const TARGET_GLSL = /* glsl */ `
 uniform sampler2D tHome, tRing, tHelix;
-uniform float uTime, uA, uB, uC, uRot, uPlanet, uMScale, uRingS;
+uniform float uTime, uA, uB, uC, uRot, uPlanet, uMScale, uRingS, uProc, uPack;
 uniform vec3 uStart, uEnd; uniform vec2 uAxis; uniform float uRingZ;
 uniform vec4 uSpiral;  // espiral de rubros · x: altura del primer rubro, y: caída por rubro, z: radio, w: giro actual
 uniform vec2 uSpiralK; // x: ángulo por rubro, y: cuántos rubros
+// proceso: centro de cada número (mundo), ejes del plano del texto, radio del anillo y parte de partículas para el hilo
+uniform vec3 uProcN[5]; uniform vec3 uProcX, uProcY, uProcZ; uniform float uProcR, uProcSplit;
+// paquetes: centro de cada tarjeta + radio de esquina (w) · semiancho, semialto, grosor del marco, destacada (w)
+uniform vec4 uPkC[3]; uniform vec4 uPkH[3]; uniform vec3 uPkX, uPkY, uPkZ;
 float mvStag(float u, float s){ return smoothstep(0., 1., clamp(u * 1.6 - s * .6, 0., 1.)); }
 vec3 mvRotY(vec3 p, float a){ float c = cos(a), s = sin(a); return vec3(p.x * c + p.z * s, p.y, -p.x * s + p.z * c); }
+// el hilo: 4 tramos entre los anillos de los números (pick < uProcSplit) o un anillo alrededor de cada número
+vec3 mvProc(vec4 h, vec4 rg, float pick){
+  if (pick < uProcSplit) {
+    float f4 = rg.w * 4., sg = min(floor(f4), 3.), f = f4 - sg;          // rg.w: su lugar a lo largo (01 → 05)
+    vec3 a = uProcN[0], b = uProcN[1];
+    for (int i = 1; i < 4; i++) if (float(i) == sg) { a = uProcN[i]; b = uProcN[i + 1]; }
+    vec3 d = b - a; float L = max(length(d), 1e-4); vec3 t = d / L;
+    return a + t * (uProcR + f * max(L - 2. * uProcR, 0.)) + cross(uProcZ, t) * rg.z * uProcR * .25 + uProcZ * (h.w - .5) * .06;
+  }
+  float k = min(floor((pick - uProcSplit) / (1. - uProcSplit) * 5.), 4.);
+  vec3 c = uProcN[0];
+  for (int i = 1; i < 5; i++) if (float(i) == k) c = uProcN[i];
+  float ang = rg.x + uTime * .16 * (mod(k, 2.) * 2. - 1.);                  // giran lento, en sentidos alternos
+  return c + (uProcX * cos(ang) + uProcY * sin(ang)) * uProcR * (1. + rg.z * .12) + uProcZ * (h.w - .5) * .06;
+}
+// punto s (0..1) sobre el contorno de un rectángulo de esquinas redondeadas (semitamaño hs, radio r)
+vec2 mvRRect(vec2 hs, float r, float s){
+  r = max(r, 1e-4);
+  vec2 e = max(hs - r, vec2(0.)); float lx = 2. * e.x, ly = 2. * e.y, la = 1.5707963 * r;
+  float d = fract(s) * (2. * (lx + ly) + 4. * la);
+  if (d < lx) return vec2(-e.x + d, hs.y);                                    d -= lx;
+  if (d < la) { float a = d / r; return e + r * vec2(sin(a), cos(a)); }        d -= la;
+  if (d < ly) return vec2(hs.x, e.y - d);                                     d -= ly;
+  if (d < la) { float a = d / r; return vec2(e.x, -e.y) + r * vec2(cos(a), -sin(a)); }  d -= la;
+  if (d < lx) return vec2(e.x - d, -hs.y);                                    d -= lx;
+  if (d < la) { float a = d / r; return -e + r * vec2(-sin(a), -cos(a)); }    d -= la;
+  if (d < ly) return vec2(-hs.x, -e.y + d);                                   d -= ly;
+  float a = d / r; return vec2(-e.x, e.y) + r * vec2(-cos(a), sin(a));
+}
+// los marcos: el contorno de cada tarjeta, por fuera de su borde (la destacada se lleva más partículas y deriva lento)
+vec3 mvPack(vec4 h, vec4 rg, float pick){
+  float k = pick < .28 ? 0. : pick < .72 ? 1. : 2.;
+  vec4 C = uPkC[0], H = uPkH[0];
+  for (int i = 1; i < 3; i++) if (float(i) == k) { C = uPkC[i]; H = uPkH[i]; }
+  float o = abs(rg.z) * 3.3 * H.z;
+  vec2 q = mvRRect(H.xy + o, C.w + o, rg.w + H.w * uTime * .006);
+  return C.xyz + uPkX * q.x + uPkY * q.y + uPkZ * (h.w - .5) * .05;
+}
 // devuelve el destino; en w, cuánto "viaja" ahora (0 = asentada)
 vec4 mvTarget(vec2 u){
   vec4 h = texture2D(tHome, u); float seed = h.w;
@@ -33,19 +78,23 @@ vec4 mvTarget(vec2 u){
   vec4 hx = texture2D(tHelix, u);
   float th = hx.x + uTime * (.035 + seed * .05);
   vec3 helix = vec3(uAxis.x + cos(th) * hx.y, uAxis.y + sin(th) * hx.y * .9, hx.z);
-  float eA = mvStag(uA, seed), eC = mvStag(uC, rg.w), eB = mvStag(uB, 1. - seed);
-  vec3 t = mix(mix(mix(mp + uStart, ring, eA), helix, eC), mp + uEnd, eB);
-  // casos: TODAS forman la cinta de la espiral de rubros (por dentro de las fichas: no les pasan encima)
-  // y giran con ella; al pasar al cierre se sueltan en cascada y arman la M al pie de la espiral
-  float dsel = mvStag(uPlanet, fract(seed * 7.13)) * smoothstep(0., .25, uB);
-  // posición a lo largo (la semilla, así llegan en orden), ancho y grosor de la cinta con azar independiente
-  // (de la misma semilla saldrían líneas, no una banda)
-  float along = fract(seed * 7.13) * (uSpiralK.y + .9) - .7;                  // en rubros: un poco antes del primero y después del último
-  float sa = along * uSpiralK.x + uSpiral.w + sin(uTime * .15 + along) * .06 + (fract(rg.x * .15915) - .5) * .32;   // en fase con las fichas
-  float sr = uSpiral.z * (.52 + .38 * rg.w);
-  vec3 spiral = vec3(uEnd.x + sin(sa) * sr, uSpiral.x - along * uSpiral.y + rg.z * 1.7, uEnd.z + cos(sa) * sr);
-  t = mix(t, spiral, dsel);
-  float travel = sin(eA * 3.14159) + sin(eC * 3.14159) + sin(eB * 3.14159) + sin(dsel * 3.14159);
+  float eA = mvStag(uA, seed), eC = mvStag(uC, rg.w), eP = mvStag(uProc, rg.w);
+  float eS = mvStag(uPlanet, fract(seed * 7.13)), eK = mvStag(uPack, hx.w), eB = mvStag(uB, 1. - seed);
+  vec3 t = mix(mix(mp + uStart, ring, eA), helix, eC);
+  // (ramas uniformes: fuera de su tramo no cuestan; si el estado siguiente ya es total, éste no se calcula)
+  if (uProc > 0. && uPlanet < 1.) t = mix(t, mvProc(h, rg, hx.w), eP);
+  if (uPlanet > 0. && uPack < 1.) {
+    // casos: TODAS forman la cinta de la espiral de rubros (por dentro de las fichas: no les pasan encima)
+    // y giran con ella; posición a lo largo (la semilla, así llegan en orden), ancho y grosor con azar independiente
+    float along = fract(seed * 7.13) * (uSpiralK.y + .9) - .7;                // en rubros: un poco antes del primero y después del último
+    float sa = along * uSpiralK.x + uSpiral.w + sin(uTime * .15 + along) * .06 + (fract(rg.x * .15915) - .5) * .32;   // en fase con las fichas
+    float sr = uSpiral.z * (.52 + .38 * rg.w);
+    vec3 spiral = vec3(uEnd.x + sin(sa) * sr, uSpiral.x - along * uSpiral.y + rg.z * 1.7, uEnd.z + cos(sa) * sr);
+    t = mix(t, spiral, eS);
+  }
+  if (uPack > 0. && uB < 1.) t = mix(t, mvPack(h, rg, hx.w), eK);
+  t = mix(t, mp + uEnd, eB);                                                   // el cierre: la M al pie de la espiral
+  float travel = sin(eA * 3.14159) + sin(eC * 3.14159) + sin(eP * 3.14159) + sin(eS * 3.14159) + sin(eK * 3.14159) + sin(eB * 3.14159);
   return vec4(t, clamp(travel, 0., 1.));
 }
 `;
@@ -120,7 +169,7 @@ const VEL_SHADER = /* glsl */ `
 ${TARGET_GLSL}
 ${FLOW_GLSL}
 ${BLAST_GLSL}
-uniform float uDt, uIntro, uFlowAmt, uMouse, uMouseR, uMouseK, uSnap;
+uniform float uDt, uIntro, uFlowAmt, uMouse, uMouseR, uMouseK, uSnap, uRibbon;
 uniform vec3 uRayO, uRayD;
 void main(){
   vec2 u = gl_FragCoord.xy / resolution.xy;
@@ -132,7 +181,7 @@ void main(){
   float rel = smoothstep(0., 1., clamp(uIntro * 1.5 - seed * .5, 0., 1.));   // entrada: se sueltan en cascada
   float k = mix(1.5, 26., rel) * (1. - .55 * tg.w);                           // resorte (más flojo al viajar)
   vec3 acc = (tg.xyz - pos) * k;
-  acc += mvFlow(pos * .55, uTime * .6) * uFlowAmt * (.07 + .2 * uPlanet + 1.5 * tg.w + (1. - rel) * 1.3);
+  acc += mvFlow(pos * .55, uTime * .6) * uFlowAmt * (.07 + .2 * uRibbon + 1.5 * tg.w + (1. - rel) * 1.3);   // (la cinta se agita; el hilo, los marcos y la M no)
   // cursor: empuja desde su rayo y hace girar alrededor de él
   vec3 w = pos - uRayO; float tr = dot(w, uRayD);
   vec3 dv = w - uRayD * tr; float dist = length(dv);
@@ -161,8 +210,14 @@ void main(){
 
 const RENDER_VERT = /* glsl */ `
 ${BLAST_GLSL}
+vec3 mvGrad(float x){   // #9E43B8 → #625CD9 → #4892D9 → #2BCCD9, interpolado en sRGB y pasado a lineal
+  vec3 c = mix(vec3(.620, .263, .722), vec3(.384, .361, .851), smoothstep(0., .33, x));
+  c = mix(c, vec3(.282, .573, .851), smoothstep(.33, .66, x));
+  c = mix(c, vec3(.169, .8, .851), smoothstep(.66, 1., x));
+  return pow(c, vec3(2.2));
+}
 uniform sampler2D tPos, tVel;
-uniform float uPx, uFocus, uAperture, uMirror, uAlpha, uReflect, uSim, uFloorY;
+uniform float uPx, uFocus, uAperture, uMirror, uAlpha, uReflect, uSim, uFloorY, uProcFill, uProcPulse;
 uniform vec3 uRayO, uRayD; uniform float uMouse, uMouseK;
 attribute vec2 aRef; attribute vec3 aCol; attribute float aSeed;
 varying vec3 vC; varying float vA; varying float vCoc;
@@ -180,19 +235,32 @@ void main(){
   vec4 mv = modelViewMatrix * vec4(p, 1.);
   float z = -mv.z;
   float coc = clamp(abs(z - uFocus) * uAperture, 0., 1.);                     // profundidad de campo
-  vec4 rgs = texture2D(tRing, aRef);
-  float calm = mvStag(uC, rgs.w) * (1. - mvStag(uB, 1. - aSeed));             // 1 = viajando por el túnel
+  vec4 rgs = texture2D(tRing, aRef), hxr = texture2D(tHelix, aRef);
+  float calm = mvStag(uC, rgs.w) * (1. - mvStag(uProc, rgs.w));             // 1 = viajando por el túnel
+  // pesos de cada forma: la M (inicio y cierre), la cinta de la espiral (se ve igual que la M), el hilo y los marcos
+  float wS = mvStag(uPlanet, fract(aSeed * 7.13)) * (1. - mvStag(uPack, hxr.w));
+  float wP = mvStag(uProc, rgs.w) * (1. - mvStag(uPlanet, fract(aSeed * 7.13)));
+  float wK = mvStag(uPack, hxr.w) * (1. - mvStag(uB, 1. - aSeed));
+  float asmW = max(max(1. - mvStag(uA, aSeed), mvStag(uB, 1. - aSeed)), wS);  // 1 = forma la M (o la cinta)
   float base = (.95 + aSeed * 1.6) * uPx * (16. / max(z, .1)) * mix(1., .6, calm);   // partículas finas
   gl_PointSize = clamp(base * (1. + coc * .9), 1., 16.) * smoothstep(.8, 2.2, z);   // sin discos gigantes
-  gl_PointSize *= 1. + .15 * max(1. - mvStag(uA, aSeed), mvStag(uB, 1. - aSeed));    // la M armada, más llena
-  float asmW = max(1. - mvStag(uA, aSeed), mvStag(uB, 1. - aSeed));            // 1 = forma la M
-  float tw = mix(.72 + .28 * sin(uTime * (1.3 + aSeed * 2.1) + aSeed * 50.), 1., asmW * .75);
+  gl_PointSize *= 1. + .15 * asmW;                                             // la M armada, más llena
+  float tw = mix(.72 + .28 * sin(uTime * (1.3 + aSeed * 2.1) + aSeed * 50.), 1., max(asmW * .75, (wP + wK) * .6));
   vA = tw / (1. + coc * coc * 5.) * smoothstep(1., 3.5, z) * uAlpha * mix(1., .55, calm);
   if (uMirror > .5) vA *= .7 * smoothstep(-1.8, 0., p.y - uFloorY) * uReflect;
   blastLit = min(blastLit, 1.);
   vA *= 1. + blastLit * .35;                                                    // la onda del clic: crecen y brillan un poco al pasar
   gl_PointSize *= 1. + blastLit * .7;                                           // (más tamaño que brillo: el color de marca no se satura)
   vC = aCol * (mix(1.5, 1.3, asmW) + near * .3);                                // siempre su color de marca, nunca blanco
+  // hilo y marcos: el degradado de marca a lo largo (01 morado → 05 cian); al volver a la M regresa su color exacto
+  float along = hxr.w < uProcSplit ? rgs.w : min(floor((hxr.w - uProcSplit) / (1. - uProcSplit) * 5.), 4.) / 4.;
+  if (wP > 0.) {
+    vC = mix(vC, mvGrad(along) * 1.35, wP);
+    vA *= mix(1., mix(.35, 1., smoothstep(along - .02, along + .02, uProcFill)), wP);   // el trazo se dibuja del 01 al 05
+    if (uProcPulse >= 0.) gl_PointSize *= 1. + .8 * wP * exp(-pow((along - uProcPulse) / .035, 2.));   // pulso de tamaño, no de brillo
+  }
+  if (wK > 0.) vC = mix(vC, mvGrad(abs(fract(rgs.w) * 2. - 1.)) * 1.35, wK);
+  gl_PointSize *= mix(1., .7, clamp(wP + wK, 0., 1.));                          // líneas finas
   vCoc = coc;
   gl_Position = projectionMatrix * mv;
 }
@@ -257,7 +325,7 @@ export function createParticles({ renderer, geos, holderMatrix, mobile, reduced,
       // hélice de tres brazos a lo largo del túnel
       const z = Math.random() < 0.86 ? -8 - Math.random() * 29 : -37.5 - Math.random() * 22;   // dentro del túnel (más ancho y largo)
       const spread = Math.pow(Math.random(), 2) * (Math.random() < .5 ? -1 : 1);
-      helix.set([(k % 3) * (Math.PI * 2 / 3) + z * 0.2 + spread * 0.9, 3.4 + Math.pow(Math.random(), 1.6) * 4.4 + Math.abs(spread) * 0.9, z, 0], k * 4);
+      helix.set([(k % 3) * (Math.PI * 2 / 3) + z * 0.2 + spread * 0.9, 3.4 + Math.pow(Math.random(), 1.6) * 4.4 + Math.abs(spread) * 0.9, z, Math.random()], k * 4);   // w: a qué pieza va (hilo/anillo, marco)
       // nube de la entrada: la M se arma desde aquí
       const th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1), rad = 4.2 + Math.random() * 5.8;
       start.set([Math.sin(ph) * Math.cos(th) * rad * 1.2, Math.cos(ph) * rad * 0.55 + 1.9, Math.sin(ph) * Math.sin(th) * rad * 0.7 - 3.5, 1], k * 4);
@@ -276,6 +344,12 @@ export function createParticles({ renderer, geos, holderMatrix, mobile, reduced,
     uPlanet: { value: 0 }, uSpiral: { value: new THREE.Vector4(1.9, 2, 3, 0) }, uSpiralK: { value: new THREE.Vector2(Math.PI / 3, 6) },
     uMScale: { value: 1 }, uRingS: { value: 1 }, uMouseK: { value: 1 },
     uAxis: { value: new THREE.Vector2(0, 1.9) }, uRingZ: { value: -4.2 },
+    uProc: { value: 0 }, uPack: { value: 0 },
+    uProcN: { value: Array.from({ length: 5 }, () => new THREE.Vector3()) },
+    uProcX: { value: new THREE.Vector3(1, 0, 0) }, uProcY: { value: new THREE.Vector3(0, 1, 0) }, uProcZ: { value: new THREE.Vector3(0, 0, 1) },
+    uProcR: { value: 0.1 }, uProcSplit: { value: 0.5 },
+    uPkC: { value: Array.from({ length: 3 }, () => new THREE.Vector4()) }, uPkH: { value: Array.from({ length: 3 }, () => new THREE.Vector4()) },
+    uPkX: { value: new THREE.Vector3(1, 0, 0) }, uPkY: { value: new THREE.Vector3(0, 1, 0) }, uPkZ: { value: new THREE.Vector3(0, 0, 1) },
     uRayO: { value: new THREE.Vector3() }, uRayD: { value: new THREE.Vector3(0, 0, -1) }, uMouse: { value: 0 },
     ...blast                                           // la onda del clic: los mismos uniforms que el polvo de fondo
   };
@@ -297,7 +371,7 @@ export function createParticles({ renderer, geos, holderMatrix, mobile, reduced,
       gpu.setVariableDependencies(posVar, [posVar, velVar]);
       const sim = { uDt: { value: 0 }, uSnap: { value: reduced ? 1 : 0 } };
       Object.assign(velVar.material.uniforms, shared, sim, {
-        uIntro: { value: 0 }, uFlowAmt: { value: reduced ? 0 : 1 }, uMouseR: { value: 0.3 }
+        uIntro: { value: 0 }, uFlowAmt: { value: reduced ? 0 : 1 }, uMouseR: { value: 0.3 }, uRibbon: { value: 0 }
       });
       Object.assign(posVar.material.uniforms, shared, sim);
       const err = gpu.init();
@@ -314,10 +388,12 @@ export function createParticles({ renderer, geos, holderMatrix, mobile, reduced,
   geo.setAttribute("aRef", new THREE.BufferAttribute(refs, 2));
   geo.setAttribute("aCol", new THREE.BufferAttribute(col, 3));
   geo.setAttribute("aSeed", new THREE.BufferAttribute(seeds, 1));
+  const procFillU = { value: 1 }, procPulseU = { value: -1 };   // trazo y pulso del hilo (los comparten la M y su reflejo)
   const renderUniforms = (mirror) => Object.assign({}, shared, {
     tPos: { value: null }, tVel: { value: null }, uSim: { value: gpu ? 1 : 0 },
     uPx: { value: 1 }, uFocus: { value: 12 }, uAperture: { value: mobile ? 0.04 : 0.05 },
-    uMirror: { value: mirror ? 1 : 0 }, uAlpha: { value: 1 }, uReflect: { value: 0 }, uFloorY: { value: 0 }
+    uMirror: { value: mirror ? 1 : 0 }, uAlpha: { value: 1 }, uReflect: { value: 0 }, uFloorY: { value: 0 },
+    uProcFill: procFillU, uProcPulse: procPulseU
   });
   const mk = (mirror) => {
     const pts = new THREE.Points(geo, new THREE.ShaderMaterial({
@@ -343,6 +419,9 @@ export function createParticles({ renderer, geos, holderMatrix, mobile, reduced,
     set focus(v) { points.material.uniforms.uFocus.value = v; },
     set reflect(v) { reflection.material.uniforms.uReflect.value = v; reflection.visible = v > 0.001; },   // sin piso: no se dibuja
     set floorY(v) { reflection.material.uniforms.uFloorY.value = v; },
+    set procFill(v) { procFillU.value = v; },
+    set procPulse(v) { procPulseU.value = v; },
+    set ribbon(v) { if (velVar) velVar.material.uniforms.uRibbon.value = v; },
     update(dt, t) {
       shared.uTime.value = t;
       if (!gpu) return;

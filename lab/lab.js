@@ -1,12 +1,14 @@
 /* ============================================================
    MV Design · Lab — experiencia inmersiva (prototipo)
-   Un solo mundo que se recorre con el scroll, en 5 escenas:
+   Un solo mundo que se recorre con el scroll, en 7 escenas:
    01 La firma   la M de partículas se arma frente al eclipse,
                  sobre un piso espejo negro.
    02 Manifiesto la M se desarma en un anillo de acreción.
    03 Servicios  la cámara cruza el anillo y entra a un túnel de luz.
-   04 Casos      galería con todos los proyectos a la vista.
-   05 Contacto   las partículas vuelven a armar la M.
+   04 Proceso    la cámara sube; las partículas trazan el hilo de las 5 etapas.
+   05 Casos      grúa abajo: espiral de rubros que baja (un rubro por gesto).
+   06 Paquetes   al pie de la espiral, las partículas dibujan el marco de cada paquete.
+   07 Contacto   las partículas vuelven a armar la M.
    Los textos viven DENTRO del espacio (CSS3D: HTML real, nítido
    a 1:1 cuando llegas a cada escena) y la cámara los atraviesa.
    Un gesto = una escena: la inercia del trackpad no se pasa de largo.
@@ -18,7 +20,7 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { CSS3DRenderer, CSS3DObject } from "three/addons/renderers/CSS3DRenderer.js";
-import { createParticles, BLAST_GLSL, BLAST_N } from "./particles.js?v=22";
+import { createParticles, BLAST_GLSL, BLAST_N } from "./particles.js?v=23";
 import { ICON_DRAW } from "./rubro-icons.js?v=1";
 
 const canvas = document.querySelector("[data-gl]");
@@ -28,7 +30,9 @@ const setLoad = (v) => curtain && curtain.style.setProperty("--load", v);
 setLoad(0.4);
 const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const mobile = matchMedia("(max-width: 760px), (pointer: coarse)").matches;
-const LAST = 4;        // escenas 0..4
+// escenas (0..6): el orden del DOM, del índice y de SLUGS es éste
+const SC = { firma: 0, manif: 1, serv: 2, proc: 3, casos: 4, pk: 5, contacto: 6 };
+const LAST = SC.contacto;
 const END_Z = -40;     // donde la M se vuelve a armar: el planeta de los casos y el cierre
 const AXIS_Y = 1.9;    // centro de la M, del eclipse y del túnel
 const RING_Z = -7;     // el eclipse: más atrás y más grande (el manifiesto vive dentro)
@@ -392,6 +396,7 @@ async function buildM() {
   particles.reflection.renderOrder = -2;            // debajo del piso: el piso la vela
   scene.add(particles.points);
   scene.add(particles.reflection);                  // la reflexión se voltea en su propio shader
+  anchorUI();
   geos.forEach((g) => g.dispose());
   try {   // precompila todo (fichas incluidas) contra el búfer del composer
     cards.forEach((m) => { m.visible = true; });
@@ -426,11 +431,11 @@ const RUBROS = [...document.querySelectorAll("[data-rubro]")].map((el) => ({
   }))
 }));
 const NR = RUBROS.length;
-// estaciones de cámara: 0 inicio · 1 manifiesto · 2 servicios · Q0.. un rubro cada una · QLAST contacto
-const Q0 = 3, QLAST = Q0 + NR;
-// la "escena" que ven los efectos (0..4): dentro de la espiral siempre es 3
+// estaciones de cámara: 0 inicio · 1 manifiesto · 2 servicios · 3 proceso · Q0.. un rubro cada una · QPK paquetes · QLAST contacto
+const Q0 = SC.casos, QPK = Q0 + NR, QLAST = QPK + 1;
+// la "escena" que ven los efectos (0..6): dentro de la espiral siempre es la de casos
 const sceneP = (q) => (q <= Q0 ? q : q <= Q0 + NR - 1 ? Q0 : Q0 + (q - (Q0 + NR - 1)));
-const stationOf = (s) => (s < Q0 ? s : s === Q0 ? Q0 : QLAST);
+const stationOf = (s) => (s <= Q0 ? s : Q0 + NR - 1 + (s - Q0));
 // geometría de la espiral (buildPath la ajusta a la pantalla)
 const SPI = { R: 3, drop: 2, cardW: 2.3, yTop: AXIS_Y, yM: AXIS_Y - 12.5, camD: 8.7, stepA: TAU / 6 };
 // giro de la espiral: llega girando desde servicios, cada estación gira 60° y sigue girando hacia el cierre
@@ -615,9 +620,9 @@ function showRubro(j) {
     capOpen.textContent = `Ver ${r.projects.length} proyectos →`;
     capOpen.setAttribute("aria-label", `Ver los ${r.projects.length} proyectos de ${r.name}`);
   }
-  capPrev?.setAttribute("aria-label", j === 0 ? "Volver a servicios" : "Rubro anterior");
-  capNext?.setAttribute("aria-label", j === NR - 1 ? "Ir al contacto" : "Rubro siguiente");
-  if (capLive && active === 3) capLive.textContent = `${r.name}. ${r.projects.length} proyectos.`;
+  capPrev?.setAttribute("aria-label", j === 0 ? "Volver al proceso" : "Rubro anterior");
+  capNext?.setAttribute("aria-label", j === NR - 1 ? "Ir a paquetes" : "Rubro siguiente");
+  if (capLive && active === SC.casos) capLive.textContent = `${r.name}. ${r.projects.length} proyectos.`;
 }
 const stationRubro = () => clamp(Math.round(prog - Q0), 0, NR - 1);
 const settledRubro = () => (prog === to && to >= Q0 && to <= Q0 + NR - 1 ? to - Q0 : -1);   // -1 = en camino: no se abre nada
@@ -743,7 +748,7 @@ function openRubro(j, opener) {
   rpEl.classList.add("is-open");
   document.body.classList.add("rp-open");
   rpEl.inert = false; rpEl.setAttribute("aria-hidden", "false");
-  if (waFloat) waFloat.inert = true;                   // oculto con el panel: tampoco se tabula
+  waSync();                                            // oculto con el panel: tampoco se tabula
   rpEl.scrollTop = 0;
   rp.openedAt = performance.now();                    // el clic sintético de un toque no debe abrir un caso
   pushPanel(1);
@@ -765,7 +770,7 @@ function closeRubro(instant = false, via = "ui") {
   const j = rp.open;
   rp.open = -1; rp.detail = -1; rp.tile = null;
   document.body.classList.remove("rp-open");
-  if (waFloat) waFloat.inert = active === LAST || (active === 3 && narrowMQ.matches);
+  waSync();
   const hadFocus = rpEl.contains(document.activeElement);
   const done = () => {
     if (rp.open >= 0) return;                        // ya se abrió otro rubro
@@ -789,7 +794,7 @@ function closeRubro(instant = false, via = "ui") {
   // el foco regresa al pie de la espiral: se libera ya (el loop lo tenía inert mientras el panel estaba abierto)
   const o = rp.opener && rp.opener.isConnected ? rp.opener : capOpen;
   rp.opener = null;
-  if (hadFocus && o) { sections[3].inert = false; labels[3].visible = true; sections[3].style.display = ""; o.focus({ preventScroll: true }); }
+  if (hadFocus && o) { sections[SC.casos].inert = false; labels[SC.casos].visible = true; sections[SC.casos].style.display = ""; o.focus({ preventScroll: true }); }
 }
 function openDetail(k, tile) {
   const r = RUBROS[rp.open], pr = r && r.projects[k];
@@ -850,9 +855,9 @@ function closeDetail(via = "ui") {
 // tocar / hacer clic en una ficha de rubro: si es la del frente, abre sus proyectos; si no, la espiral viaja a ella.
 // En cualquier escena, un clic o toque fuera de botones y fichas suelta la explosión invisible.
 let downX = 0, downY = 0, downT = 0;
-const onUI = (e) => !!(e.target.closest && e.target.closest("button, a, input, .orbit-cap, .hud, .wa, [data-rpanel]"));
+const onUI = (e) => !!(e.target.closest && e.target.closest("button, a, input, .orbit-cap, .hud, .wa, [data-rpanel], .pk, [data-psheet], [data-psheet-veil]"));
 const cardAt = (x, y) => {
-  if (active !== 3) return null;
+  if (active !== SC.casos) return null;
   raycaster.setFromCamera(new THREE.Vector2(x / innerWidth * 2 - 1, -(y / innerHeight) * 2 + 1), camera);
   return raycaster.intersectObjects(cards.filter((m) => m.visible), false)[0] || null;
 };
@@ -947,13 +952,14 @@ const KEYS = { pos: [], look: [] };
 // ancla de cada texto: distancia frente a la cámara de su escena y desplazamiento vertical (fracción de pantalla)
 // (manifiesto y servicios se anclan en el plano de su anillo: ver buildPath)
 // (en las de anillo, oy es fracción del diámetro del anillo: servicios sube un poco porque su base es más ancha)
-const TEXT_DESK = [{ d: 11, oy: 0.28 }, { oy: 0 }, { oy: -0.04 }, { d: 9.5, oy: 0 }, { d: 13.5, oy: 0.29 }];
-const TEXT_PORT = [{ d: 14, oy: 0.17 }, { oy: 0 }, { oy: 0 }, { d: 9.5, oy: 0 }, { d: 17.5, oy: 0.28 }];
+const TEXT_DESK = [{ d: 11, oy: 0.28 }, { oy: 0 }, { oy: -0.04 }, { d: 9.5, oy: 0 }, { d: 9.5, oy: 0 }, { d: 11, oy: 0 }, { d: 13.5, oy: 0.29 }];
+const TEXT_PORT = [{ d: 14, oy: 0.17 }, { oy: 0 }, { oy: 0 }, { d: 12, oy: 0 }, { d: 9.5, oy: 0 }, { d: 13.5, oy: 0 }, { d: 17.5, oy: 0.28 }];
 // qué tanto del lado corto de la pantalla ocupa el anillo cuando llegas a su escena
 const RING_FILL = { land: 0.84, port: 0.96 };
 const mLook = new THREE.Matrix4(), qTmp = new THREE.Quaternion();
 // escala de la M y ventana lejana de los anillos: dependen del encuadre (buildPath)
 let mScale = M_S, FAR_SUN = 20, FAR_TUN = 20, mouseRef = 12;
+let procTight = false;                                   // celular: el proceso no cabe junto al WhatsApp flotante
 function buildPath() {
   const E = END_Z;
   const tanH = Math.tan(THREE.MathUtils.degToRad(BASE_FOV / 2));
@@ -979,7 +985,7 @@ function buildPath() {
   const cardH = SPI.cardW / CARD_AR;
   // la ficha del frente vive en la franja libre entre el título de casos y su pie (medidos en px):
   // cabe en ella (con aire) y se centra ahí, en cualquier pantalla
-  const el3 = sections[3], prev3 = el3.style.display;
+  const el3 = sections[SC.casos], prev3 = el3.style.display;
   el3.style.display = "";
   const hh = el3.querySelector(".cases-head").offsetHeight, ch = el3.querySelector(".orbit-cap").offsetHeight, lh = el3.offsetHeight;
   el3.style.display = prev3;
@@ -1007,16 +1013,24 @@ function buildPath() {
   const camLift = 1.1 + (bandC - d0) * (2 * SPI.camD * tanH) / H;
   floorEnd.position.y = SPI.yM - AXIS_Y;                                 // el piso del cierre, bajo la M
   const yM = SPI.yM;
-  // estaciones: inicio, manifiesto, servicios, un rubro cada una (bajando), contacto
+  const T = portrait ? TEXT_PORT : TEXT_DESK;
+  // estaciones: inicio, manifiesto, servicios, proceso, un rubro cada una (bajando), paquetes, contacto
   KEYS.pos = [V(0, portrait ? 2.3 : 2.2, k0), V(0, AXIS_Y, k1), V(0, AXIS_Y, TUNNEL_END + dTun)];
   KEYS.look = [V(0, portrait ? 0.75 : 1.15, 0), V(0, AXIS_Y, RING_Z), V(0, AXIS_Y, TUNNEL_END)];
   FOCUS = [k0, dSun, dTun];
+  // proceso: la cámara sube sobre el final del túnel, a la misma profundidad que la del primer rubro;
+  // así el paso a casos es una grúa vertical pura (en cualquier pantalla)
+  const zR1 = E + SPI.R + SPI.camD, yP = AXIS_Y + (portrait ? 4.2 : 3.4);
+  KEYS.pos.push(V(0, yP, zR1)); KEYS.look.push(V(0, yP, zR1 - T[SC.proc].d)); FOCUS.push(T[SC.proc].d);
   for (let j = 0; j < NR; j++) {
     const y = SPI.yTop - j * SPI.drop;
     KEYS.pos.push(V(0, y + camLift, E + SPI.R + SPI.camD));
     KEYS.look.push(V(0, y + camLift - pitch, E));
     FOCUS.push(SPI.camD);
   }
+  // paquetes: al pie de la espiral, un paso antes de la M, de frente y a nivel (su plano pasa donde estaba la ficha del frente)
+  const yK = yM + (portrait ? 2.0 : 1.2), PK_Z = E + 3;
+  KEYS.pos.push(V(0, yK, PK_Z + T[SC.pk].d)); KEYS.look.push(V(0, yK, PK_Z)); FOCUS.push(T[SC.pk].d);
   if (portrait) { KEYS.pos.push(V(0, yM + 0.6, E + 20.5)); KEYS.look.push(V(0, yM - 1.55 - (H < 760 ? 0.6 : 0), E)); FOCUS.push(20.5); }
   else { KEYS.pos.push(V(0, yM + 0.4, E + 16.5)); KEYS.look.push(V(0, yM - 0.95, E)); FOCUS.push(16.5); }
   posCurve = new THREE.CatmullRomCurve3(KEYS.pos, false, "centripetal");
@@ -1024,8 +1038,11 @@ function buildPath() {
   // cada texto queda de frente a la cámara de su escena, a 1:1 (nítido) cuando llegas.
   // Manifiesto y servicios viven en el plano de su anillo y su tipografía se mide con él (--ring):
   // el texto queda dentro del círculo con cualquier zoom del navegador y en cualquier pantalla.
-  const T = portrait ? TEXT_PORT : TEXT_DESK;
   const RING_AT = { 1: [SUN_R, dSun], 2: [TUN_R, dTun] };
+  // proceso y paquetes: en vertical (paquetes también en pantallas bajas) sólo lo esencial
+  sections[SC.proc].classList.toggle("is-compact", portrait);
+  sections[SC.pk].classList.toggle("is-compact", portrait || H < 620);
+  procTight = false;
   labels.forEach((o, i) => {
     const ring = RING_AT[i];
     let ringD = 0;
@@ -1046,8 +1063,10 @@ function buildPath() {
     el.style.display = "";
     const h = el.offsetHeight;
     el.style.display = prevD;
-    const top = (narrow ? (i === 3 ? 112 : 76) : 96) + SAFE_T;
-    const bottom = narrow && (i === LAST || i === 3) ? Math.max(24, SAFE_B + 14) : (narrow ? 96 : i === 0 ? 110 : 40) + SAFE_B;   // (inicio: la pista 'Desliza' va abajo)
+    // en celular: casos, proceso y paquetes dejan libre la nota del HUD (en pantallas bajas se oculta y suben)
+    const top = (narrow ? (i === SC.casos ? 112 : i === SC.proc || i === SC.pk ? (H < 620 ? 76 : 112) : 76) : 96) + SAFE_T;
+    let bottom = narrow && (i === LAST || i === SC.casos || i === SC.pk) ? Math.max(24, SAFE_B + 14) : (narrow ? 96 : i === 0 ? 110 : 40) + SAFE_B;   // (inicio: la pista 'Desliza' va abajo)
+    if (i === SC.proc && narrow && h + top + bottom > H) { procTight = true; bottom = Math.max(24, SAFE_B + 14); }   // no cabe con el WhatsApp flotante: se quita en esta escena
     // con anillo: centrado exacto y sin achicar (su tamaño ya sale del anillo), así texto, disco y anillo son concéntricos
     const fit = ring ? 1 : h > 0 ? Math.min(1, (H - top - bottom) / h) : 1;   // si no cabe, se achica un poco
     const half = (h * fit) / 2;
@@ -1057,6 +1076,49 @@ function buildPath() {
     o.quaternion.copy(qTmp);
     o.scale.setScalar(s * fit);
     o.userData.d = d;
+  });
+  anchorUI();
+}
+
+// dónde quedan en el mundo los números del proceso y las tarjetas de paquetes: ahí se arman el hilo y los marcos.
+// Se mide el layout (offset*, sin transforms) y se pasa a mundo con la pose del texto 3D (1 px CSS = escala del objeto)
+const axX = new THREE.Vector3(), axY = new THREE.Vector3(), axZ = new THREE.Vector3(), axP = new THREE.Vector3();
+function offsetIn(el, root) {
+  let x = 0, y = 0;
+  for (let n = el; n && n !== root; n = n.offsetParent) { x += n.offsetLeft; y += n.offsetTop; }
+  return [x, y];
+}
+function anchorUI() {
+  if (!particles) return;
+  const U = particles.shared;
+  const place = (i, fn) => {
+    const o = labels[i], el = sections[i], prev = el.style.display;
+    el.style.display = "";
+    axX.set(1, 0, 0).applyQuaternion(o.quaternion); axY.set(0, 1, 0).applyQuaternion(o.quaternion); axZ.set(0, 0, 1).applyQuaternion(o.quaternion);
+    const W = el.offsetWidth, H = el.offsetHeight, S = o.scale.x, base = o.userData.base || o.position;
+    fn(el, (x, y, out) => out.copy(base).addScaledVector(axX, (x - W / 2) * S).addScaledVector(axY, -(y - H / 2) * S), S);
+    el.style.display = prev;
+  };
+  place(SC.proc, (el, at, S) => {
+    const ns = [...el.querySelectorAll(".proc__n")].slice(0, 5);
+    let r = 20;
+    ns.forEach((n, k) => { const [x, y] = offsetIn(n, el); r = n.offsetWidth / 2; at(x + r, y + n.offsetHeight / 2, U.uProcN.value[k]); });
+    const R = (r + 5) * S;                                            // el anillo, 5 px por fuera del número
+    let len = 0;
+    for (let k = 0; k < 4; k++) len += Math.max(0, U.uProcN.value[k].distanceTo(U.uProcN.value[k + 1]) - 2 * R);
+    U.uProcR.value = R;
+    U.uProcSplit.value = clamp(len / (len + 5 * TAU * R), 0.25, 0.6);   // densidad pareja entre el hilo y los anillos
+    U.uProcX.value.copy(axX); U.uProcY.value.copy(axY); U.uProcZ.value.copy(axZ);
+  });
+  place(SC.pk, (el, at, S) => {
+    [...el.querySelectorAll(".pk")].slice(0, 3).forEach((c, k) => {
+      const [x, y] = offsetIn(c, el), w = c.offsetWidth, h = c.offsetHeight;
+      const rad = parseFloat(getComputedStyle(c).borderTopLeftRadius) || 18;
+      at(x + w / 2, y + h / 2, axP);
+      U.uPkC.value[k].set(axP.x, axP.y, axP.z, rad * S);
+      U.uPkH.value[k].set((w / 2 + 2) * S, (h / 2 + 2) * S, 7 * S, c.classList.contains("pk--hot") ? 1 : 0);
+    });
+    U.uPkX.value.copy(axX); U.uPkY.value.copy(axY); U.uPkZ.value.copy(axZ);
   });
 }
 
@@ -1070,6 +1132,7 @@ function resize() {
   const ps = getComputedStyle(saProbe);
   SAFE_T = parseFloat(ps.paddingTop) || 0; SAFE_B = parseFloat(ps.paddingBottom) || 0;
   portrait = w / h < 0.8;
+  document.documentElement.classList.toggle("is-short", h < 620);   // pantallas bajas: proceso y paquetes se compactan
   // el zoom del navegador cambia devicePixelRatio: sin esto, al alejar el búfer crece al cuádruple
   const dprNow = Math.min(devicePixelRatio || 1, mobile ? 1.5 : 1.75);
   if (dprNow !== DPR_MAX) { DPR_MAX = dprNow; if (DPR > DPR_MAX) applyDpr(DPR_MAX); }
@@ -1084,8 +1147,9 @@ function resize() {
   finalPass.uniforms.uRes.value.set(w, h);
   buildPath();
 }
-addEventListener("resize", resize);
+addEventListener("resize", () => { idxMenu(false); resize(); });
 resize();
+document.fonts?.ready.then(() => resize());             // con las fuentes reales cambian las medidas (y las anclas del hilo y los marcos)
 
 function applyDpr(v) {
   DPR = v;
@@ -1144,8 +1208,10 @@ function tween(kt) {
 // prog / from / to están en estaciones (0..QLAST); dentro de la espiral cada rubro es una estación
 function goQ(i) {
   i = clamp(Math.round(i), 0, QLAST);
+  idxMenu(false);
   if (i === to) return;                                 // mismo destino: no se reinicia nada
   if (rp.open >= 0) closeRubro(false, "nav");
+  if (pk.open >= 0) closePk("nav");
   const moving = prog !== to;
   from = clamp(prog, 0, QLAST); to = i; tStart = now();
   v0 = moving && !reduced ? progVel : 0;
@@ -1171,6 +1237,7 @@ const step = (dirn) => goQ(to + dirn);
 let wheelAcc = 0, lastWheel = 0, gestureUsed = false, wheelAvg = 0;
 addEventListener("wheel", (e) => {
   if (e.ctrlKey) return;                               // pellizco para zoom: se respeta
+  if (pk.open >= 0 && e.target.closest && e.target.closest("[data-psheet]")) return;   // dentro de la hoja: su propio scroll
   if (rp.open >= 0 && e.target.closest && e.target.closest("[data-rpanel]")) {        // dentro del panel: scroll normal…
     const canUp = rpEl.scrollTop > 0, canDown = rpEl.scrollTop + rpEl.clientHeight < rpEl.scrollHeight - 1;
     if ((e.deltaY < 0 && canUp) || (e.deltaY > 0 && canDown)) return;                  // …si hay para dónde; si no, cuenta como gesto
@@ -1186,23 +1253,33 @@ addEventListener("wheel", (e) => {
   lastWheel = t;
   if (gestureUsed || t < lockUntil) return;
   wheelAcc += d;
-  if (Math.abs(wheelAcc) >= 36) { gestureUsed = true; wheelAcc = 0; if (rp.open >= 0) closeRubro(); else step(Math.sign(d)); }
+  if (Math.abs(wheelAcc) >= 36) { gestureUsed = true; wheelAcc = 0; idxMenu(false); if (pk.open >= 0) closePk(); else if (rp.open >= 0) closeRubro(); else step(Math.sign(d)); }
 }, { passive: false });
 // touch: un deslizamiento de ~48 px = una escena
 let ty0 = null, touchUsed = false;
 addEventListener("touchstart", (e) => {
   // dentro del panel el dedo desplaza sus proyectos, no cambia de escena
-  ty0 = rp.open >= 0 && e.target.closest && e.target.closest("[data-rpanel]") ? null : e.touches[0].clientY;
+  // (y en la hoja de paquetes y en el índice abierto, tampoco)
+  const t = e.target.closest ? e.target : null;
+  ty0 = (rp.open >= 0 && t?.closest("[data-rpanel]")) || (pk.open >= 0 && t?.closest("[data-psheet]")) || t?.closest("[data-idx]") ? null : e.touches[0].clientY;
   touchUsed = false;
 }, { passive: true });
 addEventListener("touchmove", (e) => {
   if (ty0 === null || touchUsed || now() < lockUntil) return;
   const dy = ty0 - e.touches[0].clientY;
-  if (Math.abs(dy) > 48) { touchUsed = true; if (rp.open >= 0) closeRubro(); else step(Math.sign(dy)); }
+  if (Math.abs(dy) > 48) { touchUsed = true; idxMenu(false); if (pk.open >= 0) closePk(); else if (rp.open >= 0) closeRubro(); else step(Math.sign(dy)); }
 }, { passive: true });
 addEventListener("touchend", () => { ty0 = null; }, { passive: true });
 addEventListener("keydown", (e) => {
   if (e.target.closest && e.target.closest("input, textarea, select")) return;
+  if (pk.open >= 0) { if (e.key === "Escape") { e.preventDefault(); closePk(); } return; }   // la hoja es modal: Tab, Enter y flechas dentro
+  if (idxNav?.classList.contains("is-open")) {                                               // menú del índice (celular)
+    const k = idxBtns.indexOf(document.activeElement);
+    if (e.key === "Escape") { e.preventDefault(); idxMenu(false, true); return; }
+    const nx = { ArrowDown: k + 1, ArrowUp: k - 1, Home: 0, End: idxBtns.length - 1 }[e.key];
+    if (nx !== undefined) { e.preventDefault(); idxBtns[(nx + idxBtns.length) % idxBtns.length].focus(); return; }
+    if (k >= 0 || document.activeElement === idxToggle) return;                              // Enter / Espacio sobre el menú: el navegador
+  }
   if (e.key === "Escape" && rp.open >= 0) { e.preventDefault(); if (rp.detail >= 0) closeDetail(); else closeRubro(); return; }
   if (rp.open >= 0 && e.target.closest && e.target.closest("[data-rpanel]")) return;   // dentro del panel: Tab, Enter y flechas normales
   if (rp.open >= 0) {                                                                  // foco fuera (p. ej. tras clic en texto): desplazan el panel
@@ -1212,23 +1289,26 @@ addEventListener("keydown", (e) => {
   if (e.key === " " && e.target.closest && e.target.closest('button, a[href], summary, [tabindex]:not([tabindex="-1"])')) return;   // Espacio activa el botón enfocado
   if (e.repeat) { if ([" ", "ArrowDown", "ArrowUp", "PageDown", "PageUp"].includes(e.key)) e.preventDefault(); return; }
   // (sólo las teclas que navegan marcan la llegada con teclado: Tab y las demás no mueven el foco)
-  if (active === 3 && (e.key === "ArrowRight" || e.key === "ArrowLeft")) { e.preventDefault(); navByKey = true; step(e.key === "ArrowRight" ? 1 : -1); return; }
+  if (active === SC.casos && (e.key === "ArrowRight" || e.key === "ArrowLeft")) { e.preventDefault(); navByKey = true; step(e.key === "ArrowRight" ? 1 : -1); return; }
   if (["ArrowDown", "PageDown"].includes(e.key) || (e.key === " " && !e.shiftKey)) { e.preventDefault(); navByKey = true; step(1); }
   else if (["ArrowUp", "PageUp"].includes(e.key) || (e.key === " " && e.shiftKey)) { e.preventDefault(); navByKey = true; step(-1); }
   else if (e.key === "Home") { e.preventDefault(); navByKey = true; goTo(0); }
   else if (e.key === "End") { e.preventDefault(); navByKey = true; goQ(QLAST); }
 });
 // cada escena tiene su dirección (#casos, #contacto…): se puede compartir, y Atrás regresa a la escena anterior
-const SLUGS = ["inicio", "manifiesto", "servicios", "casos", "contacto"];
-const NAMES = ["La firma", "Manifiesto", "Servicios", "Casos", "Contacto"];
+const SLUGS = ["inicio", "manifiesto", "servicios", "proceso", "casos", "paquetes", "contacto"];
+const NAMES = ["La firma", "Manifiesto", "Servicios", "Proceso", "Casos", "Paquetes", "Contacto"];
+const LIVE_MORE = { [SC.proc]: "Cinco etapas.", [SC.pk]: "Tres paquetes, cada uno con su botón de WhatsApp." };
 let navByKey = false;                                  // al llegar con teclado, el foco pasa al titular de la escena
 function goScene(s, push) {
   if (push && SLUGS[s] && s !== Math.round(sceneP(to))) { try { history.pushState({ s }, "", s === 0 ? location.pathname + location.search : "#" + SLUGS[s]); } catch (e) {} }
   goTo(s);
 }
-document.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => goScene(+b.dataset.go, true)));
+// (con teclado, e.detail = 0: al llegar, el foco pasa al titular de la escena)
+document.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", (e) => { if (e.detail === 0) navByKey = true; goScene(+b.dataset.go, true); }));
 addEventListener("popstate", () => {
   if (ignorePop > 0) { ignorePop -= 1; return; }       // (lo consumió la propia interfaz al cerrar)
+  if (pk.open >= 0) { closePk("pop"); return; }
   if (rp.detail >= 0) { closeDetail("pop"); return; }
   if (rp.open >= 0) { closeRubro(false, "pop"); return; }
   const s = SLUGS.indexOf(location.hash.slice(1)), target = s >= 0 ? s : 0;
@@ -1258,27 +1338,101 @@ const NOTES = [
   "Diseñamos marcas, sitios<br>y contenido con intención<br>comercial. Para que tu<br>cliente te elija.",
   "Antes del diseño,<br>la decisión.",
   "Estrategia, diseño, contenido<br>y pauta en un solo equipo.",
+  "Primero entendemos tu negocio.<br>Después diseñamos.",
   "Trabajo real de branding,<br>diseño web y contenido.<br>Desde Querétaro para todo México.",
+  "El mensaje de WhatsApp<br>ya lleva el paquete elegido.",
   "Respondemos el mismo día<br>por WhatsApp."
 ];
 let active = -1;
 const waFloat = document.querySelector(".wa");
 const narrowMQ = matchMedia("(max-width: 720px)");
+// el WhatsApp flotante se quita donde ya hay botones propios (paquetes, contacto) o donde tapa
+// (casos en celular, y proceso en celular si no cabe); con un panel o la hoja abiertos tampoco se tabula
+let waOffNow = null, waInertNow = null;
+function waSync() {
+  if (!waFloat) return;
+  const off = active === LAST || active === SC.pk || (narrowMQ.matches && (active === SC.casos || (active === SC.proc && procTight)));
+  const inert = off || rp.open >= 0 || pk.open >= 0;
+  if (off !== waOffNow) { waOffNow = off; document.body.classList.toggle("wa-off", off); }
+  if (inert !== waInertNow) { waInertNow = inert; waFloat.inert = inert; }
+}
+
+/* ---------- Índice en celular: un botón con la escena actual que abre la lista ---------- */
+const idxNav = document.querySelector("[data-idx]"), idxToggle = document.querySelector("[data-idx-toggle]");
+const idxNum = document.querySelector("[data-idx-num]"), idxName = document.querySelector("[data-idx-name]");
+function idxMenu(open, focusToggle = false, byKey = false) {
+  if (!idxNav || idxNav.classList.contains("is-open") === open) return;
+  idxNav.classList.toggle("is-open", open);
+  idxToggle?.setAttribute("aria-expanded", open ? "true" : "false");
+  if (open && byKey) (idxBtns[active] || idxBtns[0])?.focus({ preventScroll: true });   // con teclado, el foco entra a la lista
+  else if (!open && focusToggle) idxToggle?.focus({ preventScroll: true });
+}
+idxToggle?.addEventListener("click", (e) => idxMenu(!idxNav.classList.contains("is-open"), false, e.detail === 0));
+idxNav?.addEventListener("focusout", (e) => { if (!idxNav.contains(e.relatedTarget)) idxMenu(false); });
+addEventListener("pointerdown", (e) => { if (idxNav?.classList.contains("is-open") && !idxNav.contains(e.target)) idxMenu(false); }, { passive: true });
+
+/* ---------- Paquetes en celular: "Qué incluye" abre una hoja con las viñetas y el mismo WhatsApp ---------- */
+const psEl = document.querySelector("[data-psheet]"), psVeil = document.querySelector("[data-psheet-veil]");
+const stageEl = document.querySelector(".stage"), hudEls = [...document.querySelectorAll(".hud")];
+const pk = { open: -1, opener: null, timer: 0 };
+function openPk(k, opener) {
+  const card = sections[SC.pk].querySelectorAll(".pk")[k];
+  if (!card || !psEl || pk.open === k) return;
+  clearTimeout(pk.timer);
+  pk.open = k; pk.opener = opener || null;
+  psEl.textContent = "";
+  const back = mk("button", "psheet__back mono", "← Paquetes");
+  back.type = "button"; back.setAttribute("aria-label", "Cerrar y volver a los paquetes");
+  back.addEventListener("click", () => closePk());
+  const top = card.querySelector(".pk__top").cloneNode(true);
+  const h = mk("h3", "", card.querySelector(".pk__name").textContent); h.id = "psheet-t"; h.tabIndex = -1;
+  const list = card.querySelector(".pk__list").cloneNode(true);
+  const cta = card.querySelector(".pk__cta").cloneNode(true);
+  cta.dataset.cta = (cta.dataset.cta || "") + "-hoja";
+  const srt = cta.querySelector(".sr-only");                          // aquí se lee completo: "Cotizar editorial por WhatsApp"
+  if (srt) { srt.remove(); const tn = [...cta.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim()); if (tn) tn.textContent = tn.textContent.trim() + " por WhatsApp"; }
+  psEl.append(back, top, h, list, cta);
+  psVeil.hidden = false;
+  psEl.classList.add("is-open");                                      // (visible ya: el foco puede entrar)
+  requestAnimationFrame(() => psVeil.classList.add("is-open"));
+  psEl.inert = false; psEl.setAttribute("aria-hidden", "false");
+  stageEl.inert = true; hudEls.forEach((e) => { e.inert = true; });   // modal: lo de atrás no se toca ni se lee
+  waSync();
+  psEl.scrollTop = 0;
+  try { history.pushState({ sheet: 1 }, ""); } catch (e) {}
+  h.focus({ preventScroll: true });
+}
+function closePk(via = "ui") {
+  if (pk.open < 0) return;
+  if (via === "ui" && history.state && history.state.sheet) { ignorePop += 1; try { history.back(); } catch (e) { ignorePop -= 1; } }
+  pk.open = -1;
+  psEl.classList.remove("is-open"); psVeil.classList.remove("is-open");
+  psEl.inert = true; psEl.setAttribute("aria-hidden", "true");
+  stageEl.inert = false; hudEls.forEach((e) => { e.inert = false; });
+  waSync();
+  pk.timer = setTimeout(() => { if (pk.open < 0) { psVeil.hidden = true; psEl.textContent = ""; } }, reduced ? 0 : 450);
+  const o = pk.opener; pk.opener = null;
+  if (via !== "nav" && o && o.isConnected) o.focus({ preventScroll: true });
+}
+psVeil?.addEventListener("click", () => closePk());
+sections[SC.pk].querySelectorAll("[data-pk-more]").forEach((b, k) => b.addEventListener("click", () => openPk(k, b)));
 try { if (sessionStorage.getItem("mv-hint")) document.documentElement.classList.add("hint-done"); } catch (e) {}
 const sceneLive = document.querySelector("[data-scene-live]");
 function setActive(a) {
   if (a === active) return;
   if (active >= 0) {
-    if (sceneLive && a === Math.round(sceneP(to))) sceneLive.textContent = `Escena ${a + 1} de ${LAST + 1}: ${NAMES[a]}`;
+    if (sceneLive && a === Math.round(sceneP(to))) sceneLive.textContent = `Escena ${a + 1} de ${LAST + 1}: ${NAMES[a]}.${LIVE_MORE[a] ? " " + LIVE_MORE[a] : ""}`;
     try { history.replaceState(history.state, "", a === 0 ? location.pathname + location.search : "#" + SLUGS[a]); } catch (e) {}
   }
   if (active === 0 && a > 0) { document.documentElement.classList.add("hint-done"); try { sessionStorage.setItem("mv-hint", "1"); } catch (e) {} }
   active = a;
-  document.body.dataset.scene = a;
-  // se esconde en contacto (ahí están los dos WhatsApp) y en casos en celular (tapaba la galería)
-  if (waFloat) waFloat.inert = a === LAST || (a === 3 && narrowMQ.matches);
-  if (a !== 3 && rp.open >= 0) closeRubro(true, "nav");
+  document.body.dataset.scene = SLUGS[a];
+  waSync();
+  if (a !== SC.casos && rp.open >= 0) closeRubro(true, "nav");
+  if (a !== SC.pk && pk.open >= 0) closePk("nav");
   idxBtns.forEach((b, i) => { if (i === a) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current"); });
+  if (idxNum) idxNum.textContent = pad2(a + 1);
+  if (idxName) idxName.textContent = NAMES[a];
   if (noteEl) noteEl.innerHTML = NOTES[a];
   if (noteM) noteM.textContent = NOTES[a].replace(/<br>/g, " ");
 }
@@ -1302,6 +1456,8 @@ const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), tmp = new THR
 const railPos = new THREE.Vector3(), cssFwd = new THREE.Vector3();
 let t0 = null, lastT = 0, mouseAmt = 0, camSpd = 0, railInit = false;
 let userMoved = false, peekT0 = -1, peekN = 0, peekV = 0, planetOff = -1, kickS = 0;
+let procFill = 0, procDone = -1, procLit = -1;
+const procSteps = [...sections[SC.proc].querySelectorAll(".proc__step")];
 // cualquier gesto cancela el asomo y adelanta la entrada del HUD
 for (const ev of ["wheel", "touchstart", "keydown", "pointerdown"]) addEventListener(ev, () => { userMoved = true; if (lifted) revealHud(); }, { passive: true, capture: true });
 
@@ -1343,7 +1499,9 @@ function frame() {
   // velocidad real de la cámara sobre su riel (u/s): de aquí sale el efecto de velocidad
   if (railInit && dt > 0) camSpd += (camPos.distanceTo(railPos) / dt - camSpd) * (1 - Math.exp(-dt * 10));
   railPos.copy(camPos); railInit = true;
-  const heroW = 1 - sm(0, 0.6, p), endW = sm(3.4, 4, p);
+  const heroW = 1 - sm(0, 0.6, p), endW = sm(LAST - 0.6, LAST, p);
+  // proceso y paquetes: sin deriva de cámara (el hilo y los marcos quedan exactos sobre sus números y tarjetas)
+  const uiLock = 1 - sm(0.12, 0.45, Math.min(Math.abs(p - SC.proc), Math.abs(p - SC.pk)));
   if (heroW > 0 && k < 1) {                                               // dolly de entrada (también para los textos)
     tmp.copy(camPos).sub(camLook).normalize().multiplyScalar(7 * (1 - k) * heroW);
     camPos.add(tmp); camPos.y += (1 - k) * 1.0 * heroW;
@@ -1353,8 +1511,8 @@ function frame() {
     const orbit = (Math.sin(t * 0.11) * (portrait ? 0.018 : 0.05) + smooth.x * 0.06) * Math.max(heroW, endW);   // en celular casi quieta: los botones no se corren
     tmp.copy(camPos).sub(camLook).applyAxisAngle(THREE.Object3D.DEFAULT_UP, orbit);
     camPos.copy(camLook).add(tmp);
-    camPos.x += smooth.x * 0.1 * (1 - Math.max(heroW, endW));
-    camPos.y += smooth.y * 0.12;
+    camPos.x += smooth.x * 0.1 * (1 - Math.max(heroW, endW)) * (1 - uiLock);
+    camPos.y += smooth.y * 0.12 * (1 - uiLock);
   }
   camera.position.copy(camPos);
   camera.lookAt(camLook);
@@ -1373,7 +1531,7 @@ function frame() {
   finalPass.uniforms.uCA.value = BASE_CA + kick * 0.003;
 
   // el estudio del inicio se apaga al salir; el del final se enciende al llegar
-  const studio = 1 - sm(0.2, 0.9, p), endStudio = sm(3.4, 4, p);
+  const studio = 1 - sm(0.2, 0.9, p), endStudio = sm(LAST - 0.6, LAST, p);
   floor.material.opacity = FLOOR_OPACITY * studio; floor.visible = studio > 0.001;
   floorEnd.material.opacity = FLOOR_OPACITY * endStudio; floorEnd.visible = endStudio > 0.001;
   beam.material.uniforms.uDim.value = studio; beam.visible = studio > 0.001;
@@ -1391,7 +1549,7 @@ function frame() {
   };
   ringDim(sun, 1, FAR_SUN);
   sun.material.uniforms.uClip.value = studio > 0.02 ? 1 : 0;
-  tunnel.forEach((r) => ringDim(r, 0.6 * sm(1.25, 1.9, p) * (1 - sm(2.45, 2.9, p)), FAR_TUN));   // al salir del túnel se apagan
+  tunnel.forEach((r) => ringDim(r, 0.6 * sm(1.25, 1.9, p) * (1 - sm(2.45, 2.9, p)), FAR_TUN));   // relevo: se apagan mientras el hilo del proceso se arma
   ringTime.value = t;
 
   // espiral de rubros: estación continua (0 = primer rubro) y giro
@@ -1406,16 +1564,29 @@ function frame() {
   // partículas: armar → anillo → túnel → armar de nuevo al final
   if (particles) {
     const U = particles.shared;
+    // la cadena: M → anillo → hélice → hilo del proceso → cinta de la espiral → marcos de paquetes → M del cierre
     U.uA.value = sm(0.05, 0.95, p);
     U.uC.value = sm(1.15, 2.1, p);
-    U.uB.value = sm(2.2, 2.95, p);         // al salir del túnel la M se construye: es el planeta de los casos
+    U.uProc.value = sm(2.05, 2.8, p);                                    // (se arma mientras el túnel se apaga: sin cuadro vacío)
+    U.uPlanet.value = sm(3.15, 3.9, p);
+    U.uPack.value = sm(4.15, 4.9, p);
+    U.uB.value = sm(5.1, 5.8, p);
+    particles.ribbon = U.uPlanet.value * (1 - U.uPack.value);             // sólo la cinta se agita con el flujo
     U.uMScale.value = mScale; U.uRingS.value = RING_S; U.uRingZ.value = RING_Z;
     U.uMouseK.value = clamp(camera.position.distanceTo(camLook) / mouseRef, 1, 1.7);   // el remolino del cursor sigue a la distancia
     U.uRot.value = reduced ? 0 : Math.sin(t * 0.23) * 0.22 + smooth.x * 0.1;
-    // casos: las partículas son la cinta de la espiral (gira con ella); en el cierre bajan y arman la M al pie
-    U.uPlanet.value = sm(2.2, 2.7, p) * (1 - sm(3.0, 3.55, p));
-    if (U.uPlanet.value > 0.001 || p < 3) planetOff = -1;
-    else if (planetOff < 0) planetOff = now();                          // cuándo se soltó la última partícula hacia la M
+    // cuándo se soltó la última partícula hacia la M del cierre (el titular de contacto la espera)
+    if (U.uB.value < 0.999 || p < SC.pk) planetOff = -1;
+    else if (planetOff < 0) planetOff = now();
+    // proceso: al asentarse, el hilo se traza del 01 al 05 (3.2 s) y después un pulso lo recorre cada 5.6 s
+    if (Math.abs(p - SC.proc) > 0.95) { procFill = 0; procDone = -1; }
+    else if (prog === to && to === SC.proc) procFill = Math.min(1, procFill + dt / 3.2);
+    if (procFill >= 1 && procDone < 0) procDone = now();
+    const fillE = reduced ? 1 : easeInOut(procFill);
+    particles.procFill = fillE;
+    particles.procPulse = reduced || procDone < 0 ? -1 : (((now() - procDone) / 1000) % 5.6) / 3.2;
+    const lit = fillE > 0 ? Math.min(5, Math.floor(fillE * 4 + 1.01)) : 0;  // cuántos números ya alcanzó el trazo
+    if (lit !== procLit) { procLit = lit; procSteps.forEach((el, k) => el.classList.toggle("is-on", k < lit)); }
     U.uSpiral.value.set(SPI.yTop + idleY, SPI.drop, SPI.R, spin);
     U.uSpiralK.value.set(SPI.stepA, NR);
     const bob = reduced ? 0 : Math.sin(t * 0.6) * 0.04;
@@ -1432,11 +1603,14 @@ function frame() {
     particles.focus = THREE.MathUtils.lerp(FOCUS[fi], FOCUS[fi + 1], ff);
     particles.reflect = Math.max(studio, endStudio);
     particles.floorY = endStudio > studio ? SPI.yM - AXIS_Y : 0;           // el reflejo del cierre, sobre su propio piso
+    waSync();
     particles.update(dt, reduced ? 0 : t);
   }
 
   // casos: las fichas de rubro en la espiral. Entran girando desde afuera, la del frente manda
-  const cIn = sm(2.3, 2.95, p), cOut = sm(3.2, 3.62, p), cVis = cIn * (1 - cOut);
+  const jumpA = Math.round(sceneP(from)), jumpB = Math.round(sceneP(to));
+  const crossC = Math.min(jumpA, jumpB) < SC.casos && Math.max(jumpA, jumpB) > SC.casos;   // salto que pasa de largo por casos
+  const cIn = sm(3.3, 3.95, p), cOut = sm(4.2, 4.62, p), cVis = crossC ? 0 : cIn * (1 - cOut);
   if (p > 1.4) loadRubroTextures();
   const cur = Math.round(sIn);
   if (cVis > 0.01) showRubro(to >= Q0 && to <= Q0 + NR - 1 ? to - Q0 : cur);   // en camino: el rubro al que vas
@@ -1474,27 +1648,26 @@ function frame() {
   cards.forEach((m, j) => { if (!m.visible) icons[j].visible = false; });
 
   // textos: aparecen al acercarte, la cámara los atraviesa al seguir
-  const jumpA = Math.round(sceneP(from)), jumpB = Math.round(sceneP(to));
   const introText = reduced ? 1 : sm(0.42, 0.62, intro);
   labels.forEach((o, i) => {
     // un texto a la vez: el que sale se va en el primer tramo y el que llega aparece al final, con su objeto ya formado.
     // Servicios vive a 3 unidades de los casos y la cámara no lo cruza: sale aún antes al avanzar.
     // Contacto espera a que la M esté armada. En saltos largos (índice) los intermedios no aparecen
-    let vis = i === 2 && p > 2 ? 1 - sm(0.04, 0.18, p - 2)
-      : i === 4 ? (1 - sm(0.12, 0.4, Math.abs(p - 4)))                  // sale como los demás…
+    let vis = i === SC.serv && p > SC.serv ? 1 - sm(0.04, 0.18, p - SC.serv)
+      : i === LAST ? (1 - sm(0.12, 0.4, Math.abs(p - LAST)))            // sale como los demás…
           * (reduced || !particles ? 1 : planetOff < 0 ? 0 : sm(0.3, 0.55, (now() - planetOff) / 1000))   // …y llega con la M ya armada
       : 1 - sm(0.12, 0.4, Math.abs(p - i));
     if (jumpA !== jumpB && Math.abs(jumpB - jumpA) >= 2 && i !== jumpA && i !== jumpB) vis = 0;
-    if (i === 3) { o.position.copy(o.userData.base); o.position.y -= SPI.drop * sIn; }   // baja con la cámara de rubro en rubro
+    if (i === SC.casos) { o.position.copy(o.userData.base); o.position.y -= SPI.drop * sIn; }   // baja con la cámara de rubro en rubro
     const ratio = tmp.copy(o.position).sub(cssCam.position).dot(cssFwd) / o.userData.d;   // 1 = a 1:1; 0.5 = al doble
-    const op = vis * sm(0.5, 0.78, ratio) * (i === 3 ? 1 - rpView : 1)   // con un rubro abierto manda el panel
+    const op = vis * sm(0.5, 0.78, ratio) * (i === SC.casos ? 1 - rpView : 1)   // con un rubro abierto manda el panel
       * (i === 0 ? introText : 1);                                        // el titular llega cuando la M ya se lee
-    const on = (i === 3 ? op / Math.max(0.001, 1 - rpView) : op) > 0.01;   // (casos: se desvanece, no se quita del DOM)
+    const on = (i === SC.casos ? op / Math.max(0.001, 1 - rpView) : op) > 0.01;   // (casos: se desvanece, no se quita del DOM)
     if (o.visible !== on) o.visible = on;
     const el = sections[i];
     const opS = op.toFixed(3);
     if (el.style.opacity !== opS) el.style.opacity = opS;
-    const inert = vis < 0.6 || (i === 3 && rp.open >= 0);                  // con el panel abierto, el pie de la espiral no se toca
+    const inert = vis < 0.6 || (i === SC.casos && rp.open >= 0);                  // con el panel abierto, el pie de la espiral no se toca
     if (el.inert !== inert) el.inert = inert;
   });
 
@@ -1518,7 +1691,7 @@ const qsScene = new URLSearchParams(location.search).get("s");
 const hashScene = SLUGS.indexOf(location.hash.slice(1));
 if (qsScene !== null) { from = to = prog = stationOf(clamp(Math.round(+qsScene) || 0, 0, LAST)); }
 else if (hashScene > 0) { from = to = prog = stationOf(hashScene); }
-if (/[?&]debug\b/.test(location.search)) window.__lab = { THREE, get dpr() { return DPR; }, renderer, scene, composer, bloom, camera, get particles() { return particles; }, goTo, goQ, openRubro, openDetail, get rp() { return rp; }, cards, SPI };
+if (/[?&]debug\b/.test(location.search)) window.__lab = { THREE, get dpr() { return DPR; }, renderer, scene, composer, bloom, camera, get particles() { return particles; }, goTo, goQ, openRubro, openDetail, get rp() { return rp; }, cards, SPI, SC, anchorUI, openPk, closePk, labels, sections };
 
 // la entrada: el telón se levanta cuando todo está listo y ahí arranca el reloj de la intro
 // (antes corría debajo del telón). Primero la M y el anillo, luego el titular, al final HUD, botón y pista
