@@ -445,7 +445,8 @@ html.is-intro .hud, html.is-intro .wa, html.is-intro .swipe-hint { opacity: 0; }
 html.wa-early body:not(.wa-off) .wa { z-index: 21; opacity: 1; animation: wa-in .5s var(--ease) both; }
 @keyframes wa-in { from { opacity: 0; transform: translateY(8px); } }
 .curtain.is-off { opacity: 0; }
-@keyframes curtain-safe { to { opacity: 0; } }
+.curtain:not(.is-off) { pointer-events: auto; }        /* bajo el telón nada se toca (el WhatsApp temprano va encima) */
+@keyframes curtain-safe { to { opacity: 0; visibility: hidden; } }
 
 /* sin WebGL / sin JS: los textos se leen como página normal */
 html:not(.is-3d) body { overflow: auto; touch-action: auto; }

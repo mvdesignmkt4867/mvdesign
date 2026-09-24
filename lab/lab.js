@@ -54,8 +54,8 @@ let DPR = Math.min(DPR_MAX, mobile ? 1.25 : 1.5);
 
 /* ---------- Renderer ---------- */
 // ?fx=0 (o tras perder el 3D sin recuperarlo en esta pestaña): la versión sin 3D, que ya es una página legible
-let flat = /[?&]fx=0\b/.test(location.search);
-try { if (sessionStorage.getItem("mv-flat")) flat = true; } catch (e) {}
+const flat = /[?&]fx=0\b/.test(location.search);
+try { sessionStorage.removeItem("mv-flat"); } catch (e) {}   // (marca de una versión anterior: ya no se usa)
 if (flat) { document.documentElement.classList.add("no-gl"); curtain.classList.add("is-off"); throw new Error("MV: versión sin 3D"); }
 let renderer;
 try {
@@ -1342,7 +1342,10 @@ const step = (dirn) => goQ(Math.round(to) + dirn);   // (entre dos fichas: desde
 let wheelAcc = 0, lastWheel = 0, gestureUsed = false, wheelAvg = 0, gestureEdge = 0, freeOver = 0, edgeHitT = 0;
 addEventListener("wheel", (e) => {
   if (e.ctrlKey) return;                               // pellizco para zoom: se respeta
-  if (!lifted) { e.preventDefault(); return; }         // con el telón arriba nada se mueve (si no, al levantarse ya ibas 2–3 escenas adelante)
+  if (!lifted) {                                       // con el telón arriba nada se mueve (si no, al levantarse ya ibas 2–3 escenas adelante)
+    e.preventDefault(); lastWheel = now(); gestureUsed = true; wheelAvg = wheelAvg * 0.75 + Math.abs(e.deltaY) * 0.25;   // (y su inercia es el mismo gesto)
+    return;
+  }
   if (pk.open >= 0 && e.target.closest && e.target.closest("[data-psheet]")) return;   // dentro de la hoja: su propio scroll
   if (idxNav?.classList.contains("is-open") && e.target.closest && e.target.closest("[data-idx]")) return;   // y dentro del menú del índice
   if (rp.open >= 0 && e.target.closest && e.target.closest("[data-rpanel]")) {        // dentro del panel: scroll normal…
@@ -1509,7 +1512,6 @@ let mailT = 0;
 mailBtn?.addEventListener("click", () => {
   try { navigator.clipboard?.writeText(MAIL).then(() => {
     mailBtn.textContent = "Correo copiado ✓";
-    if (typeof window.gtag === "function") window.gtag("event", "copy_contact", { method: "Correo", cta_location: "contacto-correo", scene: SLUGS[active] || "" });
     clearTimeout(mailT);
     mailT = setTimeout(() => { mailBtn.textContent = MAIL; }, 1800);
   }).catch(() => {}); } catch (e) {}
@@ -1533,7 +1535,7 @@ const narrowMQ = matchMedia("(max-width: 720px)");
 let waOffNow = null, waInertNow = null;
 function waSync() {
   if (!waFloat) return;
-  const off = active === LAST || active === SC.pk || (active === SC.proc && procTight) || (narrowMQ.matches && active === SC.casos);
+  const off = lifted && (active === LAST || active === SC.pk || (active === SC.proc && procTight) || (narrowMQ.matches && active === SC.casos));
   const inert = off || rp.open >= 0 || pk.open >= 0;
   if (off !== waOffNow) { waOffNow = off; document.body.classList.toggle("wa-off", off); }
   if (inert !== waInertNow) { waInertNow = inert; waFloat.inert = inert; }
@@ -1675,7 +1677,7 @@ let userMoved = false, peekT0 = -1, peekN = 0, peekV = 0, planetOff = -1, kickS 
 let procFill = 0, procDone = -1, procLit = -1, crossK = 0, hovPrev = -1, detentQ = -1, arrivedS = -1;
 const procSteps = [...sections[SC.proc].querySelectorAll(".proc__step")];
 // cualquier gesto cancela el asomo y adelanta la entrada del HUD
-for (const ev of ["wheel", "touchstart", "keydown", "pointerdown"]) addEventListener(ev, () => { userMoved = true; if (lifted) revealHud(); }, { passive: true, capture: true });
+for (const ev of ["wheel", "touchstart", "keydown", "pointerdown"]) addEventListener(ev, () => { if (!lifted) return; userMoved = true; revealHud(); }, { passive: true, capture: true });
 
 
 function frame() {
@@ -1955,8 +1957,8 @@ function glWatch() {
   clearTimeout(glLostT);
   if (glLost && document.visibilityState === "visible") glLostT = setTimeout(() => {
     if (!glLost) return;
-    try { sessionStorage.setItem("mv-flat", "1"); } catch (e) {}
-    location.reload();                                 // (arranca en la versión sin 3D; se limpia al cerrar la pestaña)
+    const u = new URL(location.href); u.searchParams.set("fx", "0");
+    location.replace(u.href);                          // (versión sin 3D en esta URL; una visita nueva vuelve a intentar el 3D)
   }, 3000);
 }
 canvas.addEventListener("webglcontextlost", (e) => { e.preventDefault(); glLost = true; glWatch(); });
@@ -1979,9 +1981,10 @@ const introEls = () => [".hud--tl", ".idx", ".hud--tr", ".hud--bl", ".wa", "[dat
 let revealed = false, liftedAt = 0;
 function revealHud() {
   if (revealed) return; revealed = true;
-  document.documentElement.classList.remove("is-intro");
+  const h = document.documentElement, early = h.classList.contains("wa-early");
+  h.classList.remove("is-intro", "wa-early");        // (el WhatsApp temprano vuelve a su capa normal: ya no flota sobre el panel)
   if (reduced) return;
-  introEls().filter((el) => !(el === waFloat && document.documentElement.classList.contains("wa-early"))).forEach((el, i) => el.animate([{ opacity: 0, translate: "0 6px" }, {}],   // {} = el valor que le toca por CSS
+  introEls().filter((el) => !(el === waFloat && early)).forEach((el, i) => el.animate([{ opacity: 0, translate: "0 6px" }, {}],   // {} = el valor que le toca por CSS
     { duration: 480, delay: i < 4 ? i * 70 : 600, easing: "cubic-bezier(.16,1,.3,1)", fill: "backwards" }));
 }
 let lifted = false;
