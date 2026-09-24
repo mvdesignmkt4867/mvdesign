@@ -10,7 +10,7 @@
   <link rel="icon" type="image/svg+xml" href="../assets/logos/mv-design-mark-color.svg" />
   <link rel="preload" href="../assets/fonts/montserrat-latin.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="preload" href="../assets/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
-  <link rel="stylesheet" href="lab.css?v=29" />
+  <link rel="stylesheet" href="lab.css?v=31" />
   <noscript><style>.curtain { display: none; }</style></noscript>
   <script type="importmap">
   {
@@ -39,6 +39,8 @@
   </aside>
 
   <nav class="hud idx" aria-label="Escenas" data-idx>
+    <!-- sonido (celular: junto al índice; en escritorio va abajo a la izquierda) -->
+    <button type="button" class="snd snd--m" data-snd aria-pressed="true" aria-label="Sonido"><span class="snd__bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span></button>
     <!-- en celular el índice es un solo botón que abre la lista (7 números no caben junto a la marca) -->
     <button class="idx__toggle mono" type="button" aria-expanded="false" aria-controls="idx-list" data-idx-toggle>
       <span class="sr-only">Índice: escena </span><span data-idx-num>01</span><span class="sr-only"> de 7:</span> <span class="idx__now" data-idx-name>La firma</span><i aria-hidden="true"></i>
@@ -243,6 +245,7 @@
   <div class="rpanel" data-rpanel role="dialog" aria-modal="false" aria-labelledby="rpanel-title" aria-hidden="true" inert></div>
 
   <footer class="hud hud--bl">
+    <button type="button" class="snd snd--d mono" data-snd aria-pressed="true"><span class="snd__bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>Sonido</span></button>
     <div class="progress" aria-hidden="true"><span data-prog></span></div>
   </footer>
 
@@ -270,6 +273,6 @@
       setTimeout(function () { if (!document.documentElement.classList.contains("is-3d")) off(); }, 4000);
     })();
   </script>
-  <script type="module" src="lab.js?v=67"></script>
+  <script type="module" src="lab.js?v=69"></script>
 </body>
 </html>

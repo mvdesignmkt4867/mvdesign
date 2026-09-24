@@ -22,6 +22,7 @@ import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { CSS3DRenderer, CSS3DObject } from "three/addons/renderers/CSS3DRenderer.js";
 import { createParticles, BLAST_GLSL, BLAST_N } from "./particles.js?v=26";
 import { ICON_DRAW } from "./rubro-icons.js?v=1";
+import { createSound } from "./sound.js?v=2";
 
 const canvas = document.querySelector("[data-gl]");
 const curtain = document.querySelector("[data-curtain]");
@@ -29,6 +30,8 @@ const curtain = document.querySelector("[data-curtain]");
 const setLoad = (v) => curtain && curtain.style.setProperty("--load", v);
 setLoad(0.4);
 const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+// sonido generado en vivo (música por escena + efectos). Suena desde el primer toque, clic o tecla
+const snd = createSound({ reduced });
 const mobile = matchMedia("(max-width: 760px), (pointer: coarse)").matches;
 // escenas (0..6): el orden del DOM, del índice y de SLUGS es éste
 const SC = { firma: 0, manif: 1, serv: 2, proc: 3, casos: 4, pk: 5, contacto: 6 };
@@ -298,6 +301,7 @@ function fireBlast(x, y) {
   BLAST.uBlastO.value[s].copy(blastRay.ray.origin);
   BLAST.uBlastD.value[s].copy(blastRay.ray.direction);
   T[s] = 0; BLAST.uBlastP.value[s] = -1;          // previo detrás del frente: el primer cuadro entrega el impulso completo
+  snd.blast();
 }
 const AU = {
   uTime: { value: 0 }, uPx: { value: DPR }, uSpeed: { value: 0 },
@@ -747,6 +751,7 @@ function popPanel(levels) {                            // cerrar desde la interf
 }
 function openRubro(j, opener) {
   if (j < 0 || j >= NR || rp.open === j) return;
+  snd.ui("open");
   clearTimeout(rp.closeTimer);
   rp.open = j; rp.detail = -1; rp.tile = null;
   rp.opener = opener || null;
@@ -773,6 +778,7 @@ function openRubro(j, opener) {
 }
 function closeRubro(instant = false, via = "ui") {
   if (rp.open < 0) return;
+  if (!instant) snd.ui("close");
   if (via === "ui") popPanel(rp.detail >= 0 ? 2 : 1);
   const j = rp.open;
   rp.open = -1; rp.detail = -1; rp.tile = null;
@@ -809,6 +815,7 @@ function openDetail(k, tile) {
   const tb = tile.getBoundingClientRect();           // antes de ocultar la rejilla y de mover el scroll
   rp.scroll = rpEl.scrollTop;
   rp.detail = k; rp.tile = tile;
+  snd.ui("open");
   pushPanel(2);
   const det = rpEl.querySelector(".rpanel__detail");
   det.getAnimations().forEach((a) => a.cancel());    // la salida anterior (fill forwards) no debe seguir aplicada
@@ -846,6 +853,7 @@ function closeDetail(via = "ui") {
   if (!det || rp.detail < 0) return;
   if (via === "ui") popPanel(1);
   rp.detail = -1; rp.tile = null;
+  snd.ui("close");
   clearTimeout(rp.hideTimer);
   rpEl.querySelectorAll(".rpanel__head, .rpanel__grid").forEach((e) => { e.inert = false; e.style.display = ""; });
   rpEl.classList.remove("has-detail");
@@ -1267,7 +1275,7 @@ const goTo = (s) => goQ(stationOf(clamp(s, 0, LAST)));   // por escena (índice,
 // siguiente / anterior estación; entre dos fichas (scroll libre), la que sigue en esa dirección
 const step = (dirn) => goQ((dirn > 0 ? Math.floor(to + 1e-3) : Math.ceil(to - 1e-3)) + dirn);
 // rueda / trackpad: se cuenta UN gesto hasta que la rueda descansa 200 ms (así la inercia no brinca escenas)
-let wheelAcc = 0, lastWheel = 0, gestureUsed = false, wheelAvg = 0, gestureEdge = 0, freeOver = 0;
+let wheelAcc = 0, lastWheel = 0, gestureUsed = false, wheelAvg = 0, gestureEdge = 0, freeOver = 0, edgeHitT = 0;
 addEventListener("wheel", (e) => {
   if (e.ctrlKey) return;                               // pellizco para zoom: se respeta
   if (pk.open >= 0 && e.target.closest && e.target.closest("[data-psheet]")) return;   // dentro de la hoja: su propio scroll
@@ -1284,6 +1292,9 @@ addEventListener("wheel", (e) => {
   if (t - lastWheel > 200) { wheelAcc = 0; gestureUsed = false; fresh = true; }
   // la inercia sólo decae: si el empuje vuelve a crecer de golpe, es un gesto nuevo
   else if (gestureUsed && t >= lockUntil && ad > Math.max(14, wheelAvg * 2.5)) { gestureUsed = false; wheelAcc = 0; fresh = true; }
+  // espiral (scroll libre): con trackpad la rueda casi nunca descansa 200 ms (la inercia se encima con el siguiente
+  // deslizamiento). En un extremo, un empuje que CRECE también es un gesto nuevo: la inercia sólo decae
+  else if (free && t - edgeHitT > 300 && edgeOf() !== 0 && ad > Math.max(12, wheelAvg * 2)) fresh = true;
   if (fresh) { gestureEdge = edgeOf(); freeOver = 0; }   // dónde empezó este gesto (para salir de la espiral)
   wheelAvg = wheelAvg * 0.75 + ad * 0.25;
   lastWheel = t;
@@ -1295,6 +1306,7 @@ addEventListener("wheel", (e) => {
     let want = (free ? to : prog) + d / FREE_PX;
     if (want > QEND || want < Q0) {
       const out = want > QEND ? 1 : -1;
+      if (!free || (out > 0 ? to < QEND : to > Q0)) edgeHitT = t;   // cuándo llegó al extremo
       if (gestureEdge === out) {
         freeOver += Math.abs(d);
         if (freeOver > 60) { gestureUsed = true; goQ(out > 0 ? QEND + 1 : Q0 - 1); return; }
@@ -1452,6 +1464,7 @@ function openPk(k, opener) {
   if (!card || !psEl || pk.open === k) return;
   clearTimeout(pk.timer);
   pk.open = k; pk.opener = opener || null;
+  snd.ui("open");
   psEl.textContent = "";
   const back = mk("button", "psheet__back mono", "← Paquetes");
   back.type = "button"; back.setAttribute("aria-label", "Cerrar y volver a los paquetes");
@@ -1478,6 +1491,7 @@ function closePk(via = "ui") {
   if (pk.open < 0) return;
   if (via === "ui" && history.state && history.state.sheet) { ignorePop += 1; try { history.back(); } catch (e) { ignorePop -= 1; } }
   pk.open = -1;
+  if (via !== "nav") snd.ui("close");
   psEl.classList.remove("is-open"); psVeil.classList.remove("is-open");
   psEl.inert = true; psEl.setAttribute("aria-hidden", "true");
   stageEl.inert = false; hudEls.forEach((e) => { e.inert = false; });
@@ -1507,7 +1521,36 @@ function setActive(a) {
   if (idxName) idxName.textContent = NAMES[a];
   if (noteEl) noteEl.innerHTML = NOTES[a];
   if (noteM) noteM.textContent = NOTES[a].replace(/<br>/g, " ");
+  snd.scene(a);                                          // la armonía se desliza al acorde de la escena
 }
+
+/* ---------- Sonido: botón, primer gesto y tic de los botones ---------- */
+const sndBtns = [...document.querySelectorAll("[data-snd]")];
+function sndUI() {
+  sndBtns.forEach((b) => { b.setAttribute("aria-pressed", snd.on ? "true" : "false"); b.classList.toggle("is-playing", snd.playing); });
+}
+snd.onChange(() => { sndUI(); setTimeout(sndUI, 400); });
+sndBtns.forEach((b) => b.addEventListener("click", () => snd.toggle()));
+// los navegadores sólo dejan sonar tras un gesto (clic, toque o tecla; la rueda no cuenta). El botón de sonido decide por sí mismo
+for (const ev of ["pointerdown", "keydown", "touchend"]) addEventListener(ev, (e) => {
+  if (e.target.closest && e.target.closest("[data-snd]")) return;
+  snd.unlock();
+}, { passive: true, capture: true });
+// mouse: bip de datos al pasar por textos; chirp en botones, enlaces y tarjetas
+const HOVER_UI = "a, button, .pk", HOVER_TXT = ".kicker, .title, .trio p, .svc-grid li, .proc__step, .pk, .orbit-cap__txt b, .rpanel__title, .det__name, .det__desc, .sub, .manifesto, .hud-sub";
+let hoverEl = null;
+addEventListener("pointerover", (e) => {
+  if (e.pointerType !== "mouse" || !e.target.closest) return;
+  const ui = e.target.closest(HOVER_UI), el = ui || e.target.closest(HOVER_TXT);
+  if (el && el !== hoverEl && !(e.relatedTarget && el.contains(e.relatedTarget))) snd.hover(ui ? "ui" : "text");
+  hoverEl = el;
+}, { passive: true });
+// clic en botones y enlaces: "piu" (el clic en el vacío ya dispara la explosión con su propio disparo)
+addEventListener("click", (e) => {
+  if (!e.target.closest || e.target.closest("[data-snd]")) return;
+  if (e.target.closest("a, button")) snd.pew();
+}, { capture: true });
+sndUI();
 
 /* ---------- Cursor: rayo en el mundo para empujar partículas ---------- */
 const ndc = new THREE.Vector2(), smooth = new THREE.Vector2(), swayT = new THREE.Vector2();
@@ -1528,7 +1571,7 @@ const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), tmp = new THR
 const railPos = new THREE.Vector3(), cssFwd = new THREE.Vector3();
 let t0 = null, lastT = 0, mouseAmt = 0, camSpd = 0, railInit = false;
 let userMoved = false, peekT0 = -1, peekN = 0, peekV = 0, planetOff = -1, kickS = 0;
-let procFill = 0, procDone = -1, procLit = -1, crossK = 0;
+let procFill = 0, procDone = -1, procLit = -1, crossK = 0, hovPrev = -1, detentQ = -1, arrivedS = -1;
 const procSteps = [...sections[SC.proc].querySelectorAll(".proc__step")];
 // cualquier gesto cancela el asomo y adelanta la entrada del HUD
 for (const ev of ["wheel", "touchstart", "keydown", "pointerdown"]) addEventListener(ev, () => { userMoved = true; if (lifted) revealHud(); }, { passive: true, capture: true });
@@ -1657,7 +1700,7 @@ function frame() {
     U.uRot.value = reduced ? 0 : Math.sin(t * 0.23) * 0.22 + smooth.x * 0.1;
     // cuándo se soltó la última partícula hacia la M del cierre (el titular de contacto la espera)
     if (p < LAST - 0.4) planetOff = -1;                                // (al salir, el titular se desvanece solo)
-    else if (planetOff < 0 && U.uB.value >= 0.999) planetOff = now();
+    else if (planetOff < 0 && U.uB.value >= 0.999) { planetOff = now(); snd.resolve(); }   // la M se armó: el acorde resuelve
     // proceso: al asentarse, el hilo se traza del 01 al 05 (3.2 s) y después un pulso lo recorre cada 5.6 s
     if (Math.abs(p - SC.proc) > 0.95) { procFill = 0; procDone = -1; }
     else if (prog === to && to === SC.proc) procFill = Math.min(1, procFill + dt / 3.2);
@@ -1666,7 +1709,10 @@ function frame() {
     particles.procFill = fillE * 1.04 - 0.02;                            // (con 1, el 05 queda completo; con 0, el 01 apagado)
     particles.procPulse = reduced || procDone < 0 ? -1 : (((now() - procDone) / 1000) % 5.6) / 3.2 - 0.15;
     const lit = fillE > 0 ? Math.min(5, Math.floor(fillE * 4 + 1.01)) : 0;  // cuántos números ya alcanzó el trazo
-    if (lit !== procLit) { procLit = lit; procSteps.forEach((el, k) => el.classList.toggle("is-on", k < lit)); }
+    if (lit !== procLit) {
+      if (lit > procLit && procLit >= 0 && !reduced) snd.note(lit - 1);   // una nota por etapa que enciende el hilo
+      procLit = lit; procSteps.forEach((el, k) => el.classList.toggle("is-on", k < lit));
+    }
     U.uSpiral.value.set(SPI.yTop + idleY, SPI.drop, SPI.R, spin);
     U.uSpiralK.value.set(SPI.stepA, NR);
     const bob = reduced ? 0 : Math.sin(t * 0.6) * 0.04;
@@ -1702,6 +1748,7 @@ function frame() {
     const hit = raycaster.intersectObjects(cards.filter((m) => m.visible), false)[0];
     if (hit) hov = hit.object.userData.i;
   }
+  if (hov !== hovPrev) { if (hov >= 0) snd.tick(); hovPrev = hov; }
   const wantCursor = hov >= 0 ? "pointer" : "";
   if (document.body.style.cursor !== wantCursor) document.body.style.cursor = wantCursor;
   cards.forEach((m) => {
@@ -1764,6 +1811,12 @@ function frame() {
   AU.uSpeed.value = kick * 2;
   finalPass.uniforms.uTime.value = t;
 
+  // sonido: el aire sigue a la cámara; al pasar cada ficha de la espiral, un clic de cristal; al llegar a otra escena, campanas
+  snd.speed(camSpd);
+  const dq = active === SC.casos && prog >= Q0 - 0.01 && prog <= QEND + 0.01 ? Math.round(prog) : -1;
+  if (dq !== detentQ) { if (dq >= 0 && detentQ >= 0) snd.detent(); detentQ = dq; }
+  if (kt >= 1 && prog === to) { const sA = Math.round(sceneP(to)); if (sA !== arrivedS) { if (arrivedS >= 0) snd.arrive(sA); arrivedS = sA; } }
+
   composer.render();
   css.render(cssScene, cssCam);
   requestAnimationFrame(frame);
@@ -1774,7 +1827,7 @@ const qsScene = new URLSearchParams(location.search).get("s");
 const hashScene = SLUGS.indexOf(location.hash.slice(1));
 if (qsScene !== null) { from = to = prog = stationOf(clamp(Math.round(+qsScene) || 0, 0, LAST)); }
 else if (hashScene > 0) { from = to = prog = stationOf(hashScene); }
-if (/[?&]debug\b/.test(location.search)) window.__lab = { THREE, get dpr() { return DPR; }, renderer, scene, composer, bloom, camera, get particles() { return particles; }, goTo, goQ, openRubro, openDetail, get rp() { return rp; }, get nav() { return { prog, to, free, lockUntil: lockUntil - now() }; }, cards, SPI, SC, anchorUI, openPk, closePk, labels, sections };
+if (/[?&]debug\b/.test(location.search)) window.__lab = { THREE, get dpr() { return DPR; }, renderer, scene, composer, bloom, camera, get particles() { return particles; }, goTo, goQ, openRubro, openDetail, get rp() { return rp; }, get nav() { return { prog, to, free, lockUntil: lockUntil - now() }; }, cards, SPI, SC, anchorUI, openPk, closePk, labels, sections, snd };
 
 // la entrada: el telón se levanta cuando todo está listo y ahí arranca el reloj de la intro
 // (antes corría debajo del telón). Primero la M y el anillo, luego el titular, al final HUD, botón y pista
