@@ -610,6 +610,6 @@ body:not([data-scene="inicio"]) .swipe-hint.is-tap { pointer-events: none; }
 /* la nota del HUD se escribe con saltos reales (el decodificado la reescribe como texto) */
 [data-note] { white-space: pre-line; }
 /* estela del cursor (solo con mouse): puntos de marca que siguen al puntero y se apagan al detenerse */
-.trail { position: fixed; inset: 0; z-index: 7; pointer-events: none; mix-blend-mode: screen; }
+.trail { position: fixed; inset: 0; z-index: 5; pointer-events: none; mix-blend-mode: screen; }
 .trail i { position: absolute; left: 0; top: 0; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; opacity: 0; will-change: transform, opacity; }
 html:not(.is-3d) .trail { display: none; }

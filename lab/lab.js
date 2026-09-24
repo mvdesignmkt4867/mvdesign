@@ -1514,15 +1514,16 @@ const decodeRuns = new WeakMap();
 function decodeText(el, text) {
   if (!el) return;
   const prev = decodeRuns.get(el); if (prev) cancelAnimationFrame(prev);
-  const flat = (x) => x.replace(/\s+/g, " ").trim();          // (mismo texto con otros saltos: sin animación)
-  if (reduced || !text || flat(el.textContent) === flat(text)) { el.textContent = text; decodeRuns.delete(el); return; }
+  const squash = (x) => x.replace(/\s+/g, " ").trim();        // (mismo texto con otros saltos: sin animación)
+  if (reduced || !text || squash(el.textContent) === squash(text)) { el.textContent = text; el.removeAttribute("aria-hidden"); decodeRuns.delete(el); return; }
+  el.setAttribute("aria-hidden", "true");                     // los lectores de pantalla no leen las letras al azar
   const t0 = performance.now(), D = 420;
   const step = () => {
     const k = Math.min(1, (performance.now() - t0) / D), n = Math.floor(k * text.length);
     let out = text.slice(0, n);
     for (let i = n; i < text.length; i++) out += /\s/.test(text[i]) ? text[i] : GLYPHS[(Math.random() * GLYPHS.length) | 0];
     el.textContent = out;
-    if (k < 1) decodeRuns.set(el, requestAnimationFrame(step)); else decodeRuns.delete(el);
+    if (k < 1) decodeRuns.set(el, requestAnimationFrame(step)); else { decodeRuns.delete(el); el.removeAttribute("aria-hidden"); }
   };
   step();
 }
@@ -1582,7 +1583,7 @@ function setActive(a) {
   if (a !== SC.casos && rp.open >= 0) closeRubro(true, "nav");
   idxBtns.forEach((b, i) => { if (i === a) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current"); });
   if (idxNum) idxNum.textContent = pad2(a + 1);
-  if (idxName) decodeText(idxName, NAMES[a]);
+  if (idxName) idxName.textContent = NAMES[a];                 // (va dentro de un botón: su nombre nunca se revuelve)
   if (noteEl) decodeText(noteEl, NOTES[a].replace(/ ?<br>/g, "\n"));
   if (noteM) decodeText(noteM, NOTES[a].replace(/ ?<br>/g, " "));
   snd.scene(a);                                          // la armonía se desliza al acorde de la escena
@@ -1705,9 +1706,9 @@ document.documentElement.addEventListener("pointerleave", () => { pointerOn = 0;
 // estela del cursor (solo con mouse y sin "reducir movimiento"): 12 puntos con el degradado de marca que siguen al
 // puntero con retraso y se apagan al detenerse o sobre la interfaz
 const TRAIL_N = 12, trailOn = !reduced && matchMedia("(hover: hover) and (pointer: fine)").matches;
-const trailEl = trailOn ? document.body.appendChild(Object.assign(document.createElement("div"), { className: "trail" })) : null;
+const trailEl = trailOn ? document.body.insertBefore(Object.assign(document.createElement("div"), { className: "trail" }), document.querySelector(".hud--tl")) : null;
 const trailDots = [], trailP = [];
-let mouseX = -100, mouseY = -100, trailA = 0;
+let mouseX = -100, mouseY = -100, mouseT = -1e9, trailA = 0, trailParked = true;
 if (trailEl) {
   trailEl.setAttribute("aria-hidden", "true");
   const cols = ["#9E43B8", "#625CD9", "#4892D9", "#2BCCD9"];
@@ -1717,12 +1718,17 @@ if (trailEl) {
     d.style.background = c; d.style.boxShadow = `0 0 8px ${c}`;
     trailDots.push(d); trailP.push({ x: -100, y: -100 });
   }
-  addEventListener("pointermove", (e) => { if (e.pointerType === "mouse") { mouseX = e.clientX; mouseY = e.clientY; } }, { passive: true });
+  addEventListener("pointermove", (e) => {
+    if (e.pointerType !== "mouse") return;                 // (dedo o lápiz en una laptop táctil: sin estela)
+    mouseX = e.clientX; mouseY = e.clientY; mouseT = now(); trailParked = false;
+    if (trailA < 0.02) for (const q of trailP) { q.x = mouseX; q.y = mouseY; }   // al volver no vuela desde donde se quedó
+  }, { passive: true });
 }
 function trailTick(dt) {
-  if (!trailEl) return;
-  const want = pointerOn && !overUI && now() - lastMove < 900 ? 1 : 0;
+  if (!trailEl || trailParked) return;
+  const want = pointerOn && !overUI && now() - mouseT < 900 ? 1 : 0;
   trailA += (want - trailA) * (1 - Math.exp(-dt * (want ? 10 : 3)));
+  if (!want && trailA < 1e-3) { trailA = 0; trailDots.forEach((d) => { d.style.opacity = "0"; }); trailParked = true; return; }
   let px = mouseX, py = mouseY;
   for (let i = 0; i < TRAIL_N; i++) {
     const q = trailP[i], k = 1 - Math.exp(-dt * (38 - i * 2.2));
