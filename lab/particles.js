@@ -30,8 +30,11 @@ uniform vec3 uProcN[5]; uniform vec3 uProcX, uProcY, uProcZ; uniform float uProc
 uniform vec4 uPkC[3]; uniform vec4 uPkH[3]; uniform vec3 uPkX, uPkY, uPkZ;
 float mvStag(float u, float s){ return smoothstep(0., 1., clamp(u * 1.6 - s * .6, 0., 1.)); }
 // lugar de cada partícula a lo largo de la cinta de la espiral (0 arriba → 1 abajo): la cinta FLUYE hacia abajo,
-// cada una a su ritmo (~0.25 rubros/s ± 25 %); al salir por abajo vuelve a entrar por arriba (el render la apaga en los extremos)
-float mvAlong(float seed, float r){ return fract(fract(seed * 7.13) + uTime * .25 * (.75 + .5 * r) / (uSpiralK.y + .9)); }
+// cada una a su ritmo (~0.25 rubros/s ± 25 %). La cinta sigue fuera de cuadro por arriba y por abajo: las partículas
+// entran desde arriba y salen por abajo sin aparecer de la nada (el regreso, apagado, también queda fuera de cuadro)
+#define SPI_UP 2.2
+#define SPI_DN 1.6
+float mvAlong(float seed, float r){ return fract(fract(seed * 7.13) + uTime * .25 * (.75 + .5 * r) / (uSpiralK.y - 1. + SPI_UP + SPI_DN)); }
 vec3 mvRotY(vec3 p, float a){ float c = cos(a), s = sin(a); return vec3(p.x * c + p.z * s, p.y, -p.x * s + p.z * c); }
 // el hilo: 4 tramos entre los anillos de los números (pick < uProcSplit) o un anillo alrededor de cada número
 vec3 mvProc(vec4 h, vec4 rg, float pick){
@@ -90,7 +93,7 @@ vec4 mvTarget(vec2 u){
   if (uPlanet > 0. && uPack < 1.) {
     // casos: TODAS forman la cinta de la espiral de rubros (por dentro de las fichas: no les pasan encima)
     // y giran con ella; posición a lo largo (la semilla, así llegan en orden), ancho y grosor con azar independiente
-    float along = aS * (uSpiralK.y + .9) - .7;                                // en rubros: un poco antes del primero y después del último
+    float along = aS * (uSpiralK.y - 1. + SPI_UP + SPI_DN) - SPI_UP;          // en rubros: desde arriba del primero hasta abajo del último
     float sa = along * uSpiralK.x + uSpiral.w + sin(uTime * .15 + along) * .06 + (fract(rg.x * .15915) - .5) * .32;   // en fase con las fichas
     float sr = uSpiral.z * (.52 + .38 * rg.w);
     vec3 spiral = vec3(uEnd.x + sin(sa) * sr, uSpiral.x - along * uSpiral.y + rg.z * 1.7, uEnd.z + cos(sa) * sr);
