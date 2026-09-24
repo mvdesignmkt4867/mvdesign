@@ -1430,6 +1430,12 @@ addEventListener("keydown", (e) => {
 // cada escena tiene su dirección (#casos, #contacto…): se puede compartir, y Atrás regresa a la escena anterior
 const SLUGS = ["inicio", "manifiesto", "servicios", "proceso", "casos", "paquetes", "contacto"];
 const NAMES = ["La firma", "Manifiesto", "Servicios", "Proceso", "Casos", "Paquetes", "Contacto"];
+// medidor de rendimiento: solo con ?perf (en producción, ?qa=1&perf para no medir en GA4/Meta)
+let perf = null;
+if (/[?&]perf\b/.test(location.search)) import("./perf.js?v=1").then((m) => {
+  perf = m.createPerf({ names: NAMES, particles: () => (particles ? particles.count : 0), getDpr: () => DPR, mobile });
+  if (lifted) perf.lifted();
+}).catch((err) => console.error(err));
 const LIVE_MORE = { [SC.proc]: "Cinco etapas.", [SC.pk]: "Tres paquetes, cada uno con su botón de WhatsApp." };
 let navByKey = false;                                  // al llegar con teclado, el foco pasa al titular de la escena
 function goScene(s, push) {
@@ -1636,6 +1642,7 @@ function frame() {
   if (t0 === null) { t0 = t; lastT = t; }
   const raw = t - lastT, dt = Math.min(0.05, raw); lastT = t;
   adaptDpr(raw, prog !== to || free && Math.abs(progVel) > 0.01);
+  if (perf) perf.tick(raw, prog !== to || (free && Math.abs(progVel) > 0.01), Math.round(sceneP(prog)), document.hidden);
   const intro = reduced ? 1 : Math.min(1, (t - t0) / 4.2);
   const k = easeOut(intro);
   smooth.lerp(swayT, 0.06);
@@ -1919,6 +1926,7 @@ function lift() {
   curtain.classList.add("is-off");
   if (covered) t0 = null;                            // la intro empieza aquí, a la vista (si el telón ya se fue, no se reinicia)
   liftedAt = now();
+  perf?.lifted();
   setTimeout(revealHud, reduced ? 0 : 2800);
 }
 if (!reduced) document.documentElement.classList.add("is-intro");
