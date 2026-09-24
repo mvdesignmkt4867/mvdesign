@@ -1758,7 +1758,6 @@ function frame() {
     const hit = raycaster.intersectObjects(cards.filter((m) => m.visible), false)[0];
     if (hit) hov = hit.object.userData.i;
   }
-  if (hov !== hovPrev) { if (hov >= 0) snd.tick(); hovPrev = hov; }
   const wantCursor = hov >= 0 ? "pointer" : "";
   if (document.body.style.cursor !== wantCursor) document.body.style.cursor = wantCursor;
   cards.forEach((m) => {
