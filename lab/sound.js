@@ -9,7 +9,6 @@
    · Brillos: tonos altos que aparecen y se desvanecen muy despacio (sin ataque: no son campanas).
    · Viajar ilumina: con la velocidad de la cámara el coro se abre y los brillos suben.
    · Sin compresor que bombee: sólo un limitador suave para los picos.
-   · Monjes: canto "Om" en re grave; cada paso del scroll es un nuevo "Om" (A → U → M) y quieto se sostiene en "Mmm".
    Efectos: vibración "Om" corta en cada clic (más grave en el vacío, con la explosión de partículas);
    onda suave con vibrato al pasar el mouse; holograma al abrir/cerrar; una onda por etapa del
    proceso; en el cierre, el coro se ilumina despacio.
@@ -33,20 +32,14 @@ const STEP_MIN = 0.9;                                 // s entre pasos (un scrol
 const CHORDS = PROG;                                  // (efectos: notas del acorde que suena)
 const SPARK = [[74, 76, 78], [74, 76, 78], [73, 76, 80], [73, 76, 78], [74, 76, 78], [73, 76, 80], [73, 78, 81]];
 const PROC_NOTES = [62, 64, 66, 69, 71];             // proceso: una onda por etapa, subiendo
-// canto "Om": la vocal pasa de A (abierta) a U y termina en M (boca cerrada). Formantes de voz grave de hombre
-const OM = {
-  a: { f: [700, 1150, 2600], g: [3.4, 2.4, 0.8], n: 0.3 },
-  u: { f: [330, 820, 2250], g: [3.2, 1.2, 0.2], n: 0.7 },
-  m: { f: [260, 700, 2200], g: [0.5, 0.08, 0.001], n: 1.6 }
-};
 const KEY = "mv-sound";
-const VOL = 0.62;
+const VOL = 0.72;
 
 export function createSound({ reduced = false } = {}) {
   let on = true;
   try { on = localStorage.getItem(KEY) !== "0"; } catch (e) {}
   let ctx = null, started = false, scene = 0, lastHover = 0, lastSpeedSet = 0, lastPew = 0, bankIdx = 0;
-  let progIdx = 0, melIdx = 0, lastStepT = -9, pendingDir = 0, stepTimer = 0, sop = null, chantAmp, chantF, chantN;
+  let progIdx = 0, melIdx = 0, lastStepT = -9, pendingDir = 0, stepTimer = 0, sop = null;
   let master, music, fx, rev, echoIn, choirIn, choirOut, sparkBus, sparkGlow, sparks, airGain;
   const banks = [];
   const listeners = new Set();
@@ -108,7 +101,7 @@ export function createSound({ reduced = false } = {}) {
     const hum = ctx.createBiquadFilter(); hum.type = "lowpass"; hum.frequency.value = 600; hum.Q.value = 0.7;
     lfo(0.05, 110, hum.frequency);                                          // respira muy lento
     const nasal = ctx.createBiquadFilter(); nasal.type = "peaking"; nasal.frequency.value = 260; nasal.Q.value = 1.1; nasal.gain.value = 5;
-    const humG = ctx.createGain(); humG.gain.value = 0.7;
+    const humG = ctx.createGain(); humG.gain.value = 1.0;
     choirIn.connect(hum); hum.connect(nasal); nasal.connect(humG); humG.connect(choirOut);
     const breathe = ctx.createGain(); breathe.gain.value = 1; lfo(0.09, 0.1, breathe.gain);   // respira muy poco (sin bajones)
     choirOut.connect(breathe); breathe.connect(music);
@@ -136,24 +129,6 @@ export function createSound({ reduced = false } = {}) {
       return o;
     });
     sop = { g: sopG, oscs: sopOscs };
-    // monjes: canto "Om" en re grave (unísono desafinado, la quinta y una voz subgrave), en el templo (reverb)
-    chantAmp = ctx.createGain(); chantAmp.gain.value = 0;
-    const cIn = ctx.createGain();
-    const cvib = ctx.createOscillator(), cvibG = ctx.createGain(); cvib.frequency.value = 4.1; cvibG.gain.value = 5; cvib.connect(cvibG); cvib.start();
-    [[38, -6, 0.08], [38, 6, 0.08], [45, 3, 0.04], [26, 0, 0.045]].forEach(([m, c, g0]) => {
-      const o = ctx.createOscillator(); o.type = "sawtooth"; o.frequency.value = mtof(m); o.detune.value = c; cvibG.connect(o.detune);
-      const g = ctx.createGain(); g.gain.value = g0; o.connect(g); g.connect(cIn); o.start();
-    });
-    chantF = [0, 1, 2].map((k) => {
-      const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.Q.value = [6, 8, 10][k]; bp.frequency.value = OM.m.f[k];
-      const g = ctx.createGain(); g.gain.value = OM.m.g[k];
-      cIn.connect(bp); bp.connect(g); g.connect(chantAmp);
-      return { bp, g };
-    });
-    const nas = ctx.createBiquadFilter(); nas.type = "lowpass"; nas.frequency.value = 380; nas.Q.value = 0.7;
-    chantN = ctx.createGain(); chantN.gain.value = OM.m.n;
-    cIn.connect(nas); nas.connect(chantN); chantN.connect(chantAmp);
-    chantAmp.connect(music);
     // pedal de re, muy suave y quieto (calidez sin peso)
     // el zumbido del universo: re grave y muy grave, que vibran despacio (pares apenas desafinados)
     [[38, 0, 0.034], [38, 0.21, 0.02], [45, 0, 0.012], [26, 0, 0.026], [26, 0.13, 0.014]].forEach(([m, beat, gain]) => {
@@ -199,24 +174,7 @@ export function createSound({ reduced = false } = {}) {
     choirOut.gain.linearRampToValueAtTime(1, now + 5);
     banks[0].g.gain.setValueAtTime(1, now);
     setScene(scene, true);
-    sop.g.gain.setValueAtTime(0, now); sop.g.gain.linearRampToValueAtTime(0.6, now + 7);   // la línea de zumbido entra después
-    chantAmp.gain.setValueAtTime(0, now); chantAmp.gain.linearRampToValueAtTime(1, now + 3);
-    om(now + 0.4);                                           // el primer "Om"
-  }
-  // un "Om": nueva respiración, la vocal abre en A, pasa por U y se cierra en M (ahí se sostiene)
-  function vowelTo(v, t, tc) {
-    chantF.forEach(({ bp, g }, k) => { bp.frequency.setTargetAtTime(v.f[k], t, tc); g.gain.setTargetAtTime(v.g[k], t, tc); });
-    chantN.gain.setTargetAtTime(v.n, t, tc);
-  }
-  function om(t) {
-    chantF.forEach(({ bp, g }) => { bp.frequency.cancelScheduledValues(t); g.gain.cancelScheduledValues(t); });
-    chantN.gain.cancelScheduledValues(t);
-    vowelTo(OM.a, t, 0.12);
-    vowelTo(OM.u, t + 1.1, 0.35);
-    vowelTo(OM.m, t + 2.2, 0.5);
-    chantAmp.gain.cancelScheduledValues(t);
-    chantAmp.gain.setTargetAtTime(0.55, t, 0.06);
-    chantAmp.gain.setTargetAtTime(1, t + 0.12, 0.35);
+    sop.g.gain.setValueAtTime(0, now); sop.g.gain.linearRampToValueAtTime(1, now + 7);   // la soprano entra después del coro
   }
   // el coro cambia de acorde (fundido cruzado entre bancos: ninguna voz desliza su tono)
   function choirTo(chord, now) {
@@ -242,7 +200,6 @@ export function createSound({ reduced = false } = {}) {
     const c = Math.floor(melIdx / 2);
     if (c !== progIdx) { progIdx = c; choirTo(PROG[progIdx], now); }
     sing(MELODY[melIdx], now + 0.05);
-    om(now);                                                 // cada paso del scroll: un nuevo "Om"
     lastStepT = now;
   }
   function stepMusic(dir) {
