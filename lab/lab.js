@@ -20,7 +20,7 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { CSS3DRenderer, CSS3DObject } from "three/addons/renderers/CSS3DRenderer.js";
-import { createParticles, BLAST_GLSL, BLAST_N } from "./particles.js?v=25";
+import { createParticles, BLAST_GLSL, BLAST_N } from "./particles.js?v=26";
 import { ICON_DRAW } from "./rubro-icons.js?v=1";
 
 const canvas = document.querySelector("[data-gl]");
@@ -953,7 +953,15 @@ const labels = sections.map((el) => {
 
 /* ---------- Recorrido de cámara: un punto clave por escena ---------- */
 let portrait = false, BASE_FOV = 28;
-let posCurve, lookCurve, FOCUS = [];
+let posCurve, lookCurve, posA, lookA, FOCUS = [];
+// la cámara en la estación q: hasta servicios usa una curva aparte con las claves de antes (su siguiente clave
+// era el primer rubro), así el vuelo aprobado manifiesto → servicios no cambia por la estación nueva de proceso
+function camAt(q, outPos, outLook) {
+  q = clamp(q, 0, QLAST);
+  if (q <= SC.serv) { posA.getPoint(q / 3, outPos); if (outLook) lookA.getPoint(q / 3, outLook); }
+  else { posCurve.getPoint(q / QLAST, outPos); if (outLook) lookCurve.getPoint(q / QLAST, outLook); }
+  return outPos;
+}
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const KEYS = { pos: [], look: [] };
 // ancla de cada texto: distancia frente a la cámara de su escena y desplazamiento vertical (fracción de pantalla)
@@ -1042,6 +1050,8 @@ function buildPath() {
   else { KEYS.pos.push(V(0, yM + 0.4, E + 16.5)); KEYS.look.push(V(0, yM - 0.95, E)); FOCUS.push(16.5); }
   posCurve = new THREE.CatmullRomCurve3(KEYS.pos, false, "centripetal");
   lookCurve = new THREE.CatmullRomCurve3(KEYS.look, false, "centripetal");
+  posA = new THREE.CatmullRomCurve3([...KEYS.pos.slice(0, 3), KEYS.pos[Q0]], false, "centripetal");
+  lookA = new THREE.CatmullRomCurve3([...KEYS.look.slice(0, 3), KEYS.look[Q0]], false, "centripetal");
   // cada texto queda de frente a la cámara de su escena, a 1:1 (nítido) cuando llegas.
   // Manifiesto y servicios viven en el plano de su anillo y su tipografía se mide con él (--ring):
   // el texto queda dentro del círculo con cualquier zoom del navegador y en cualquier pantalla.
@@ -1073,7 +1083,7 @@ function buildPath() {
     // en celular: casos, proceso y paquetes dejan libre la nota del HUD (en pantallas bajas se oculta y suben)
     const top = (narrow ? (i === SC.casos ? 112 : i === SC.proc || i === SC.pk ? (H < 620 ? 76 : 112) : 76) : 96) + SAFE_T;
     let bottom = narrow && (i === LAST || i === SC.casos || i === SC.pk) ? Math.max(24, SAFE_B + 14) : (narrow ? 96 : i === 0 ? 110 : 40) + SAFE_B;   // (inicio: la pista 'Desliza' va abajo)
-    if (i === SC.proc && narrow && h + top + bottom > H) { procTight = true; bottom = Math.max(24, SAFE_B + 14); }   // no cabe con el WhatsApp flotante: se quita en esta escena
+    if (i === SC.proc && ((narrow && h + top + bottom > H) || (!portrait && H < 620))) { procTight = true; bottom = Math.max(24, SAFE_B + 14); }   // no cabe con el WhatsApp flotante: se quita en esta escena
     // con anillo: centrado exacto y sin achicar (su tamaño ya sale del anillo), así texto, disco y anillo son concéntricos
     const fit = ring ? 1 : h > 0 ? Math.min(1, (H - top - bottom) / h) : 1;   // si no cabe, se achica un poco
     const half = (h * fit) / 2;
@@ -1118,12 +1128,15 @@ function anchorUI() {
     U.uProcX.value.copy(axX); U.uProcY.value.copy(axY); U.uProcZ.value.copy(axZ);
   });
   place(SC.pk, (el, at, S) => {
+    const g = el.querySelector(".pk-grid"), cs = g ? getComputedStyle(g) : null;
+    const gap = cs ? Math.min(parseFloat(cs.rowGap) || 20, parseFloat(cs.columnGap) || 20) : 20;
+    const thick = Math.min(7, Math.max(2, gap / 2 - 3));             // dos marcos vecinos no se funden en el hueco
     [...el.querySelectorAll(".pk")].slice(0, 3).forEach((c, k) => {
       const [x, y] = offsetIn(c, el), w = c.offsetWidth, h = c.offsetHeight;
       const rad = parseFloat(getComputedStyle(c).borderTopLeftRadius) || 18;
       at(x + w / 2, y + h / 2, axP);
       U.uPkC.value[k].set(axP.x, axP.y, axP.z, rad * S);
-      U.uPkH.value[k].set((w / 2 + 2) * S, (h / 2 + 2) * S, 7 * S, c.classList.contains("pk--hot") ? 1 : 0);
+      U.uPkH.value[k].set((w / 2 + 2) * S, (h / 2 + 2) * S, thick * S, c.classList.contains("pk--hot") ? 1 : 0);
     });
     U.uPkX.value.copy(axX); U.uPkY.value.copy(axY); U.uPkZ.value.copy(axZ);
   });
@@ -1235,8 +1248,8 @@ function goQ(i) {
   // la duración sigue a la distancia real de la cámara: tramos cortos ágiles, largos sin prisa (ni eternos)
   const hops = Math.abs(to - Math.round(from));        // por estaciones enteras: dos gestos encadenados no cuentan como salto
   let arc = 0;
-  for (let s = 0, a = posCurve.getPoint(clamp(from, 0, QLAST) / QLAST, tmp2); s < 24; s++) {
-    const b = posCurve.getPoint(clamp(from + (to - from) * (s + 1) / 24, 0, QLAST) / QLAST, tmp3);
+  for (let s = 0, a = camAt(from, tmp2); s < 24; s++) {
+    const b = camAt(from + (to - from) * (s + 1) / 24, tmp3);
     arc += a.distanceTo(b); a.copy(b);
   }
   dur = reduced ? 0 : hops <= 1 ? clamp(1.05 + 0.04 * arc, 1.15, 1.85) : clamp(1.3 + 0.025 * arc, 1.6, 2.6);
@@ -1258,6 +1271,7 @@ let wheelAcc = 0, lastWheel = 0, gestureUsed = false, wheelAvg = 0, gestureEdge 
 addEventListener("wheel", (e) => {
   if (e.ctrlKey) return;                               // pellizco para zoom: se respeta
   if (pk.open >= 0 && e.target.closest && e.target.closest("[data-psheet]")) return;   // dentro de la hoja: su propio scroll
+  if (idxNav?.classList.contains("is-open") && e.target.closest && e.target.closest("[data-idx]")) return;   // y dentro del menú del índice
   if (rp.open >= 0 && e.target.closest && e.target.closest("[data-rpanel]")) {        // dentro del panel: scroll normal…
     const canUp = rpEl.scrollTop > 0, canDown = rpEl.scrollTop + rpEl.clientHeight < rpEl.scrollHeight - 1;
     if ((e.deltaY < 0 && canUp) || (e.deltaY > 0 && canDown)) return;                  // …si hay para dónde; si no, cuenta como gesto
@@ -1334,7 +1348,7 @@ addEventListener("keydown", (e) => {
   if (idxNav?.classList.contains("is-open")) {                                               // menú del índice (celular)
     const k = idxBtns.indexOf(document.activeElement);
     if (e.key === "Escape") { e.preventDefault(); idxMenu(false, true); return; }
-    const nx = { ArrowDown: k + 1, ArrowUp: k - 1, Home: 0, End: idxBtns.length - 1 }[e.key];
+    const nx = { ArrowDown: k + 1, ArrowUp: k < 0 ? idxBtns.length - 1 : k - 1, Home: 0, End: idxBtns.length - 1 }[e.key];
     if (nx !== undefined) { e.preventDefault(); idxBtns[(nx + idxBtns.length) % idxBtns.length].focus(); return; }
     if (k >= 0 || document.activeElement === idxToggle) return;                              // Enter / Espacio sobre el menú: el navegador
   }
@@ -1409,7 +1423,7 @@ const narrowMQ = matchMedia("(max-width: 720px)");
 let waOffNow = null, waInertNow = null;
 function waSync() {
   if (!waFloat) return;
-  const off = active === LAST || active === SC.pk || (narrowMQ.matches && (active === SC.casos || (active === SC.proc && procTight)));
+  const off = active === LAST || active === SC.pk || (active === SC.proc && procTight) || (narrowMQ.matches && active === SC.casos);
   const inert = off || rp.open >= 0 || pk.open >= 0;
   if (off !== waOffNow) { waOffNow = off; document.body.classList.toggle("wa-off", off); }
   if (inert !== waInertNow) { waInertNow = inert; waFloat.inert = inert; }
@@ -1514,7 +1528,7 @@ const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), tmp = new THR
 const railPos = new THREE.Vector3(), cssFwd = new THREE.Vector3();
 let t0 = null, lastT = 0, mouseAmt = 0, camSpd = 0, railInit = false;
 let userMoved = false, peekT0 = -1, peekN = 0, peekV = 0, planetOff = -1, kickS = 0;
-let procFill = 0, procDone = -1, procLit = -1;
+let procFill = 0, procDone = -1, procLit = -1, crossK = 0;
 const procSteps = [...sections[SC.proc].querySelectorAll(".proc__step")];
 // cualquier gesto cancela el asomo y adelanta la entrada del HUD
 for (const ev of ["wheel", "touchstart", "keydown", "pointerdown"]) addEventListener(ev, () => { userMoved = true; if (lifted) revealHud(); }, { passive: true, capture: true });
@@ -1561,8 +1575,7 @@ function frame() {
     if (e >= 1.6) { peekT0 = -1; peekN++; }
   }
   peekV = userMoved ? peekV * Math.exp(-dt * 8) : peek;                   // un gesto lo cancela sin brinco
-  posCurve.getPoint(clamp(q + peekV, 0, QLAST) / QLAST, camPos);
-  lookCurve.getPoint(clamp(q + peekV, 0, QLAST) / QLAST, camLook);
+  camAt(q + peekV, camPos, camLook);
   // velocidad real de la cámara sobre su riel (u/s): de aquí sale el efecto de velocidad
   if (railInit && dt > 0) camSpd += (camPos.distanceTo(railPos) / dt - camSpd) * (1 - Math.exp(-dt * 10));
   railPos.copy(camPos); railInit = true;
@@ -1643,15 +1656,15 @@ function frame() {
     U.uMouseK.value = clamp(camera.position.distanceTo(camLook) / mouseRef, 1, 1.7);   // el remolino del cursor sigue a la distancia
     U.uRot.value = reduced ? 0 : Math.sin(t * 0.23) * 0.22 + smooth.x * 0.1;
     // cuándo se soltó la última partícula hacia la M del cierre (el titular de contacto la espera)
-    if (U.uB.value < 0.999 || p < SC.pk) planetOff = -1;
-    else if (planetOff < 0) planetOff = now();
+    if (p < LAST - 0.4) planetOff = -1;                                // (al salir, el titular se desvanece solo)
+    else if (planetOff < 0 && U.uB.value >= 0.999) planetOff = now();
     // proceso: al asentarse, el hilo se traza del 01 al 05 (3.2 s) y después un pulso lo recorre cada 5.6 s
     if (Math.abs(p - SC.proc) > 0.95) { procFill = 0; procDone = -1; }
     else if (prog === to && to === SC.proc) procFill = Math.min(1, procFill + dt / 3.2);
     if (procFill >= 1 && procDone < 0) procDone = now();
     const fillE = reduced ? 1 : easeInOut(procFill);
-    particles.procFill = fillE;
-    particles.procPulse = reduced || procDone < 0 ? -1 : (((now() - procDone) / 1000) % 5.6) / 3.2;
+    particles.procFill = fillE * 1.04 - 0.02;                            // (con 1, el 05 queda completo; con 0, el 01 apagado)
+    particles.procPulse = reduced || procDone < 0 ? -1 : (((now() - procDone) / 1000) % 5.6) / 3.2 - 0.15;
     const lit = fillE > 0 ? Math.min(5, Math.floor(fillE * 4 + 1.01)) : 0;  // cuántos números ya alcanzó el trazo
     if (lit !== procLit) { procLit = lit; procSteps.forEach((el, k) => el.classList.toggle("is-on", k < lit)); }
     U.uSpiral.value.set(SPI.yTop + idleY, SPI.drop, SPI.R, spin);
@@ -1677,7 +1690,8 @@ function frame() {
   // casos: las fichas de rubro en la espiral. Entran girando desde afuera, la del frente manda
   const jumpA = Math.round(sceneP(from)), jumpB = Math.round(sceneP(to));
   const crossC = Math.min(jumpA, jumpB) < SC.casos && Math.max(jumpA, jumpB) > SC.casos;   // salto que pasa de largo por casos
-  const cIn = sm(3.3, 3.95, p), cOut = sm(4.2, 4.62, p), cVis = crossC ? 0 : cIn * (1 - cOut);
+  if (crossC) crossK = 1; else crossK *= Math.exp(-dt * 6);
+  const cIn = sm(3.3, 3.95, p), cOut = sm(4.2, 4.62, p), cVis = cIn * (1 - cOut) * (1 - crossK);
   if (p > 1.4) loadRubroTextures();
   const cur = Math.round(sIn);
   if (cVis > 0.01) showRubro(to >= Q0 - 0.5 && to <= QEND + 0.5 ? nearestRubro() : cur);   // en camino: el rubro al que vas
@@ -1724,7 +1738,9 @@ function frame() {
       : i === LAST ? (1 - sm(0.12, 0.4, Math.abs(p - LAST)))            // sale como los demás…
           * (reduced || !particles ? 1 : planetOff < 0 ? 0 : sm(0.3, 0.55, (now() - planetOff) / 1000))   // …y llega con la M ya armada
       : 1 - sm(0.12, 0.4, Math.abs(p - i));
-    if (jumpA !== jumpB && Math.abs(jumpB - jumpA) >= 2 && i !== jumpA && i !== jumpB) vis = 0;
+    const mid = jumpA !== jumpB && Math.abs(jumpB - jumpA) >= 2 && i !== jumpA && i !== jumpB;
+    o.userData.midK = mid ? 0 : (o.userData.midK ?? 1) + (1 - (o.userData.midK ?? 1)) * (1 - Math.exp(-dt * 6));
+    vis *= o.userData.midK;
     if (i === SC.casos) { o.position.copy(o.userData.base); o.position.y -= SPI.drop * sIn; }   // baja con la cámara de rubro en rubro
     const ratio = tmp.copy(o.position).sub(cssCam.position).dot(cssFwd) / o.userData.d;   // 1 = a 1:1; 0.5 = al doble
     const op = vis * sm(0.5, 0.78, ratio) * (i === SC.casos ? 1 - rpView : 1)   // con un rubro abierto manda el panel

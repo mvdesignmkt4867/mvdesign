@@ -196,7 +196,10 @@ void main(){
   vec3 dn = dv / max(dist, 1e-3);
   acc += dn * fm * 30. + cross(uRayD, dn) * fm * 11.;
   vel += acc * uDt;
-  vel *= exp(-uDt * mix(3.2, 7.2, rel));                                     // amortiguado: un poco de rebote
+  // amortiguado: un poco de rebote; hacia el hilo y los marcos (formas delgadas), crítico: se arman sin deshacerse y rehacerse
+  vec4 rgD = texture2D(tRing, u), hxD = texture2D(tHelix, u);
+  float wD = max(mvStag(uProc, rgD.w) * (1. - mvStag(uPlanet, mvAlong(seed, rgD.w))), mvStag(uPack, hxD.w) * (1. - mvStag(uB, 1. - seed)));
+  vel *= exp(-uDt * mix(3.2, mix(7.2, 10.5, wD), rel));
   // clic: se dispersan y el resorte las regresa. Se mide desde su lugar de reposo: un solo impulso, igual a 60 o 120 Hz
   vel += mvBlastKick(mix(pos, tg.xyz, 1. - tg.w), seed) * rel;
   gl_FragColor = vec4(vel, 1.);
@@ -266,7 +269,7 @@ void main(){
   if (wP > 0.) {
     vC = mix(vC, mvGrad(along) * 1.35, wP);
     vA *= mix(1., mix(.35, 1., smoothstep(along - .02, along + .02, uProcFill)), wP);   // el trazo se dibuja del 01 al 05
-    if (uProcPulse >= 0.) gl_PointSize *= 1. + .8 * wP * exp(-pow((along - uProcPulse) / .035, 2.));   // pulso de tamaño, no de brillo
+    if (uProcPulse > -.5) { float dq = (along - uProcPulse) / .035; gl_PointSize *= 1. + .8 * wP * exp(-dq * dq); }   // pulso de tamaño, no de brillo
   }
   if (wK > 0.) vC = mix(vC, mvGrad(abs(fract(rgs.w) * 2. - 1.)) * 1.35, wK);
   gl_PointSize *= mix(1., .7, clamp(wP + wK, 0., 1.));                          // líneas finas
