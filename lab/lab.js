@@ -139,9 +139,9 @@ scene.add(floorEnd);
 floor.renderOrder = floorEnd.renderOrder = -1;
 floor.material.depthWrite = floorEnd.material.depthWrite = false;   // no corta los brillos con un filo duro
 
-// niebla por escena: inicio · manifiesto (violeta) · servicios (azul) · proceso (petróleo) · casos · contacto (violeta hondo)
-const SCENE_BG = ["#07070B", "#09071A", "#060916", "#060B12", "#08070F", "#08071A"].map((c) => new THREE.Color(c));
-const SCENE_FOG = ["#0B0A16", "#0E0A22", "#0A0E20", "#0A1019", "#0C0A17", "#0D0A22"].map((c) => new THREE.Color(c));
+// niebla por escena: inicio · manifiesto (violeta) · servicios (azul) · proceso (petróleo) · casos · contacto (el negro limpio del inicio)
+const SCENE_BG = ["#07070B", "#09071A", "#060916", "#060B12", "#08070F", "#07070B"].map((c) => new THREE.Color(c));
+const SCENE_FOG = ["#0B0A16", "#0E0A22", "#0A0E20", "#0A1019", "#0C0A17", "#0B0A16"].map((c) => new THREE.Color(c));
 
 /* ---------- Anillos de luz: el eclipse y el túnel ---------- */
 const ringGeo = new THREE.PlaneGeometry(7.2, 7.2);
@@ -149,11 +149,11 @@ const ringTime = { value: 0 };
 function makeRing(off = 0, glow = 1, clip = 0) {
   return new THREE.Mesh(ringGeo, new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, fog: false, toneMapped: false, blending: THREE.AdditiveBlending,
-    uniforms: { uTime: ringTime, uDim: { value: 1 }, uOff: { value: off }, uGlow: { value: glow }, uClip: { value: clip }, uHot: { value: 1 }, uEdge: { value: 1 }, uFloorY: { value: 0 } },
+    uniforms: { uTime: ringTime, uDim: { value: 1 }, uOff: { value: off }, uGlow: { value: glow }, uClip: { value: clip }, uHot: { value: 1 }, uEdge: { value: 1 } },
     vertexShader: `varying vec2 vUv; varying float vWY;
       void main(){ vUv = uv; vWY = (modelMatrix * vec4(position, 1.)).y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }`,
     fragmentShader: `
-      uniform float uTime; uniform float uDim; uniform float uOff; uniform float uGlow; uniform float uClip; uniform float uHot; uniform float uEdge; uniform float uFloorY; varying vec2 vUv; varying float vWY;
+      uniform float uTime; uniform float uDim; uniform float uOff; uniform float uGlow; uniform float uClip; uniform float uHot; uniform float uEdge; varying vec2 vUv; varying float vWY;
       void main(){
         vec2 p = (vUv - .5) * 2.;                 // el plano mide 7.2: radio del anillo ≈ 2.3
         float r = length(p);
@@ -173,7 +173,7 @@ function makeRing(off = 0, glow = 1, clip = 0) {
         float inner = smoothstep(R, R - .5, r) * .05;           // velo tenue adentro
         float fade = smoothstep(1., .82, r);
         // el eclipse se hunde suave en el piso (+1) y su reflejo sólo existe debajo (-1)
-        float clipK = uClip == 0. ? 1. : smoothstep(-.05, .3, (vWY - uFloorY) * uClip);
+        float clipK = uClip == 0. ? 1. : smoothstep(-.05, .3, vWY * uClip);
         gl_FragColor = vec4((c * (ring * 2.2 + (halo + corona + inner) * uGlow)) * fade * uDim * clipK, 1.);
       }`
   }));
@@ -200,17 +200,6 @@ for (let i = 1; i <= TUNNEL_N; i++) {       // túnel más ancho y más separado
   r.userData.depthK = [1, 0.8, 0.62, 0.5, 1][i - 1];                              // más tenues hacia el fondo (el último, pleno)
   scene.add(r); tunnel.push(r);
 }
-
-// el cierre repite la firma: eclipse, su reflejo y el horizonte detrás de la M de contacto (buildPath los coloca)
-const sunEnd = makeRing(0, 1, 1);
-sunEnd.scale.setScalar(RING_S); sunEnd.material.uniforms.uHot.value = 0; sunEnd.visible = false;
-scene.add(sunEnd);
-const mirrorEnd = new THREE.Group();
-mirrorEnd.scale.y = -1;
-scene.add(mirrorEnd);
-const sunEndMirror = makeRing(0, 1, -1);
-sunEndMirror.scale.setScalar(RING_S); sunEndMirror.material.uniforms.uHot.value = 0; sunEndMirror.renderOrder = -2; sunEndMirror.visible = false;
-mirrorEnd.add(sunEndMirror);
 
 /* ---------- Haz de luz de estudio (volumétrico falso) ---------- */
 const beam = new THREE.Mesh(
@@ -256,9 +245,6 @@ const horizon = new THREE.Mesh(
 );
 horizon.position.set(0, 2.6, -24);
 scene.add(horizon);
-const horizonEnd = new THREE.Mesh(horizon.geometry, horizon.material.clone());   // (buildPath lo pone detrás del cierre)
-horizonEnd.visible = false;
-scene.add(horizonEnd);
 // un mundo, una luz: entre el inicio y los casos el horizonte sigue al fondo, tenue (lo acompaña la cámara a 30 u)
 const horizonFar = new THREE.Mesh(horizon.geometry, horizon.material.clone());
 horizonFar.visible = false;
@@ -1075,12 +1061,6 @@ function buildPath() {
   const d0 = cardY(1.1);
   const camLift = 1.1 + (bandC - d0) * (2 * SPI.camD * tanH) / H;
   floorEnd.position.y = SPI.yM - AXIS_Y;                                 // el piso del cierre, bajo la M
-  // la firma del cierre: el eclipse a la misma distancia detrás de la M que en el inicio, su reflejo y el horizonte
-  const fY = floorEnd.position.y;
-  sunEnd.position.set(0, SPI.yM, END_Z + RING_Z); sunEnd.material.uniforms.uFloorY.value = fY;
-  mirrorEnd.position.y = 2 * fY;
-  sunEndMirror.position.copy(sunEnd.position); sunEndMirror.material.uniforms.uFloorY.value = fY;
-  horizonEnd.position.set(0, fY + 2.6, END_Z - 24);
   const yM = SPI.yM;
   const T = portrait ? TEXT_PORT : TEXT_DESK;
   // estaciones: inicio, manifiesto, servicios, proceso, un rubro cada una (bajando), paquetes, contacto
@@ -1726,7 +1706,7 @@ if (trailEl) {
 }
 function trailTick(dt) {
   if (!trailEl || trailParked) return;
-  const want = pointerOn && !overUI && now() - mouseT < 900 ? 1 : 0;
+  const want = pointerOn && !overUI && active !== SC.contacto && now() - mouseT < 900 ? 1 : 0;   // (el cierre queda limpio)
   trailA += (want - trailA) * (1 - Math.exp(-dt * (want ? 10 : 3)));
   if (!want && trailA < 1e-3) { trailA = 0; trailDots.forEach((d) => { d.style.opacity = "0"; }); trailParked = true; return; }
   let px = mouseX, py = mouseY;
@@ -1856,11 +1836,6 @@ function frame() {
     const ph = ((t * 1.2 - i * 0.35) % 3.2 + 3.2) % 3.2, pulse = reduced ? 0 : 0.5 * Math.exp(-((ph / 0.12) ** 2));
     r.material.uniforms.uDim.value *= r.userData.depthK * (1 + pulse);
   });
-  // el cierre: eclipse (con un respiro al armarse la M), reflejo tenue donde caen los botones y el horizonte
-  const breath = planetOff < 0 || reduced ? 0 : Math.sin(Math.PI * clamp((now() - planetOff) / 1800, 0, 1));
-  sunEnd.material.uniforms.uDim.value = 0.8 * endStudio * (1 + 0.3 * breath); sunEnd.visible = endStudio > 0.001;
-  sunEndMirror.material.uniforms.uDim.value = 0.15 * endStudio; sunEndMirror.visible = endStudio > 0.001;
-  horizonEnd.material.uniforms.uDim.value = 0.8 * endStudio; horizonEnd.visible = endStudio > 0.001;
   // un mundo, una luz: el horizonte sigue tenue al fondo en manifiesto, servicios y proceso
   const farK = 0.35 * sm(0.4, 1, p) * (1 - sm(3.2, 3.7, p));
   horizonFar.visible = farK > 0.001;
