@@ -1,41 +1,43 @@
 /* ============================================================
-   MV Design · Lab — sonido galáctico generado en vivo (Web Audio)
+   MV Design · Lab — sonido celestial generado en vivo (Web Audio)
    Sin archivos: todo se sintetiza en el navegador y reacciona al recorrido.
-   Ondas y vibraciones, luminoso y en calma (re mayor, colores suspendidos y lidios):
-   · Pad de ondas: acorde de la escena en senos y triángulos, bajo un filtro suave que sube y baja
-     como marea, con un flanger ligero (nave que pasa a lo lejos). Las voces se deslizan de un
-     acorde al otro.
-   · Dron: raíz y quinta en pares apenas desafinados que "laten" despacio (el aire vibra).
-   · Brisa galáctica: aire claro que barre y viaja de un lado a otro.
-   · Destellos: agudos que aparecen y se desvanecen, sin ataque.
-   Efectos: soplo de aire que sigue la velocidad de la cámara; "piu" de bláster en cada clic (el clic
-   en el vacío dispara la explosión con un "whoom" suave); onda con vibrato al pasar el mouse;
-   llegada, holograma y proceso como ondas que crecen; en el cierre, el pad se ilumina despacio.
-   Sin campanas, sin notas rápidas, sin sierras rasposas.
+   · Coro etéreo: voces "aah" (sierras en ensamble por un banco de formantes, con vocales que se
+     transforman despacio), en registro alto y mucha reverberación.
+   · Todo flota sobre un re fijo (modo lidio, el más luminoso): nunca hay caídas de tono. Al cambiar
+     de escena el acorde nuevo ENTRA por encima mientras el anterior se desvanece (fundido cruzado,
+     sin deslizar las voces).
+   · Brillos: tonos altos que aparecen y se desvanecen muy despacio (sin ataque: no son campanas).
+   · Viajar ilumina: con la velocidad de la cámara el coro se abre y los brillos suben.
+   · Sin compresor que bombee: sólo un limitador suave para los picos.
+   Efectos: "piu" de bláster en cada clic (el clic en el vacío suma una estela de polvo de estrellas);
+   onda suave con vibrato al pasar el mouse; holograma al abrir/cerrar; una onda por etapa del
+   proceso; en el cierre, el coro se ilumina despacio.
    Los navegadores sólo dejan sonar tras un toque, clic o tecla: `unlock()` se llama ahí.
    Encendido por omisión; si alguien lo apaga, se recuerda (localStorage).
    ============================================================ */
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
-// acordes por escena (5 voces), raíz del dron y brillo del filtro
+// voces del coro por escena, todas sobre re (lidio: re mi fa# sol# la si do#)
 const CHORDS = [
-  { v: [50, 57, 64, 66, 73], root: 50, bright: 1.0 },   // 0 La firma · Dmaj9
-  { v: [43, 50, 57, 59, 66], root: 43, bright: 1.0 },   // 1 Manifiesto · Gmaj9
-  { v: [45, 52, 57, 59, 64], root: 45, bright: 1.1 },   // 2 Servicios · Asus2
-  { v: [43, 50, 59, 61, 66], root: 43, bright: 1.05 },  // 3 Proceso · Gmaj7(#11)
-  { v: [42, 54, 57, 62, 64], root: 42, bright: 1.1 },   // 4 Casos · D(add9)/F#
-  { v: [45, 52, 59, 61, 64], root: 45, bright: 1.05 },  // 5 Paquetes · A(add9)
-  { v: [50, 57, 64, 66, 73], root: 50, bright: 1.2 }    // 6 Contacto · Dmaj9
+  [62, 69, 74, 76, 78],   // 0 La firma · D add9
+  [62, 69, 71, 76, 78],   // 1 Manifiesto · D 6/9
+  [62, 68, 73, 76, 81],   // 2 Servicios · Dmaj9(#11)
+  [62, 66, 69, 73, 76],   // 3 Proceso · Dmaj9
+  [62, 69, 71, 74, 78],   // 4 Casos · D6/9 abierto
+  [62, 68, 73, 76, 80],   // 5 Paquetes · lidio
+  [62, 69, 73, 78, 81]    // 6 Contacto · Dmaj7 abierto (arriba)
 ];
-const PROC_NOTES = [74, 78, 81, 83, 86];             // proceso: una onda por etapa, subiendo (pentatónica de re)
+const SPARK = [[86, 88, 90], [86, 88, 90], [85, 88, 92], [85, 88, 90], [86, 88, 90], [85, 88, 92], [85, 90, 93]];
+const PROC_NOTES = [74, 76, 78, 81, 83];             // proceso: una onda por etapa, subiendo
+const VOWELS = { a: [730, 1090, 2440], o: [570, 840, 2410] };   // "aah" ↔ "ooh"
 const KEY = "mv-sound";
-const VOL = 0.9;                                      // volumen general (el compresor cuida los picos)
+const VOL = 0.85;
 
 export function createSound({ reduced = false } = {}) {
   let on = true;
   try { on = localStorage.getItem(KEY) !== "0"; } catch (e) {}
-  let ctx = null, started = false, scene = 0, lastHover = 0, lastSpeedSet = 0, lastPew = 0;
-  let master, music, fx, rev, echoIn, padFilter, padGain, droneOscs, shimmer, shimmerBus, airGain, airFilter, noise;
-  const voices = [];
+  let ctx = null, started = false, scene = 0, lastHover = 0, lastSpeedSet = 0, lastPew = 0, bankIdx = 0;
+  let master, music, fx, rev, echoIn, choirIn, choirOut, formants, sparkBus, sparkGlow, sparks, airGain;
+  const banks = [];
   const listeners = new Set();
   const emit = () => listeners.forEach((f) => { try { f(); } catch (e) {} });
   const live = () => !!(ctx && started && on);
@@ -48,8 +50,7 @@ export function createSound({ reduced = false } = {}) {
     }
     return buf;
   }
-  // ruido rosado (más suave que el blanco: aire, no siseo)
-  function noiseBuf(sec) {
+  function pinkBuf(sec) {
     const len = Math.floor(ctx.sampleRate * sec), buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
     let b0 = 0, b1 = 0, b2 = 0;
     for (let i = 0; i < len; i++) {
@@ -70,81 +71,80 @@ export function createSound({ reduced = false } = {}) {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return false;
     ctx = new AC();
-    const comp = ctx.createDynamicsCompressor();
-    comp.threshold.value = -18; comp.ratio.value = 3; comp.attack.value = 0.02; comp.release.value = 0.4;
+    // sólo un limitador para los picos (un compresor que bombea hacía "bajones" al entrar los efectos)
+    const lim = ctx.createDynamicsCompressor();
+    lim.threshold.value = -4; lim.knee.value = 2; lim.ratio.value = 20; lim.attack.value = 0.003; lim.release.value = 0.2;
     master = ctx.createGain(); master.gain.value = 0;
-    master.connect(comp); comp.connect(ctx.destination);
-    // espacio: reverb larga y clara
-    rev = ctx.createConvolver(); rev.buffer = impulse(5.5, 2.6);
-    const revTone = ctx.createBiquadFilter(); revTone.type = "lowpass"; revTone.frequency.value = 6500;
-    const revLow = ctx.createBiquadFilter(); revLow.type = "highpass"; revLow.frequency.value = 180;   // la cola no embarra los graves
-    const revOut = ctx.createGain(); revOut.gain.value = 0.62;
-    rev.connect(revTone); revTone.connect(revLow); revLow.connect(revOut); revOut.connect(master);
-    // eco lento para los efectos (se esparcen por el espacio)
+    master.connect(lim); lim.connect(ctx.destination);
+    // catedral: reverb muy larga y clara
+    rev = ctx.createConvolver(); rev.buffer = impulse(7, 2.2);
+    const revLow = ctx.createBiquadFilter(); revLow.type = "highpass"; revLow.frequency.value = 220;
+    const revOut = ctx.createGain(); revOut.gain.value = 0.7;
+    rev.connect(revLow); revLow.connect(revOut); revOut.connect(master);
     echoIn = ctx.createGain();
     const dL = ctx.createDelay(1.5), fb = ctx.createGain(), echoTone = ctx.createBiquadFilter(), echoOut = ctx.createGain();
-    dL.delayTime.value = 0.46; fb.gain.value = 0.32; echoTone.type = "lowpass"; echoTone.frequency.value = 3800; echoOut.gain.value = 0.32;
+    dL.delayTime.value = 0.5; fb.gain.value = 0.3; echoTone.type = "lowpass"; echoTone.frequency.value = 4500; echoOut.gain.value = 0.3;
     echoIn.connect(dL); dL.connect(echoTone); echoTone.connect(fb); fb.connect(dL); echoTone.connect(echoOut); echoOut.connect(rev); echoOut.connect(master);
-    music = ctx.createGain(); music.gain.value = 0.62; music.connect(master);
-    const musicRev = ctx.createGain(); musicRev.gain.value = 0.85; music.connect(musicRev); musicRev.connect(rev);
-    fx = ctx.createGain(); fx.gain.value = 0.85; fx.connect(master);
-    const fxRev = ctx.createGain(); fxRev.gain.value = 0.5; fx.connect(fxRev); fxRev.connect(rev);
-    noise = noiseBuf(3);
+    music = ctx.createGain(); music.gain.value = 0.7; music.connect(master);
+    const musicRev = ctx.createGain(); musicRev.gain.value = 1.1; music.connect(musicRev); musicRev.connect(rev);
+    fx = ctx.createGain(); fx.gain.value = 0.8; fx.connect(master);
+    const fxRev = ctx.createGain(); fxRev.gain.value = 0.55; fx.connect(fxRev); fxRev.connect(rev);
+    const pink = pinkBuf(3);
 
-    // pad de ondas: 5 voces (seno + triángulo, desafinados) → filtro suave que sube y baja como marea
-    // → flanger ligero → volumen que respira
-    padFilter = ctx.createBiquadFilter(); padFilter.type = "lowpass"; padFilter.frequency.value = 1500; padFilter.Q.value = 0.9;
-    lfo(0.07, 700, padFilter.frequency);                                   // la marea del brillo (~14 s)
-    const flDelay = ctx.createDelay(0.05), flFb = ctx.createGain(), flWet = ctx.createGain();
-    flDelay.delayTime.value = 0.007; flFb.gain.value = 0.28; flWet.gain.value = 0.35;
-    lfo(0.08, 0.004, flDelay.delayTime);
-    padGain = ctx.createGain(); padGain.gain.value = 0;
-    const swell = ctx.createGain(); swell.gain.value = 1;
-    lfo(0.1, 0.25, swell.gain);                                            // respira (~10 s)
-    padFilter.connect(swell); swell.connect(padGain);
-    swell.connect(flDelay); flDelay.connect(flFb); flFb.connect(flDelay); flDelay.connect(flWet); flWet.connect(padGain);
-    padGain.connect(music);
-    CHORDS[scene].v.forEach((m, i) => {
-      const g = ctx.createGain(); g.gain.value = i === 0 ? 0.07 : 0.055;
-      const oscs = [["sine", -5], ["triangle", 5]].map(([type, cents]) => {
-        const o = ctx.createOscillator(); o.type = type; o.frequency.value = mtof(m); o.detune.value = cents;
-        o.connect(g); o.start(); return o;
+    // coro: bancos de voces → banco de formantes (vocal que se transforma despacio) → brillo → salida
+    choirIn = ctx.createGain(); choirIn.gain.value = 1;
+    choirOut = ctx.createGain(); choirOut.gain.value = 0;
+    const tone = ctx.createBiquadFilter(); tone.type = "lowpass"; tone.frequency.value = 4200; tone.Q.value = 0.5;
+    formants = VOWELS.a.map((f, k) => {
+      const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = f; bp.Q.value = [7, 9, 11][k];
+      const g = ctx.createGain(); g.gain.value = [3.2, 2.2, 1.2][k];
+      choirIn.connect(bp); bp.connect(g); g.connect(tone);
+      // la vocal respira entre "aah" y "ooh" (cada formante a su ritmo)
+      lfo(0.043 + k * 0.011, (VOWELS.a[k] - VOWELS.o[k]) * 0.5, bp.frequency);
+      return bp;
+    });
+    const body = ctx.createBiquadFilter(); body.type = "lowpass"; body.frequency.value = 900;   // cuerpo cálido debajo de las vocales
+    const bodyG = ctx.createGain(); bodyG.gain.value = 0.35; choirIn.connect(body); body.connect(bodyG); bodyG.connect(tone);
+    tone.connect(choirOut);
+    const breathe = ctx.createGain(); breathe.gain.value = 1; lfo(0.09, 0.1, breathe.gain);   // respira muy poco (sin bajones)
+    choirOut.connect(breathe); breathe.connect(music);
+    // tres bancos de voces (el acorde nuevo entra en uno mientras el anterior se desvanece)
+    const vib = ctx.createOscillator(), vibG = ctx.createGain(); vib.frequency.value = 4.6; vibG.gain.value = 7; vib.connect(vibG); vib.start();
+    for (let b = 0; b < 3; b++) {
+      const g = ctx.createGain(); g.gain.value = 0; g.connect(choirIn);
+      const vs = CHORDS[scene].map((m, i) => {
+        const p = panner((i / 4 - 0.5) * 0.9); p.connect(g);
+        return [-7, 7].map((c) => {                                   // dos voces por nota, apenas desafinadas (ensamble)
+          const o = ctx.createOscillator(); o.type = "sawtooth"; o.frequency.value = mtof(m); o.detune.value = c + (Math.random() - 0.5) * 4;
+          vibG.connect(o.detune);
+          const og = ctx.createGain(); og.gain.value = 0.026; o.connect(og); og.connect(p); o.start();
+          return o;
+        });
       });
-      lfo(0.13 + i * 0.037, 5, oscs[1].detune);                            // cada voz ondula a su ritmo
-      const p = panner((i / 4 - 0.5) * 0.9); g.connect(p); p.connect(padFilter);
-      voices.push({ oscs, g });
+      banks.push({ g, vs });
+    }
+    // pedal de re, muy suave y quieto (calidez sin peso)
+    const ped = ctx.createOscillator(); ped.type = "sine"; ped.frequency.value = mtof(50);
+    const pedG = ctx.createGain(); pedG.gain.value = 0.024; ped.connect(pedG); pedG.connect(music); ped.start();
+    const ped2 = ctx.createOscillator(); ped2.type = "sine"; ped2.frequency.value = mtof(57);
+    const ped2G = ctx.createGain(); ped2G.gain.value = 0.014; ped2.connect(ped2G); ped2G.connect(music); ped2.start();
+    // brillos celestiales: tonos altos que aparecen y se desvanecen muy despacio, viajando en el estéreo
+    sparkBus = ctx.createGain(); sparkBus.gain.value = 1;
+    sparkGlow = ctx.createGain(); sparkGlow.gain.value = 1;              // (el cierre los ilumina aparte de la velocidad)
+    sparkBus.connect(sparkGlow); sparkGlow.connect(music); sparkGlow.connect(echoIn);
+    sparks = SPARK[scene].map((m, k) => {
+      const o = ctx.createOscillator(); o.type = "sine"; o.frequency.value = mtof(m);
+      const g = ctx.createGain(); g.gain.value = 0.0045; lfo(0.05 + k * 0.03, 0.0045, g.gain);
+      const p = panner(0); if (p.pan) lfo(0.025 + k * 0.017, 0.9, p.pan);
+      o.connect(g); g.connect(p); p.connect(sparkBus); o.start();
+      return o;
     });
-    // dron suave: raíz y quinta, cada una en par apenas desafinado → vibración lenta
-    const droneGain = ctx.createGain(); droneGain.gain.value = 0.045;
-    droneGain.connect(music);
-    droneOscs = [[0, 0], [0, 0.19], [7, 0], [7, 0.27]].map(([iv, beat]) => {
-      const o = ctx.createOscillator(); o.type = "sine";
-      o.frequency.value = mtof(CHORDS[scene].root + iv) + beat;
-      o.connect(droneGain); o.start();
-      return { o, iv, beat };
-    });
-    // brisa galáctica: aire claro que barre (pasabanda ancho) y viaja de un lado a otro
-    const wind = ctx.createBufferSource(); wind.buffer = noise; wind.loop = true;
-    const wf = ctx.createBiquadFilter(); wf.type = "bandpass"; wf.frequency.value = 2200; wf.Q.value = 0.8;
-    lfo(0.045, 1100, wf.frequency);
-    const wg = ctx.createGain(); wg.gain.value = 0.018; lfo(0.06, 0.012, wg.gain);
-    const wp = panner(0); if (wp.pan) lfo(0.05, 0.8, wp.pan);
-    wind.connect(wf); wf.connect(wg); wg.connect(wp); wp.connect(music); wind.start();
-    // destellos: agudos que aparecen y se desvanecen (sin ataque), viajando en el estéreo
-    shimmerBus = ctx.createGain(); shimmerBus.gain.value = 1; shimmerBus.connect(music);
-    shimmer = [0, 1, 2].map((k) => {
-      const o = ctx.createOscillator(); o.type = "sine"; o.frequency.value = mtof(CHORDS[scene].v[k + 2] + 24);
-      const g = ctx.createGain(); g.gain.value = 0.006; lfo(0.07 + k * 0.05, 0.006, g.gain);
-      const p = panner(0); if (p.pan) lfo(0.03 + k * 0.02, 0.9, p.pan);
-      o.connect(g); g.connect(p); p.connect(shimmerBus); o.start();
-      return { o, k };
-    });
-    // soplo de viaje: aire claro que crece con la velocidad de la cámara (sin motor ni tono que suba)
-    const air = ctx.createBufferSource(); air.buffer = noise; air.loop = true;
-    airFilter = ctx.createBiquadFilter(); airFilter.type = "bandpass"; airFilter.frequency.value = 900; airFilter.Q.value = 0.6;
-    const airHp = ctx.createBiquadFilter(); airHp.type = "highpass"; airHp.frequency.value = 350;
-    airGain = ctx.createGain(); airGain.gain.value = 0;
-    air.connect(airHp); airHp.connect(airFilter); airFilter.connect(airGain); airGain.connect(fx); air.start();
+    // aire muy lejano (arriba), casi imperceptible; crece un poco al viajar
+    const air = ctx.createBufferSource(); air.buffer = pink; air.loop = true;
+    const airHp = ctx.createBiquadFilter(); airHp.type = "highpass"; airHp.frequency.value = 2500;
+    airGain = ctx.createGain(); airGain.gain.value = 0.006;
+    const ap = panner(0); if (ap.pan) lfo(0.04, 0.7, ap.pan);
+    air.connect(airHp); airHp.connect(airGain); airGain.connect(ap); ap.connect(music); air.start();
     return true;
   }
   function fadeTo(v, t = 2.5) {
@@ -158,8 +158,9 @@ export function createSound({ reduced = false } = {}) {
     if (started || !ctx) return;
     started = true;
     const now = ctx.currentTime;
-    padGain.gain.setValueAtTime(0, now);
-    padGain.gain.linearRampToValueAtTime(0.9, now + 5);
+    choirOut.gain.setValueAtTime(0, now);
+    choirOut.gain.linearRampToValueAtTime(1, now + 5);
+    banks[0].g.gain.setValueAtTime(1, now);
     setScene(scene, true);
   }
   function unlock() {
@@ -181,30 +182,32 @@ export function createSound({ reduced = false } = {}) {
     if (document.hidden) ctx.suspend().catch(() => {});
     else if (on && started) ctx.resume().catch(() => {});
   });
-  // escena: todo se desliza despacio al acorde nuevo (como una onda que cambia de color)
+  // escena: el acorde nuevo entra en otro banco mientras el anterior se desvanece (sin deslizar tonos)
   function setScene(a, instant = false) {
+    const prev = scene;
     scene = Math.max(0, Math.min(CHORDS.length - 1, a));
     if (!ctx || !started) return;
-    const c = CHORDS[scene], now = ctx.currentTime, tc = instant ? 0.05 : 1.4;
-    voices.forEach((v, i) => v.oscs.forEach((o) => o.frequency.setTargetAtTime(mtof(c.v[i]), now, tc)));
-    droneOscs.forEach(({ o, iv, beat }) => o.frequency.setTargetAtTime(mtof(c.root + iv) + beat, now, tc * 1.3));
-    shimmer.forEach(({ o, k }) => o.frequency.setTargetAtTime(mtof(c.v[k + 2] + 24), now, tc));
-    padFilter.frequency.setTargetAtTime(1500 * c.bright, now, 2);
+    const now = ctx.currentTime;
+    sparks.forEach((o, k) => { o.frequency.cancelScheduledValues(now); o.frequency.setValueAtTime(mtof(SPARK[scene][k]), now + 0.02); });
+    if (instant) {
+      banks.forEach((b, i) => { b.vs.forEach((trio, v) => trio.forEach((o) => o.frequency.setValueAtTime(mtof(CHORDS[scene][v]), now))); b.g.gain.setValueAtTime(i === bankIdx ? 1 : 0, now); });
+      return;
+    }
+    if (prev === scene) return;
+    const old = banks[bankIdx];
+    bankIdx = (bankIdx + 1) % banks.length;
+    const nb = banks[bankIdx], audible = nb.g.gain.value > 0.02;
+    const tr = now + (audible ? 0.15 : 0.01);
+    if (audible) { nb.g.gain.cancelScheduledValues(now); nb.g.gain.setTargetAtTime(0, now, 0.04); }
+    nb.vs.forEach((trio, v) => trio.forEach((o) => { o.frequency.cancelScheduledValues(now); o.frequency.setValueAtTime(mtof(CHORDS[scene][v]), tr); }));
+    nb.g.gain.setTargetAtTime(1, tr, 0.8);                       // entra
+    old.g.gain.cancelScheduledValues(now); old.g.gain.setTargetAtTime(0, now + 0.3, 1.1);   // el anterior se queda un poco y se desvanece
   }
 
   /* ---------- efectos ---------- */
   function env(g, t, a, peak, d) { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); }
-  function airSweep({ from = 600, to = 3000, dur = 0.6, gain = 0.03, t = ctx.currentTime } = {}) {
-    const src = ctx.createBufferSource(); src.buffer = noise;
-    const f = ctx.createBiquadFilter(); f.type = "bandpass"; f.Q.value = 0.7;
-    f.frequency.setValueAtTime(from, t); f.frequency.exponentialRampToValueAtTime(to, t + dur);
-    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(gain, t + dur * 0.5); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    src.connect(f); f.connect(g); g.connect(fx);
-    src.start(t, Math.random()); src.stop(t + dur + 0.05);
-  }
-  // una onda: tono suave con vibrato, que crece y se desvanece (sin golpe)
-  function wave(m, { gain = 0.03, attack = 0.15, release = 1.2, vib = 5.5, depth = 12, type = "sine", pan = (Math.random() - 0.5) * 0.8, glide = 0, when = 0 } = {}) {
+  // una onda: tono suave con vibrato que crece y se desvanece (sin golpe)
+  function wave(m, { gain = 0.02, attack = 0.15, release = 1.2, vib = 5.5, depth = 10, type = "sine", pan = (Math.random() - 0.5) * 0.8, glide = 0, when = 0 } = {}) {
     if (!live()) return;
     const t = ctx.currentTime + when, f = mtof(m);
     const o = ctx.createOscillator(); o.type = type; o.frequency.setValueAtTime(f * (1 - glide), t);
@@ -217,7 +220,7 @@ export function createSound({ reduced = false } = {}) {
     o.start(t); v.start(t); o.stop(t + attack + release + 0.1); v.stop(t + attack + release + 0.1);
   }
   // bláster "piu": dos tonos que caen en picada por un pasabanda
-  function pew(k = 1, gain = 0.16) {
+  function pew(k = 1, gain = 0.14) {
     if (!live()) return;
     const t = ctx.currentTime;
     if (t - lastPew < 0.05) return;
@@ -232,10 +235,10 @@ export function createSound({ reduced = false } = {}) {
       o.connect(bp); bp.connect(g); g.connect(fx); g.connect(echoIn);
       o.start(tt); o.stop(tt + dur + 0.05);
     };
-    mk("sawtooth", 1900, 220, 0.2, gain);
-    mk("triangle", 2600, 320, 0.15, gain * 0.4, 0.012);
+    mk("sawtooth", 1900, 240, 0.2, gain);
+    mk("triangle", 2600, 340, 0.15, gain * 0.4, 0.012);
   }
-  const chordNote = (k) => CHORDS[scene].v[k % 5] + 24;
+  const chordNote = (k) => CHORDS[scene][k % 5];
   return {
     get on() { return on; },
     get playing() { return !!(ctx && started && on && ctx.state === "running"); },
@@ -244,72 +247,61 @@ export function createSound({ reduced = false } = {}) {
     unlock,
     toggle() { if (on && !started) { unlock(); return; } setOn(!on); if (on) setTimeout(() => pew(1.1, 0.1), 80); },
     scene: setScene,
-    // velocidad real de la cámara (u/s): un soplo de aire claro que crece y se aclara (sin tono)
+    // viajar ilumina: con la velocidad de la cámara el coro abre sus vocales, los brillos y el aire suben
     speed(v) {
       if (!ctx || !started) return;
       const now = ctx.currentTime;
       if (now - lastSpeedSet < 0.05) return;
       lastSpeedSet = now;
       const k = Math.max(0, Math.min(1, (v - 1.5) / 18));
-      airGain.gain.setTargetAtTime(k * 0.075, now, 0.25);
-      airFilter.frequency.setTargetAtTime(900 + k * 2600, now, 0.3);
+      sparkBus.gain.setTargetAtTime(1 + k * 1.6, now, 0.4);
+      airGain.gain.setTargetAtTime(0.006 + k * 0.03, now, 0.35);
+      choirIn.gain.setTargetAtTime(1 + k * 0.25, now, 0.5);
     },
-    // llegar a una escena: una onda muy suave con el acorde nuevo (en el cierre, sólo el pad)
-    arrive() {
-      if (!live() || scene === CHORDS.length - 1) return;
-      [2, 4].forEach((k, i) => wave(chordNote(k) - 12, { gain: 0.008, attack: 0.9, release: 2.6, when: i * 0.2, depth: 7, vib: 4 }));
-    },
-    // clic en el vacío: el disparo (piu) y un "whoom" grave y suave
+    arrive() {},                                             // (la llegada ya la hace el acorde que entra)
+    // clic en el vacío: el disparo (piu) y una estela de polvo de estrellas que sube y se desvanece
     blast() {
       if (!live()) return;
-      pew(0.85, 0.18);
-      const t = ctx.currentTime + 0.03, o = ctx.createOscillator(); o.type = "sine";
-      o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(58, t + 0.7);
-      const g = ctx.createGain(); env(g, t, 0.04, 0.16, 0.8);
-      o.connect(g); g.connect(fx); o.start(t); o.stop(t + 1);
-      airSweep({ from: 2800, to: 700, dur: 0.7, gain: 0.025, t });
+      pew(0.85, 0.16);
+      SPARK[scene].forEach((m, i) => wave(m - 12, { gain: 0.009, attack: 0.12 + i * 0.05, release: 1.4, when: 0.05, depth: 8, vib: 5 }));
     },
-    pew: () => pew(1, 0.14),
+    pew: () => pew(1, 0.13),
     // pasar el mouse: una onda suave con vibrato (textos agudos; botones un poco más graves, que suben)
     hover(kind = "text") {
       if (!live()) return;
       const t = ctx.currentTime;
       if (t - lastHover < 0.09) return;
       lastHover = t;
-      if (kind === "ui") wave(chordNote(1) - 12, { gain: 0.02, attack: 0.05, release: 0.45, glide: 0.1, vib: 6, depth: 12 });
-      else wave(chordNote(Math.floor(Math.random() * 5)), { gain: 0.011, attack: 0.06, release: 0.6, vib: 6, depth: 16 });
+      if (kind === "ui") wave(chordNote(2), { gain: 0.016, attack: 0.05, release: 0.45, glide: 0.08, vib: 6, depth: 10 });
+      else wave(chordNote(1 + Math.floor(Math.random() * 4)) + 12, { gain: 0.009, attack: 0.07, release: 0.6, vib: 6, depth: 12 });
     },
     tick() { this.hover("ui"); },
     // la espiral pasa una ficha: un pulso suave
     detent() {
       if (!live()) return;
       const t = ctx.currentTime, o = ctx.createOscillator(); o.type = "sine";
-      o.frequency.setValueAtTime(260, t); o.frequency.exponentialRampToValueAtTime(190, t + 0.18);
-      const g = ctx.createGain(); env(g, t, 0.02, 0.035, 0.22); o.connect(g); g.connect(fx); o.start(t); o.stop(t + 0.3);
+      o.frequency.setValueAtTime(mtof(74), t); o.frequency.exponentialRampToValueAtTime(mtof(69), t + 0.2);
+      const g = ctx.createGain(); env(g, t, 0.02, 0.022, 0.25); o.connect(g); g.connect(fx); o.start(t); o.stop(t + 0.3);
     },
-    // abrir / cerrar paneles: holograma que sube o baja como onda (tono suave + aire claro)
+    // abrir / cerrar paneles: holograma que sube o baja como onda
     ui(kind) {
       if (!live()) return;
       const t = ctx.currentTime, up = kind === "open";
       const o = ctx.createOscillator(); o.type = "sine";
-      o.frequency.setValueAtTime(up ? 330 : 880, t); o.frequency.exponentialRampToValueAtTime(up ? 880 : 330, t + 0.5);
-      const v = ctx.createOscillator(), vg = ctx.createGain(); v.frequency.value = 5.5; vg.gain.value = 14; v.connect(vg); vg.connect(o.detune);
-      const g = ctx.createGain(); env(g, t, 0.14, 0.035, 0.45);
-      o.connect(g); g.connect(fx); g.connect(echoIn); o.start(t); v.start(t); o.stop(t + 0.7); v.stop(t + 0.7);
-      airSweep({ from: up ? 700 : 3000, to: up ? 3000 : 700, dur: 0.55, gain: 0.02 });
+      o.frequency.setValueAtTime(mtof(up ? 69 : 81), t); o.frequency.exponentialRampToValueAtTime(mtof(up ? 81 : 69), t + 0.5);
+      const v = ctx.createOscillator(), vg = ctx.createGain(); v.frequency.value = 5.5; vg.gain.value = 10; v.connect(vg); vg.connect(o.detune);
+      const g = ctx.createGain(); env(g, t, 0.15, 0.028, 0.5);
+      o.connect(g); g.connect(fx); g.connect(echoIn); o.start(t); v.start(t); o.stop(t + 0.75); v.stop(t + 0.75);
     },
     // proceso: una onda por etapa que enciende el hilo
-    note(k) { wave(PROC_NOTES[Math.max(0, Math.min(4, k))] - 12, { gain: 0.022, attack: 0.2, release: 1.6, pan: (k / 4 - 0.5) * 0.8, vib: 5, depth: 9 }); },
-    // cierre: la M se arma → el pad se ilumina despacio y los destellos crecen un poco (sin golpe)
+    note(k) { wave(PROC_NOTES[Math.max(0, Math.min(4, k))], { gain: 0.016, attack: 0.22, release: 1.8, pan: (k / 4 - 0.5) * 0.8, vib: 5, depth: 8 }); },
+    // cierre: la M se arma → el coro y los brillos se iluminan despacio (sin golpe)
     resolve() {
       if (!live()) return;
       const t = ctx.currentTime;
-      padFilter.frequency.cancelScheduledValues(t);
-      padFilter.frequency.setTargetAtTime(2600, t, 1.4);
-      padFilter.frequency.setTargetAtTime(1500 * CHORDS[6].bright, t + 4, 2.5);
-      shimmerBus.gain.cancelScheduledValues(t);
-      shimmerBus.gain.setTargetAtTime(1.8, t, 1.2);
-      shimmerBus.gain.setTargetAtTime(1, t + 4, 2.5);
+      sparkGlow.gain.cancelScheduledValues(t);
+      sparkGlow.gain.setTargetAtTime(2.2, t, 1.4);
+      sparkGlow.gain.setTargetAtTime(1, t + 5, 2.5);
     }
   };
 }
