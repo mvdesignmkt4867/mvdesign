@@ -267,7 +267,15 @@ export function createSound({ reduced = false } = {}) {
     if (!ctx && !build()) return;
     if (ctx.state === "suspended") ctx.resume().catch(() => {});
     try { const b = ctx.createBufferSource(); b.buffer = ctx.createBuffer(1, 1, 22050); b.connect(ctx.destination); b.start(0); } catch (e) {}   // iOS antiguo
-    if (!started) { startMusic(); fadeTo(VOL, 3); emit(); }
+    if (!started) { startMusic(); fadeTo(VOL, 1.4); emit(); }   // (entra rápido: se oye desde el primer gesto)
+  }
+  // al abrir: si el navegador ya permite sonar (Chrome con visitas previas, o tras un clic en la página anterior),
+  // la música arranca con la escena; si no, espera el primer toque, clic o tecla (la rueda no cuenta para el navegador)
+  function autostart() {
+    if (!on || started) return;
+    if (!ctx && !build()) return;
+    if (ctx.state === "running") { startMusic(); fadeTo(VOL, 1.8); emit(); return; }
+    ctx.resume().then(() => { if (ctx.state === "running" && !started) { startMusic(); fadeTo(VOL, 1.8); emit(); } }).catch(() => {});
   }
   function setOn(v) {
     on = v;
@@ -341,6 +349,7 @@ export function createSound({ reduced = false } = {}) {
     get debug() { return { ctx, master }; },               // (pruebas: ?debug)
     onChange(f) { listeners.add(f); },
     unlock,
+    autostart,
     toggle() { if (on && !started) { unlock(); return; } setOn(!on); if (on) setTimeout(() => omPulse(false, 0.08), 80); },
     scene: setScene,
     step: stepMusic,                                         // (espiral: cada ficha que pasa es un paso del coro)
