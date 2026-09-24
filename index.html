@@ -46,7 +46,7 @@
 
   <link rel="preload" href="assets/fonts/montserrat-latin.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="preload" href="assets/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
-  <link rel="stylesheet" href="lab/lab.css?v=36" />
+  <link rel="stylesheet" href="lab/lab.css?v=37" />
   <noscript><style>.curtain { display: none; }</style></noscript>
   <script type="importmap">
   {
@@ -56,6 +56,21 @@
     }
   }
   </script>
+  <!-- three.js y sus módulos en paralelo desde el inicio (sin esto llegan en cascada de 3–4 niveles y el telón tarda) -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" />
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/renderers/CSS3DRenderer.js" />
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/loaders/SVGLoader.js" />
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/postprocessing/EffectComposer.js" />
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/postprocessing/RenderPass.js" />
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/postprocessing/UnrealBloomPass.js" />
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/postprocessing/ShaderPass.js" />
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/postprocessing/Pass.js" />
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/postprocessing/MaskPass.js" />
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/shaders/CopyShader.js" />
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/shaders/LuminosityHighPassShader.js" />
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/misc/GPUComputationRenderer.js" />
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/math/MeshSurfaceSampler.js" />
 
   <script type="application/ld+json">
   {
@@ -106,9 +121,9 @@
   }
   </script>
 
-  <!-- Analítica solo en producción real: nunca en pruebas (?qa=, ?debug=, ?notrack=) ni
+  <!-- Analítica solo en producción real: nunca en pruebas (?qa, ?debug, ?notrack) ni
        en previews, para no ensuciar los datos con los que Meta optimiza los anuncios -->
-  <script>window.MV_TRACK = location.hostname === "www.mvdesign.mx" && !/[?&](qa|debug|notrack)=/.test(location.search);</script>
+  <script>window.MV_TRACK = location.hostname === "www.mvdesign.mx" && !/[?&](qa|debug|notrack)(=|&|$)/.test(location.search);</script>
 
   <!-- Google tag (gtag.js) · GA4 -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-DTBRCV9C94"></script>
@@ -130,7 +145,8 @@
   t.src=v;s=b.getElementsByTagName(e)[0];
   s.parentNode.insertBefore(t,s)}(window, document,'script',
   'https://connect.facebook.net/en_US/fbevents.js');
-  if (window.MV_TRACK) { fbq('init', '1494974869057200'); fbq('track', 'PageView'); }
+  // disablePushState: la experiencia cambia el #escena con history; sin esto el Pixel manda un PageView por escena
+  if (window.MV_TRACK) { fbq.disablePushState = true; fbq('init', '1494974869057200'); fbq('track', 'PageView'); }
   </script>
   <noscript><img height="1" width="1" style="display:none"
   src="https://www.facebook.com/tr?id=1494974869057200&ev=PageView&noscript=1"
@@ -146,12 +162,12 @@
       <img src="assets/logos/mv-design-mark-color.svg" alt="" width="28" height="28" />
       <span>MV DESIGN</span>
     </a>
-    <p class="mono hud-sub">// Estudio de marca y diseño<br />Querétaro, México</p>
+    <p class="mono hud-sub">// Agencia de marketing y diseño <br />Querétaro, México</p>
     <p class="mono hud-note-m" data-note-m></p>
   </header>
 
   <aside class="hud hud--tr">
-    <p class="mono manifesto" data-note>Diseñamos marcas, sitios<br />y contenido con intención<br />comercial. Para que tu<br />cliente te elija.</p>
+    <p class="mono manifesto" data-note>Diseñamos marcas, sitios <br />y contenido con intención <br />comercial. Para que tu <br />cliente te elija.</p>
   </aside>
 
   <nav class="hud idx" aria-label="Escenas" data-idx>
@@ -176,7 +192,7 @@
   <main class="stage">
     <section class="scene scene--hero" data-scene="inicio" aria-label="La firma">
       <p class="kicker mono">La firma</p>
-      <h1 class="title" tabindex="-1">Diseñamos<br />lo que <em class="grad">vendes</em>.</h1>
+      <h1 class="title" tabindex="-1">Diseñamos <br />lo que <em class="grad">vendes</em>.</h1>
     </section>
 
     <section class="scene scene--ring" data-scene="manifiesto" aria-label="Manifiesto">
@@ -193,12 +209,12 @@
       <p class="kicker mono">Servicios</p>
       <h2 class="title title--2" tabindex="-1">Toda la cadena creativa, <em class="grad">sin intermediarios</em>.</h2>
       <ol class="svc-grid">
-        <li><span>01</span> <b>Branding estratégico</b> <i>Naming · Identidad · Brandbook</i></li>
-        <li><span>02</span> <b>Redes sociales</b> <i>Contenido · Comunidad · Pauta</i></li>
-        <li><span>03</span> <b>Web, apps y automatizaciones</b> <i>Editorial · E&#8209;commerce · 3D inmersiva</i></li>
-        <li><span>04</span> <b>Producción audiovisual</b> <i>Foto · Video · Campañas</i></li>
-        <li><span>05</span> <b>Gráfica y editorial</b> <i>Catálogos · Papelería · Señalética</i></li>
-        <li><span>06</span> <b>Medios y performance</b> <i>Google Ads · Meta Ads · SEO</i></li>
+        <li><span>01</span> <h3 class="svc__n">Branding estratégico</h3> <i>Naming · Identidad · Brandbook</i></li>
+        <li><span>02</span> <h3 class="svc__n">Redes sociales</h3> <i>Contenido · Comunidad · Pauta</i></li>
+        <li><span>03</span> <h3 class="svc__n">Web, apps y automatizaciones</h3> <i>Diseño web · E&#8209;commerce · 3D inmersiva</i></li>
+        <li><span>04</span> <h3 class="svc__n">Producción audiovisual</h3> <i>Foto · Video · Campañas</i></li>
+        <li><span>05</span> <h3 class="svc__n">Gráfica y editorial</h3> <i>Catálogos · Papelería · Señalética</i></li>
+        <li><span>06</span> <h3 class="svc__n">Marketing y performance</h3> <i>Google Ads · Meta Ads · SEO</i></li>
       </ol>
     </section>
 
@@ -336,7 +352,7 @@
     </section>
 
     <section class="scene scene--contact" data-scene="contacto" aria-label="Contacto">
-      <p class="kicker mono">Contacto</p>
+      <p class="kicker mono">Contacto · Querétaro, México</p>
       <h2 class="title title--2" tabindex="-1">Hagamos que tu marca <em class="grad">venda</em>.</h2>
       <div class="ctas">
         <a class="pill pill--light pill--two" href="https://wa.me/5214427146255?text=Hola%20Fernanda%2C%20quiero%20cotizar%20un%20proyecto%20con%20MV%20Design.%20%5Bweb%20%C2%B7%20contacto%5D" target="_blank" rel="noopener" data-cta="contacto-fer">
@@ -373,7 +389,7 @@
     <div class="progress" aria-hidden="true"><span data-prog></span></div>
   </footer>
 
-  <a class="wa" href="https://wa.me/5214427146255?text=Hola%20MV%20Design%2C%20quiero%20cotizar%20un%20proyecto.%20%5Bweb%20%C2%B7%20flotante%5D" target="_blank" rel="noopener" data-cta="flotante">
+  <a class="wa" href="https://wa.me/5214427146255?text=Hola%20MV%20Design%2C%20quiero%20cotizar%20un%20proyecto.%20%5Bweb%20%C2%B7%20bot%C3%B3n%20flotante%5D" target="_blank" rel="noopener" data-cta="flotante">
     <span class="wa__dot" aria-hidden="true"></span>Cotiza por WhatsApp
   </a>
 
@@ -397,7 +413,7 @@
       setTimeout(function () { if (!document.documentElement.classList.contains("is-3d")) off(); }, 4000);
     })();
   </script>
-  <script type="module" src="lab/lab.js?v=91"></script>
+  <script type="module" src="lab/lab.js?v=92"></script>
   <!-- Conversiones: WhatsApp = Lead (principal) · correo = Contact. Envia a Meta Pixel Y a GA4 -->
   <script>
   (function () {

@@ -87,7 +87,7 @@ html.is-3d .scene--hero .title { font-size: max(clamp(40px, 6.4vw, 108px), min(c
 .svc-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 30px; margin: 34px auto 0; max-width: 980px; text-align: left; }
 .svc-grid li { display: grid; grid-template-columns: 30px 1fr; padding: 13px 0 15px; border-top: 1px solid var(--line); }
 .svc-grid span { font-size: 11px; color: var(--fg-3); padding-top: 3px; }
-.svc-grid b { font: 600 16px/1.25 "Montserrat", sans-serif; color: #fff; letter-spacing: -.01em; }
+.svc-grid .svc__n { font: 600 16px/1.25 "Montserrat", sans-serif; color: #fff; letter-spacing: -.01em; }
 .svc-grid i { grid-column: 2; font-style: normal; font-size: 11px; color: var(--fg-3); margin-top: 4px; }
 
 /* ---------- manifiesto y servicios: dentro de su anillo ----------
@@ -108,7 +108,7 @@ html.is-3d .scene--ring[data-scene="servicios"] .title--2 { font-size: calc(var(
 html.is-3d .scene--ring .svc-grid { max-width: none; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 calc(var(--u) * 2.4); margin-top: calc(var(--u) * 3); }
 html.is-3d .scene--ring .svc-grid li { grid-template-columns: calc(var(--u) * 2.8) 1fr; padding: calc(var(--u) * 1.2) 0 calc(var(--u) * 1.3); }
 html.is-3d .scene--ring .svc-grid span { font-size: calc(var(--u) * 1.7); padding-top: calc(var(--u) * .3); }
-html.is-3d .scene--ring .svc-grid b { font-size: calc(var(--u) * 2.1); }
+html.is-3d .scene--ring .svc-grid .svc__n { font-size: calc(var(--u) * 2.1); }
 html.is-3d .scene--ring .svc-grid i { display: block; font-size: calc(var(--u) * 1.7); margin-top: calc(var(--u) * .5); }
 /* anillo chico (vertical o pantalla baja): sólo lo esencial cabe en el círculo; el resto queda sr-only para lectores de pantalla */
 html.is-3d .scene--ring.is-compact { width: calc(var(--u) * 78); }
@@ -123,7 +123,7 @@ html.is-3d .scene--ring.is-compact .svc-grid li { display: block; padding: 0; bo
 html.is-3d .scene--ring.is-compact .trio .desc, html.is-3d .scene--ring.is-compact .svc-grid span, html.is-3d .scene--ring.is-compact .svc-grid i {
   position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
-html.is-3d .scene--ring.is-compact .svc-grid b { font-size: calc(var(--u) * 3.5); line-height: 1.55; white-space: nowrap; }
+html.is-3d .scene--ring.is-compact .svc-grid .svc__n { font-size: calc(var(--u) * 3.5); line-height: 1.55; white-space: nowrap; }
 
 /* ---------- casos por rubro ----------
    Sin 3D: la lista de rubros y proyectos se lee como página. Con 3D: los rubros son una espiral (WebGL),
@@ -368,7 +368,7 @@ html.is-short body[data-scene="proceso"] .hud-note-m, html.is-short body[data-sc
 .restart { position: relative; margin-top: 22px; color: #9DA1B0; letter-spacing: .08em; text-transform: uppercase; font-size: 11px; }
 .restart:hover { color: #fff; }
 /* pie de contacto: volver al inicio + redes (íconos) en un renglón; enlaces legales debajo */
-.contact-foot { display: flex; align-items: center; justify-content: center; gap: 20px; margin-top: 22px; }
+.contact-foot { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 20px; margin-top: 22px; }   /* (sobre el área táctil de los legales) */
 .contact-foot .restart { margin-top: 0; }
 .social { display: inline-flex; gap: 10px; }
 .social__a {
@@ -447,6 +447,13 @@ html:not(.is-3d) .stage { position: relative; z-index: 4; display: grid; gap: 16
 html:not(.is-3d) .scene { margin: 0 auto; }
 html:not(.is-3d) .scene::before { display: none; }
 html:not(.is-3d) .idx, html:not(.is-3d) .restart { display: none; }
+/* el HUD de arriba se va con el scroll (fijo, los títulos le pasaban encima) */
+html:not(.is-3d) body { position: relative; }
+html:not(.is-3d) :is(.hud--tl, .hud--tr) { position: absolute; }
+/* legales: renglón que puede partirse y áreas táctiles de 44 px */
+html:not(.is-3d) .legal { font-size: 11px; line-height: 1.4; }
+html:not(.is-3d) .legal a { display: inline-block; padding: 14px 4px; }
+html:not(.is-3d) .legal a::before { display: none; }
 html:not(.is-3d) .proc { grid-template-columns: 1fr; gap: 16px; max-width: 560px; text-align: left; }
 html:not(.is-3d) .proc__step { display: grid; grid-template-columns: 40px 1fr; gap: 14px; align-items: start; }
 html:not(.is-3d) .proc__n { border: 1px solid rgba(255,255,255,.3); color: #fff; }
@@ -504,7 +511,7 @@ html:not(.is-3d) .pk__more, html:not(.is-3d) .psheet, html:not(.is-3d) .psheet-v
   .trio strong { font-size: 14px; margin-bottom: 3px; }
   .svc-grid { grid-template-columns: 1fr; margin-top: 18px; }
   .svc-grid li { padding: 8px 0; }
-  .svc-grid b { font-size: 14px; }
+  .svc-grid .svc__n { font-size: 14px; }
   .svc-grid i { display: none; }
   html.is-3d .scene--cases {
     height: calc(100vh - 140px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
@@ -522,8 +529,18 @@ html:not(.is-3d) .pk__more, html:not(.is-3d) .psheet, html:not(.is-3d) .psheet-v
   .contact-foot { margin-top: 10px; gap: 16px; }
   .scene--contact .ctas { gap: 8px; margin-top: 22px; }
   .scene--contact .pill--two { min-height: 52px; }
-  .legal { margin-top: 8px; font-size: 9.5px; letter-spacing: 0; white-space: nowrap; }   /* un renglón: no empuja el bloque sobre la M */
+  html.is-3d .legal { margin-top: 12px; font-size: 9.5px; letter-spacing: 0; white-space: nowrap; }   /* un renglón: no empuja el bloque sobre la M */
+  html.is-3d .legal a::before { inset: -6px -4px; }     /* (no invade los íconos de redes de arriba) */
 }
+/* contacto en pantallas bajas: buildPath mide el aire que le queda a la M y aprieta el bloque (tight) o,
+   si aun así no alcanza, suelta el kicker y la nota del HUD (bare). Todo sigue a ≥ 44 px táctiles */
+html.is-3d .scene--contact.is-tight .kicker { margin-bottom: 10px; }
+html.is-3d .scene--contact.is-tight .ctas { gap: 6px; margin-top: 14px; }
+html.is-3d .scene--contact.is-tight .pill--two { min-height: 46px; padding-top: 7px; padding-bottom: 7px; }
+html.is-3d .scene--contact.is-tight .pill--ghost { min-height: 44px; padding-top: 12px; padding-bottom: 12px; }
+html.is-3d .scene--contact.is-tight .contact-foot { margin-top: 8px; }
+html.is-3d .scene--contact.is-bare .kicker { display: none; }
+html.contact-bare body[data-scene="contacto"] .hud-note-m { display: none; }
 @media (max-width: 380px) {
   .idx__now { display: none; }                          /* celulares angostos: número + flecha (cabe el botón de sonido) */
 }

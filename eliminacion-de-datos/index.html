@@ -26,8 +26,8 @@
   <link rel="stylesheet" href="/css/base.css?v=8" />
   <link rel="stylesheet" href="/css/components.css?v=8" />
   <link rel="stylesheet" href="/css/legal.css?v=1" />
-  <!-- Analítica sólo en producción real (igual que el inicio): nunca en pruebas (?qa=, ?debug=, ?notrack=) -->
-  <script>window.MV_TRACK = location.hostname === "www.mvdesign.mx" && !/[?&](qa|debug|notrack)=/.test(location.search);</script>
+  <!-- Analítica sólo en producción real (igual que el inicio): nunca en pruebas (?qa, ?debug, ?notrack) -->
+  <script>window.MV_TRACK = location.hostname === "www.mvdesign.mx" && !/[?&](qa|debug|notrack)(=|&|$)/.test(location.search);</script>
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-DTBRCV9C94"></script>
   <script>
     window.dataLayer = window.dataLayer || [];

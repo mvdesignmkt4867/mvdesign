@@ -9,7 +9,7 @@
 - **E-commerce Shopify**: tiendas en línea completas, mobile first, con checkout optimizado. Somos Shopify Partners.
 - **Producción audiovisual**: foto y video propios para redes sociales y campañas; sin banco de imágenes genérico.
 - **Gráfica y editorial**: catálogos, papelería, señalética y campañas para impresión.
-- **Medios y performance**: campañas en Google Ads y Meta Ads, SEO y reporte con datos.
+- **Marketing y performance**: campañas en Google Ads y Meta Ads, SEO y reporte con datos.
 
 ## Paquetes web
 - **Editorial / Corporativa** — sitio one-pager o multipágina estilo editorial, responsive, con estructura pensada para vender, WhatsApp integrado y SEO básico on-page.
@@ -21,10 +21,12 @@ Cinco etapas: briefing → estructura y wireframe → diseño → desarrollo →
 
 ## Casos
 - GU · Gestión Urbanística (web 3D inmersiva con mapas y recorridos, inmobiliario/urbanismo)
-- Vista Real Country Club (sistema de marca y web institucional, club deportivo/hospitalidad) — https://www.vistareal.mx
+- [Vista Real Country Club](https://www.vistareal.mx): sistema de marca y web institucional, club deportivo/hospitalidad
 - Blak Coffee & Co (branding integral, cafetería de especialidad)
-- Protect Diversity (e-commerce Shopify, dermocosmética vegana hecha en CDMX) — https://www.protectdiversity.store
-- Manzzani (Shopify + redes sociales, manzanas gourmet de regalo) — https://www.manzzani.com
+- [Protect Diversity](https://www.protectdiversity.store): e-commerce Shopify, dermocosmética vegana hecha en CDMX
+- [Manzzani](https://www.manzzani.com): Shopify + redes sociales, manzanas gourmet de regalo
+- Otros sitios publicados: [Reyes Heroles & Yaber](https://www.rhyaber.com), [Therms](https://www.therms.mx), [Inmobiliaria y Agua Amazcala](https://www.inmobiliariayagua.com), [Pa'Cancún](https://pacancun.com)
+- La sección Casos del sitio agrupa más de 25 proyectos en seis rubros.
 
 ## Ubicación y cobertura
 - Base: Santiago de Querétaro, Querétaro, México.
@@ -34,10 +36,15 @@ Cinco etapas: briefing → estructura y wireframe → diseño → desarrollo →
 - Horario de atención: lunes a sábado, 8:00–19:00 (hora del centro de México).
 
 ## Contacto
-- Sitio: https://www.mvdesign.mx
-- Email: mvdesign.mkt@gmail.com
-- WhatsApp (Ma. Fernanda Velasco): +52 442 714 6255 — https://wa.me/5214427146255
-- WhatsApp (Gian Pietro Milani): +52 442 107 6923 — https://wa.me/5214421076923
-- Instagram: https://www.instagram.com/mvdesign.mkt
-- Facebook: https://www.facebook.com/mvdesign.mkt
+- [Sitio](https://www.mvdesign.mx/)
+- [Email](mailto:mvdesign.mkt@gmail.com): mvdesign.mkt@gmail.com
+- [WhatsApp · Ma. Fernanda Velasco](https://wa.me/5214427146255): +52 442 714 6255
+- [WhatsApp · Gian Pietro Milani](https://wa.me/5214421076923): +52 442 107 6923
+- [Instagram](https://www.instagram.com/mvdesign.mkt): @mvdesign.mkt
+- [Facebook](https://www.facebook.com/mvdesign.mkt)
 - Canal preferido: WhatsApp.
+
+## Legal
+- [Aviso de privacidad](https://www.mvdesign.mx/privacidad/)
+- [Términos](https://www.mvdesign.mx/terminos/)
+- [Eliminación de datos](https://www.mvdesign.mx/eliminacion-de-datos/)

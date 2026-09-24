@@ -386,6 +386,8 @@ async function buildM() {
   const size = new THREE.Vector3(), center = new THREE.Vector3();
   box.getSize(size); box.getCenter(center);
   const s = 2.7 / size.x;                           // ~2.7 m de ancho, centrada en su pivote
+  const mHalfWas = M_HALF;
+  M_HALF = size.y * s / 2;                          // (contacto: cuánto aire necesita la M sobre el texto)
   const holder = new THREE.Object3D();
   holder.scale.set(s, -s, s);                       // el SVG tiene la Y hacia abajo
   holder.position.set(-center.x * s, center.y * s, -center.z * s);
@@ -400,7 +402,7 @@ async function buildM() {
   particles.reflection.renderOrder = -2;            // debajo del piso: el piso la vela
   scene.add(particles.points);
   scene.add(particles.reflection);                  // la reflexión se voltea en su propio shader
-  anchorUI();
+  if (Math.abs(M_HALF - mHalfWas) > 0.01) buildPath(); else anchorUI();
   geos.forEach((g) => g.dispose());
   try {   // precompila todo (fichas incluidas) contra el búfer del composer
     cards.forEach((m) => { m.visible = true; });
@@ -445,6 +447,7 @@ const SPI = { R: 3, drop: 2, cardW: 2.3, yTop: AXIS_Y, yM: AXIS_Y - 12.5, camD: 
 // giro de la espiral: llega girando desde servicios, cada estación gira 60° y sigue girando hacia el cierre
 const spinAt = (q) => (q < Q0 ? (Q0 - q) * 1.4 : -(q - Q0) * SPI.stepA);
 const pad2 = (n) => String(n).padStart(2, "0");
+const slugify = (t) => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
 const cardGeo = new THREE.PlaneGeometry(1, 1);
 const cards = RUBROS.map((r, i) => {
@@ -834,7 +837,7 @@ function openDetail(k, tile) {
   const ctas = mk("div", "det__ctas");
   const wa = mk("a", "pill pill--light", "Quiero algo así →");
   wa.href = WA_URL + encodeURIComponent(`Hola MV Design, vi el caso de ${pr.name} y quiero cotizar algo así. [web · caso]`);
-  wa.dataset.cta = "caso";                              // (medición: WhatsApp = Lead con su ubicación)
+  wa.dataset.cta = "caso-" + slugify(pr.name);          // (medición: WhatsApp = Lead con su ubicación: qué caso convierte)
   wa.target = "_blank"; wa.rel = "noopener";
   ctas.append(wa);
   if (pr.url) { const a = mk("a", "pill pill--ghost", "Ver sitio ↗"); a.href = pr.url; a.target = "_blank"; a.rel = "noopener"; ctas.append(a); }
@@ -982,7 +985,7 @@ const TEXT_PORT = [{ d: 14, oy: 0.17 }, { oy: 0 }, { oy: 0 }, { d: 12, oy: 0 }, 
 const RING_FILL = { land: 0.84, port: 0.96 };
 const mLook = new THREE.Matrix4(), qTmp = new THREE.Quaternion();
 // escala de la M y ventana lejana de los anillos: dependen del encuadre (buildPath)
-let mScale = M_S, FAR_SUN = 20, FAR_TUN = 20, mouseRef = 12;
+let mScale = M_S, FAR_SUN = 20, FAR_TUN = 20, mouseRef = 12, M_HALF = 1.05;   // (M_HALF: media altura de la M a escala 1)
 let procTight = false;                                   // celular: el proceso no cabe junto al WhatsApp flotante
 function buildPath() {
   const E = END_Z;
@@ -1057,10 +1060,6 @@ function buildPath() {
   KEYS.pos.push(V(0, yK, PK_Z + T[SC.pk].d)); KEYS.look.push(V(0, yK, PK_Z)); FOCUS.push(T[SC.pk].d);
   if (portrait) { KEYS.pos.push(V(0, yM + 0.6, E + 20.5)); KEYS.look.push(V(0, yM - 1.55 - (H < 760 ? 1.2 : 0.3), E)); FOCUS.push(20.5); }   // (la M sube: el pie de contacto no la toca)
   else { KEYS.pos.push(V(0, yM + 0.4, E + 16.5)); KEYS.look.push(V(0, yM - 0.95, E)); FOCUS.push(16.5); }
-  posCurve = new THREE.CatmullRomCurve3(KEYS.pos, false, "centripetal");
-  lookCurve = new THREE.CatmullRomCurve3(KEYS.look, false, "centripetal");
-  posA = new THREE.CatmullRomCurve3([...KEYS.pos.slice(0, 3), KEYS.pos[Q0]], false, "centripetal");
-  lookA = new THREE.CatmullRomCurve3([...KEYS.look.slice(0, 3), KEYS.look[Q0]], false, "centripetal");
   // cada texto queda de frente a la cámara de su escena, a 1:1 (nítido) cuando llegas.
   // Manifiesto y servicios viven en el plano de su anillo y su tipografía se mide con él (--ring):
   // el texto queda dentro del círculo con cualquier zoom del navegador y en cualquier pantalla.
@@ -1069,7 +1068,9 @@ function buildPath() {
   sections[SC.proc].classList.toggle("is-compact", portrait);
   sections[SC.pk].classList.toggle("is-compact", portrait || H < 620);
   procTight = false;
-  labels.forEach((o, i) => {
+  const elC = sections[LAST], root = document.documentElement;
+  elC.classList.remove("is-tight", "is-bare"); root.classList.remove("contact-bare");
+  const place = (o, i) => {
     const ring = RING_AT[i];
     let ringD = 0;
     const d = ring ? ring[1] : T[i].d, oy = T[i].oy;
@@ -1102,7 +1103,35 @@ function buildPath() {
     o.quaternion.copy(qTmp);
     o.scale.setScalar(s * fit);
     o.userData.d = d;
-  });
+    return cy - half;                                // (arriba del bloque, en px)
+  };
+  labels.forEach(place);
+  // contacto: la M del cierre vive en el aire entre el HUD y el bloque de texto (que va abajo). Si no le alcanza,
+  // el bloque se aprieta (y en pantallas muy bajas suelta el kicker y la nota), la cámara se aleja lo justo
+  // y se inclina para centrarla en ese hueco; donde ya cabe, el encuadre no cambia
+  const kC = QLAST, GAP = 18, mH = M_HALF * mScale, D0 = KEYS.pos[kC].z - E;
+  const shot = (ly, y) => { probe.position.copy(KEYS.pos[kC]); probe.lookAt(0, ly, E); probe.updateMatrixWorld(); pv.set(0, y, E).project(probe); return (1 - pv.y) / 2 * H; };
+  const mPx = (D) => (mH * H) / (D * tanH);          // alto de la M en pantalla a distancia D
+  let minTop = (narrow ? 112 : 96) + SAFE_T, topC = place(labels[LAST], LAST);
+  if (topC - GAP - minTop < mPx(D0)) { elC.classList.add("is-tight"); topC = place(labels[LAST], LAST); }
+  if (topC - GAP - minTop < mPx(D0) * 0.8) {
+    elC.classList.add("is-bare"); root.classList.add("contact-bare");
+    minTop = (narrow ? 72 : 92) + SAFE_T; topC = place(labels[LAST], LAST);
+  }
+  const band = topC - GAP - minTop, ly0 = KEYS.look[kC].y;
+  if (band > 70 && (shot(ly0, yM - mH) > topC - GAP || shot(ly0, yM + mH) < minTop)) {
+    const D = clamp(D0 * mPx(D0) / (band * 0.94), D0, D0 * 1.6);
+    KEYS.pos[kC].z = E + D; FOCUS[kC] = D;
+    const want = minTop + band / 2;                  // (más arriba la mirada, más abajo la M en pantalla)
+    let lo = yM - 10, hi = yM + 10;
+    for (let n = 0; n < 32; n++) { const mid = (lo + hi) / 2; if (shot(mid, yM) < want) lo = mid; else hi = mid; }
+    KEYS.look[kC].y = (lo + hi) / 2;
+    place(labels[LAST], LAST);                       // el texto sigue a su cámara: mismo lugar en pantalla
+  }
+  posCurve = new THREE.CatmullRomCurve3(KEYS.pos, false, "centripetal");
+  lookCurve = new THREE.CatmullRomCurve3(KEYS.look, false, "centripetal");
+  posA = new THREE.CatmullRomCurve3([...KEYS.pos.slice(0, 3), KEYS.pos[Q0]], false, "centripetal");
+  lookA = new THREE.CatmullRomCurve3([...KEYS.look.slice(0, 3), KEYS.look[Q0]], false, "centripetal");
   anchorUI();
 }
 
@@ -1429,13 +1458,13 @@ mailBtn?.addEventListener("click", () => {
 });
 const progEl = document.querySelector("[data-prog]");
 const NOTES = [
-  "Diseñamos marcas, sitios<br>y contenido con intención<br>comercial. Para que tu<br>cliente te elija.",
-  "Antes del diseño,<br>la decisión.",
-  "Estrategia, diseño, contenido<br>y pauta en un solo equipo.",
-  "Primero entendemos tu negocio.<br>Después diseñamos.",
-  "Trabajo real de branding,<br>diseño web y contenido.<br>Desde Querétaro para todo México.",
-  "El mensaje de WhatsApp<br>ya lleva el paquete elegido.",
-  "Respondemos el mismo día<br>por WhatsApp."
+  "Diseñamos marcas, sitios <br>y contenido con intención <br>comercial. Para que tu <br>cliente te elija.",
+  "Antes del diseño, <br>la decisión.",
+  "Estrategia, diseño, contenido <br>y pauta en un solo equipo.",
+  "Primero entendemos tu negocio. <br>Después diseñamos.",
+  "Trabajo real de branding, <br>diseño web y contenido. <br>Desde Querétaro para todo México.",
+  "El mensaje de WhatsApp <br>ya lleva el paquete elegido.",
+  "Respondemos el mismo día <br>por WhatsApp."
 ];
 let active = -1;
 const sceneSeen = new Set();
@@ -1525,8 +1554,8 @@ function setActive(a) {
   if (active === 0 && a > 0) { document.documentElement.classList.add("hint-done"); try { sessionStorage.setItem("mv-hint", "1"); } catch (e) {} }
   active = a;
   document.body.dataset.scene = SLUGS[a];
-  // medición: qué escenas se ven (una vez por visita; gtag sólo envía en el dominio real)
-  if (!sceneSeen.has(a) && typeof window.gtag === "function") { sceneSeen.add(a); window.gtag("event", "scene_view", { scene: SLUGS[a] }); }
+  // medición: qué escenas se ven (una vez por visita, sólo donde aterrizas: no las que la cámara cruza; gtag sólo envía en el dominio real)
+  if (!sceneSeen.has(a) && a === Math.round(sceneP(to)) && typeof window.gtag === "function") { sceneSeen.add(a); window.gtag("event", "scene_view", { scene: SLUGS[a] }); }
   waSync();
   if (a !== SC.casos && rp.open >= 0) closeRubro(true, "nav");
   if (a !== SC.pk && pk.open >= 0) closePk("nav");
@@ -1534,7 +1563,7 @@ function setActive(a) {
   if (idxNum) idxNum.textContent = pad2(a + 1);
   if (idxName) idxName.textContent = NAMES[a];
   if (noteEl) noteEl.innerHTML = NOTES[a];
-  if (noteM) noteM.textContent = NOTES[a].replace(/<br>/g, " ");
+  if (noteM) noteM.textContent = NOTES[a].replace(/ ?<br>/g, " ");
   snd.scene(a);                                          // la armonía se desliza al acorde de la escena
 }
 
