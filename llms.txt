@@ -30,7 +30,7 @@ Cinco etapas: briefing → estructura y wireframe → diseño → desarrollo →
 
 ## Ubicación y cobertura
 - Base: Santiago de Querétaro, Querétaro, México.
-- Negocio de área de servicio: atendemos con cita, sin oficina abierta al público.
+- Dirección: Av Don Bosco 18, El Pueblito, 76900 Santiago de Querétaro, Qro. Atendemos con cita.
 - Presencial: Santiago de Querétaro y zona metropolitana (El Marqués, Corregidora, Juriquilla).
 - Remoto: todo México, incluida la Ciudad de México.
 - Horario de atención: lunes a sábado, 8:00–19:00 (hora del centro de México).

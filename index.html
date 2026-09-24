@@ -13,8 +13,8 @@
   <meta name="keywords" content="agencia de marketing Querétaro, agencia de diseño Querétaro, diseño web Querétaro, branding Querétaro, marketing digital Querétaro, tiendas en línea Shopify México, páginas web Querétaro, diseño web 3D inmersivo" />
   <meta name="geo.region" content="MX-QUE" />
   <meta name="geo.placename" content="Santiago de Querétaro" />
-  <meta name="geo.position" content="20.5888;-100.3899" />
-  <meta name="ICBM" content="20.5888, -100.3899" />
+  <meta name="geo.position" content="20.5491;-100.4346" />
+  <meta name="ICBM" content="20.5491, -100.4346" />
 
   <meta property="fb:app_id" content="2955276911531585" />
 
@@ -48,7 +48,9 @@
 
   <link rel="preload" href="assets/fonts/montserrat-latin.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="preload" href="assets/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
-  <link rel="stylesheet" href="lab/lab.css?v=37" />
+  <!-- internet lento: si a los 4 s el 3D sigue cargando, el WhatsApp aparece sobre el telón (va antes de los estilos: corre desde el inicio; con carga normal el telón se va antes y la entrada no cambia) -->
+  <script>setTimeout(function () { var c = document.querySelector(".curtain"); if (!c || !c.classList.contains("is-off")) document.documentElement.classList.add("wa-early"); }, 4000);</script>
+  <link rel="stylesheet" href="lab/lab.css?v=38" />
   <noscript><style>.curtain { display: none; }</style></noscript>
   <script type="importmap">
   {
@@ -92,8 +94,9 @@
         "telephone": "+52-442-714-6255",
         "priceRange": "$$",
         "currenciesAccepted": "MXN",
-        "address": { "@type": "PostalAddress", "addressLocality": "Santiago de Querétaro", "addressRegion": "Querétaro", "addressCountry": "MX" },
-        "geo": { "@type": "GeoCoordinates", "latitude": 20.5888, "longitude": -100.3899 },
+        "address": { "@type": "PostalAddress", "streetAddress": "Av Don Bosco 18, El Pueblito", "addressLocality": "Santiago de Querétaro", "addressRegion": "Qro.", "postalCode": "76900", "addressCountry": "MX" },
+        "geo": { "@type": "GeoCoordinates", "latitude": 20.5491282, "longitude": -100.4346038 },
+        "hasMap": "https://www.google.com/maps?cid=13950213253738314113",
         "areaServed": [ { "@type": "City", "name": "Santiago de Querétaro" }, { "@type": "City", "name": "El Marqués" }, { "@type": "City", "name": "Corregidora" }, { "@type": "City", "name": "Juriquilla" }, { "@type": "City", "name": "Ciudad de México" }, { "@type": "AdministrativeArea", "name": "Zona metropolitana de Querétaro" }, { "@type": "Country", "name": "México" } ],
         "openingHoursSpecification": [
           { "@type": "OpeningHoursSpecification", "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"], "opens": "08:00", "closes": "19:00" }
@@ -356,6 +359,7 @@
     <section class="scene scene--contact" data-scene="contacto" aria-label="Contacto">
       <p class="kicker mono">Contacto · Querétaro, México</p>
       <h2 class="title title--2" tabindex="-1">Hagamos que tu marca <em class="grad">venda</em>.</h2>
+      <p class="zone mono">Presencial en Santiago de Querétaro y su zona metropolitana · a distancia en todo México</p>
       <div class="ctas">
         <a class="pill pill--light pill--two" href="https://wa.me/5214427146255?text=Hola%20Fernanda%2C%20quiero%20cotizar%20un%20proyecto%20con%20MV%20Design.%20%5Bweb%20%C2%B7%20contacto%5D" target="_blank" rel="noopener" data-cta="contacto-fer">
           <span class="wa__dot" aria-hidden="true"></span>
@@ -376,6 +380,7 @@
         </span>
       </div>
       <p class="legal mono"><a href="/privacidad/">Aviso de privacidad</a> · <a href="/terminos/">Términos</a> · <a href="/eliminacion-de-datos/">Eliminación de datos</a></p>
+      <p class="copyline mono">© 2026 MV Design · Agencia de marketing y diseño en Santiago de Querétaro, México</p>
     </section>
   </main>
 
@@ -415,19 +420,21 @@
       setTimeout(function () { if (!document.documentElement.classList.contains("is-3d")) off(); }, 4000);
     })();
   </script>
-  <script type="module" src="lab/lab.js?v=92"></script>
+  <script type="module" src="lab/lab.js?v=93"></script>
   <!-- Conversiones: WhatsApp = Lead (principal) · correo = Contact. Envia a Meta Pixel Y a GA4 -->
   <script>
   (function () {
     // cta_location = qué botón fue (data-cta), para saber cuál convierte de verdad
+    // scene = la escena de la experiencia 3D donde estaba la persona al hacer clic (solo medición)
     function fire(metaEvent, gaEvent, metodo, ubicacion) {
+      var escena = (document.body && document.body.getAttribute('data-scene')) || '';
       // Meta Pixel
       if (typeof fbq === 'function') {
-        fbq('track', metaEvent, { content_name: metodo, content_category: 'contacto', cta_location: ubicacion });
+        fbq('track', metaEvent, { content_name: metodo, content_category: 'contacto', cta_location: ubicacion, scene: escena });
       }
       // Google Analytics 4
       if (typeof gtag === 'function') {
-        gtag('event', gaEvent, { method: metodo, cta_location: ubicacion });
+        gtag('event', gaEvent, { method: metodo, cta_location: ubicacion, scene: escena });
       }
     }
     document.addEventListener('click', function (e) {
@@ -439,6 +446,12 @@
         fire('Contact', 'contact', 'Correo', a.getAttribute('data-cta') || 'sin-etiqueta');
       }
     }, true);
+    // quien copia a mano un teléfono o el correo para escribir después también es un contacto (solo GA4)
+    document.addEventListener('copy', function () {
+      var sel = String((window.getSelection && window.getSelection()) || '');
+      var metodo = /@/.test(sel) ? 'Correo' : (/\d[\d\s().-]{7,}\d/.test(sel) ? 'Teléfono' : '');
+      if (metodo && typeof gtag === 'function') gtag('event', 'copy_contact', { method: metodo, cta_location: 'seleccion', scene: (document.body && document.body.getAttribute('data-scene')) || '' });
+    });
   })();
   </script>
 

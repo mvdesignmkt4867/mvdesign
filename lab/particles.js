@@ -434,6 +434,12 @@ export function createParticles({ renderer, geos, holderMatrix, mobile, reduced,
     set procFill(v) { procFillU.value = v; },
     set procPulse(v) { procPulseU.value = v; },
     set ribbon(v) { if (velVar) velVar.material.uniforms.uRibbon.value = v; },
+    dispose() {                                       // (al rearmarse tras perder el contexto WebGL)
+      points.geometry.dispose(); points.material.dispose();
+      if (reflection.geometry !== points.geometry) reflection.geometry.dispose();
+      reflection.material.dispose();
+      if (gpu && gpu.dispose) gpu.dispose();
+    },
     update(dt, t) {
       shared.uTime.value = t;
       if (!gpu) return;

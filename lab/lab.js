@@ -20,7 +20,7 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { CSS3DRenderer, CSS3DObject } from "three/addons/renderers/CSS3DRenderer.js";
-import { createParticles, BLAST_GLSL, BLAST_N } from "./particles.js?v=27";
+import { createParticles, BLAST_GLSL, BLAST_N } from "./particles.js?v=28";
 import { ICON_DRAW } from "./rubro-icons.js?v=1";
 import { createSound } from "./sound.js?v=20";
 
@@ -53,6 +53,10 @@ let DPR_MAX = Math.min(devicePixelRatio || 1, mobile ? 1.5 : 1.75);   // se vuel
 let DPR = Math.min(DPR_MAX, mobile ? 1.25 : 1.5);
 
 /* ---------- Renderer ---------- */
+// ?fx=0 (o tras perder el 3D sin recuperarlo en esta pestaña): la versión sin 3D, que ya es una página legible
+let flat = /[?&]fx=0\b/.test(location.search);
+try { if (sessionStorage.getItem("mv-flat")) flat = true; } catch (e) {}
+if (flat) { document.documentElement.classList.add("no-gl"); curtain.classList.add("is-off"); throw new Error("MV: versión sin 3D"); }
 let renderer;
 try {
   renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance" });
@@ -395,6 +399,7 @@ async function buildM() {
   // como en el logo plano, la lágrima morada tapa el brazo derecho del chevrón: ahí no hay partículas azules
   const tear = shapes[1] && shapes[1][0] ? shapes[1][0].getPoints(96) : null;
   const exclude = tear ? [{ geo: 0, poly: tear, margin: 8 }] : [];
+  if (particles) { scene.remove(particles.points, particles.reflection); particles.dispose(); }   // (rearme tras perder el contexto)
   particles = createParticles({ renderer, geos, holderMatrix: holder.matrix, mobile, reduced, exclude, blast: BLAST });
   setLoad(0.85);
   particles.px = DPR * (mobile ? 0.8 : 1);
@@ -881,11 +886,12 @@ const cardAt = (x, y) => {
   return raycaster.intersectObjects(cards.filter((m) => m.visible), false)[0] || null;
 };
 addEventListener("pointerdown", (e) => {
+  if (!lifted) return;
   downX = e.clientX; downY = e.clientY; downT = performance.now();
   if (e.pointerType === "mouse" && e.button === 0 && !onUI(e) && !cardAt(e.clientX, e.clientY)) fireBlast(e.clientX, e.clientY);
 }, { passive: true });
 addEventListener("pointerup", (e) => {
-  if (onUI(e) || e.button !== 0) return;
+  if (!lifted || onUI(e) || e.button !== 0) return;
   if (Math.hypot(e.clientX - downX, e.clientY - downY) > 10 || performance.now() - downT > 450) return;
   const hit = cardAt(e.clientX, e.clientY);
   if (e.pointerType !== "mouse" && !hit) fireBlast(e.clientX, e.clientY);
@@ -1308,6 +1314,7 @@ const step = (dirn) => goQ(Math.round(to) + dirn);   // (entre dos fichas: desde
 let wheelAcc = 0, lastWheel = 0, gestureUsed = false, wheelAvg = 0, gestureEdge = 0, freeOver = 0, edgeHitT = 0;
 addEventListener("wheel", (e) => {
   if (e.ctrlKey) return;                               // pellizco para zoom: se respeta
+  if (!lifted) { e.preventDefault(); return; }         // con el telón arriba nada se mueve (si no, al levantarse ya ibas 2–3 escenas adelante)
   if (pk.open >= 0 && e.target.closest && e.target.closest("[data-psheet]")) return;   // dentro de la hoja: su propio scroll
   if (idxNav?.classList.contains("is-open") && e.target.closest && e.target.closest("[data-idx]")) return;   // y dentro del menú del índice
   if (rp.open >= 0 && e.target.closest && e.target.closest("[data-rpanel]")) {        // dentro del panel: scroll normal…
@@ -1355,6 +1362,7 @@ addEventListener("touchstart", (e) => {
   // dentro del panel el dedo desplaza sus proyectos, no cambia de escena
   // (y en la hoja de paquetes y en el índice abierto, tampoco)
   const t = e.target.closest ? e.target : null;
+  if (!lifted) { ty0 = null; tf = null; return; }      // (telón arriba)
   ty0 = (rp.open >= 0 && t?.closest("[data-rpanel]")) || (pk.open >= 0 && t?.closest("[data-psheet]")) || t?.closest("[data-idx]") ? null : e.touches[0].clientY;
   touchUsed = false; tf = null;
   // casos: el dedo arrastra la espiral (scroll libre, con inercia al soltar)
@@ -1394,6 +1402,7 @@ addEventListener("touchend", () => {
 }, { passive: true });
 addEventListener("keydown", (e) => {
   if (e.target.closest && e.target.closest("input, textarea, select")) return;
+  if (!lifted) { if ([" ", "ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End"].includes(e.key)) e.preventDefault(); return; }   // (telón arriba)
   if (pk.open >= 0) { if (e.key === "Escape") { e.preventDefault(); closePk(); } return; }   // la hoja es modal: Tab, Enter y flechas dentro
   if (e.key === "Escape" && pendingOpen) { pendingOpen = null; e.preventDefault(); return; }   // (un rubro que iba a abrirse al acomodarse)
   if (idxNav?.classList.contains("is-open")) {                                               // menú del índice (celular)
@@ -1424,6 +1433,7 @@ const NAMES = ["La firma", "Manifiesto", "Servicios", "Proceso", "Casos", "Paque
 const LIVE_MORE = { [SC.proc]: "Cinco etapas.", [SC.pk]: "Tres paquetes, cada uno con su botón de WhatsApp." };
 let navByKey = false;                                  // al llegar con teclado, el foco pasa al titular de la escena
 function goScene(s, push) {
+  if (!lifted) return;                                 // (el HUD ya existe bajo el telón, invisible)
   if (push && SLUGS[s] && s !== Math.round(sceneP(to))) { try { history.pushState({ s }, "", s === 0 ? location.pathname + location.search : "#" + SLUGS[s]); } catch (e) {} }
   goTo(s);
 }
@@ -1452,6 +1462,7 @@ let mailT = 0;
 mailBtn?.addEventListener("click", () => {
   try { navigator.clipboard?.writeText(MAIL).then(() => {
     mailBtn.textContent = "Correo copiado ✓";
+    if (typeof window.gtag === "function") window.gtag("event", "copy_contact", { method: "Correo", cta_location: "contacto-correo", scene: SLUGS[active] || "" });
     clearTimeout(mailT);
     mailT = setTimeout(() => { mailBtn.textContent = MAIL; }, 1800);
   }).catch(() => {}); } catch (e) {}
@@ -1864,12 +1875,30 @@ function frame() {
   requestAnimationFrame(frame);
 }
 
+// iOS puede tirar el contexto WebGL con Safari en segundo plano: al volver, three.js lo restaura y las partículas
+// (su estado vive en texturas que se pierden) se rearman. Si a la vista no regresa en ~3 s, queda la versión sin 3D
+let glLost = false, glLostT = 0;
+function glWatch() {
+  clearTimeout(glLostT);
+  if (glLost && document.visibilityState === "visible") glLostT = setTimeout(() => {
+    if (!glLost) return;
+    try { sessionStorage.setItem("mv-flat", "1"); } catch (e) {}
+    location.reload();                                 // (arranca en la versión sin 3D; se limpia al cerrar la pestaña)
+  }, 3000);
+}
+canvas.addEventListener("webglcontextlost", (e) => { e.preventDefault(); glLost = true; glWatch(); });
+canvas.addEventListener("webglcontextrestored", () => {
+  glLost = false; clearTimeout(glLostT);
+  buildM().then(() => buildPath()).catch((err) => console.error(err));
+});
+document.addEventListener("visibilitychange", glWatch);
+
 // para pruebas: ?s=3 abre directo en una escena; ?debug expone el mundo en la consola
 const qsScene = new URLSearchParams(location.search).get("s");
 const hashScene = SLUGS.indexOf(location.hash.slice(1));
 if (qsScene !== null) { from = to = prog = stationOf(clamp(Math.round(+qsScene) || 0, 0, LAST)); }
 else if (hashScene > 0) { from = to = prog = stationOf(hashScene); }
-if (/[?&]debug\b/.test(location.search)) window.__lab = { THREE, get dpr() { return DPR; }, renderer, scene, composer, bloom, camera, get particles() { return particles; }, goTo, goQ, openRubro, openDetail, get rp() { return rp; }, get nav() { return { prog, to, free, lockUntil: lockUntil - now() }; }, cards, SPI, SC, anchorUI, openPk, closePk, labels, sections, snd };
+if (/[?&]debug\b/.test(location.search)) window.__lab = { THREE, get dpr() { return DPR; }, renderer, scene, composer, bloom, camera, get particles() { return particles; }, goTo, goQ, openRubro, openDetail, get rp() { return rp; }, loseGL: () => renderer.forceContextLoss(), restoreGL: () => renderer.forceContextRestore(), get nav() { return { prog, to, free, lockUntil: lockUntil - now() }; }, cards, SPI, SC, anchorUI, openPk, closePk, labels, sections, snd };
 
 // la entrada: el telón se levanta cuando todo está listo y ahí arranca el reloj de la intro
 // (antes corría debajo del telón). Primero la M y el anillo, luego el titular, al final HUD, botón y pista
@@ -1879,7 +1908,7 @@ function revealHud() {
   if (revealed) return; revealed = true;
   document.documentElement.classList.remove("is-intro");
   if (reduced) return;
-  introEls().forEach((el, i) => el.animate([{ opacity: 0, translate: "0 6px" }, {}],   // {} = el valor que le toca por CSS
+  introEls().filter((el) => !(el === waFloat && document.documentElement.classList.contains("wa-early"))).forEach((el, i) => el.animate([{ opacity: 0, translate: "0 6px" }, {}],   // {} = el valor que le toca por CSS
     { duration: 480, delay: i < 4 ? i * 70 : 600, easing: "cubic-bezier(.16,1,.3,1)", fill: "backwards" }));
 }
 let lifted = false;
