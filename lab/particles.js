@@ -29,6 +29,9 @@ uniform vec3 uProcN[5]; uniform vec3 uProcX, uProcY, uProcZ; uniform float uProc
 // paquetes: centro de cada tarjeta + radio de esquina (w) · semiancho, semialto, grosor del marco, destacada (w)
 uniform vec4 uPkC[3]; uniform vec4 uPkH[3]; uniform vec3 uPkX, uPkY, uPkZ;
 float mvStag(float u, float s){ return smoothstep(0., 1., clamp(u * 1.6 - s * .6, 0., 1.)); }
+// lugar de cada partícula a lo largo de la cinta de la espiral (0 arriba → 1 abajo): la cinta FLUYE hacia abajo,
+// cada una a su ritmo (~0.25 rubros/s ± 25 %); al salir por abajo vuelve a entrar por arriba (el render la apaga en los extremos)
+float mvAlong(float seed, float r){ return fract(fract(seed * 7.13) + uTime * .25 * (.75 + .5 * r) / (uSpiralK.y + .9)); }
 vec3 mvRotY(vec3 p, float a){ float c = cos(a), s = sin(a); return vec3(p.x * c + p.z * s, p.y, -p.x * s + p.z * c); }
 // el hilo: 4 tramos entre los anillos de los números (pick < uProcSplit) o un anillo alrededor de cada número
 vec3 mvProc(vec4 h, vec4 rg, float pick){
@@ -79,14 +82,15 @@ vec4 mvTarget(vec2 u){
   float th = hx.x + uTime * (.035 + seed * .05);
   vec3 helix = vec3(uAxis.x + cos(th) * hx.y, uAxis.y + sin(th) * hx.y * .9, hx.z);
   float eA = mvStag(uA, seed), eC = mvStag(uC, rg.w), eP = mvStag(uProc, rg.w);
-  float eS = mvStag(uPlanet, fract(seed * 7.13)), eK = mvStag(uPack, hx.w), eB = mvStag(uB, 1. - seed);
+  float aS = mvAlong(seed, rg.w);
+  float eS = mvStag(uPlanet, aS), eK = mvStag(uPack, hx.w), eB = mvStag(uB, 1. - seed);
   vec3 t = mix(mix(mp + uStart, ring, eA), helix, eC);
   // (ramas uniformes: fuera de su tramo no cuestan; si el estado siguiente ya es total, éste no se calcula)
   if (uProc > 0. && uPlanet < 1.) t = mix(t, mvProc(h, rg, hx.w), eP);
   if (uPlanet > 0. && uPack < 1.) {
     // casos: TODAS forman la cinta de la espiral de rubros (por dentro de las fichas: no les pasan encima)
     // y giran con ella; posición a lo largo (la semilla, así llegan en orden), ancho y grosor con azar independiente
-    float along = fract(seed * 7.13) * (uSpiralK.y + .9) - .7;                // en rubros: un poco antes del primero y después del último
+    float along = aS * (uSpiralK.y + .9) - .7;                                // en rubros: un poco antes del primero y después del último
     float sa = along * uSpiralK.x + uSpiral.w + sin(uTime * .15 + along) * .06 + (fract(rg.x * .15915) - .5) * .32;   // en fase con las fichas
     float sr = uSpiral.z * (.52 + .38 * rg.w);
     vec3 spiral = vec3(uEnd.x + sin(sa) * sr, uSpiral.x - along * uSpiral.y + rg.z * 1.7, uEnd.z + cos(sa) * sr);
@@ -238,8 +242,9 @@ void main(){
   vec4 rgs = texture2D(tRing, aRef), hxr = texture2D(tHelix, aRef);
   float calm = mvStag(uC, rgs.w) * (1. - mvStag(uProc, rgs.w));             // 1 = viajando por el túnel
   // pesos de cada forma: la M (inicio y cierre), la cinta de la espiral (se ve igual que la M), el hilo y los marcos
-  float wS = mvStag(uPlanet, fract(aSeed * 7.13)) * (1. - mvStag(uPack, hxr.w));
-  float wP = mvStag(uProc, rgs.w) * (1. - mvStag(uPlanet, fract(aSeed * 7.13)));
+  float aS = mvAlong(aSeed, rgs.w);
+  float wS = mvStag(uPlanet, aS) * (1. - mvStag(uPack, hxr.w));
+  float wP = mvStag(uProc, rgs.w) * (1. - mvStag(uPlanet, aS));
   float wK = mvStag(uPack, hxr.w) * (1. - mvStag(uB, 1. - aSeed));
   float asmW = max(max(1. - mvStag(uA, aSeed), mvStag(uB, 1. - aSeed)), wS);  // 1 = forma la M (o la cinta)
   float base = (.95 + aSeed * 1.6) * uPx * (16. / max(z, .1)) * mix(1., .6, calm);   // partículas finas
@@ -248,6 +253,7 @@ void main(){
   float tw = mix(.72 + .28 * sin(uTime * (1.3 + aSeed * 2.1) + aSeed * 50.), 1., max(asmW * .75, (wP + wK) * .6));
   vA = tw / (1. + coc * coc * 5.) * smoothstep(1., 3.5, z) * uAlpha * mix(1., .55, calm);
   if (uMirror > .5) vA *= .7 * smoothstep(-1.8, 0., p.y - uFloorY) * uReflect;
+  vA *= mix(1., smoothstep(0., .09, aS) * smoothstep(1., .91, aS), wS);    // la cinta fluye: entran y salen por los extremos sin verse el regreso
   blastLit = min(blastLit, 1.);
   vA *= 1. + blastLit * .35;                                                    // la onda del clic: crecen y brillan un poco al pasar
   gl_PointSize *= 1. + blastLit * .7;                                           // (más tamaño que brillo: el color de marca no se satura)

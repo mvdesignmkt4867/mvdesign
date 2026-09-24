@@ -20,7 +20,7 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { CSS3DRenderer, CSS3DObject } from "three/addons/renderers/CSS3DRenderer.js";
-import { createParticles, BLAST_GLSL, BLAST_N } from "./particles.js?v=23";
+import { createParticles, BLAST_GLSL, BLAST_N } from "./particles.js?v=24";
 import { ICON_DRAW } from "./rubro-icons.js?v=1";
 
 const canvas = document.querySelector("[data-gl]");
