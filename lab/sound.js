@@ -16,16 +16,18 @@
    Encendido por omisión; si alguien lo apaga, se recuerda (localStorage).
    ============================================================ */
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
-// voces del coro por escena, todas sobre re (lidio: re mi fa# sol# la si do#)
-const CHORDS = [
-  [62, 69, 74, 76, 78],   // 0 La firma · D add9
-  [62, 69, 71, 76, 78],   // 1 Manifiesto · D 6/9
-  [62, 68, 73, 76, 81],   // 2 Servicios · Dmaj9(#11)
-  [62, 66, 69, 73, 76],   // 3 Proceso · Dmaj9
-  [62, 69, 71, 74, 78],   // 4 Casos · D6/9 abierto
-  [62, 68, 73, 76, 80],   // 5 Paquetes · lidio
-  [62, 69, 73, 78, 81]    // 6 Contacto · Dmaj7 abierto (arriba)
+// el coro canta una progresión lenta sobre un re que nunca se mueve (así no hay bajones):
+// I · IV/I · vi/I · V/I, cada acorde ~6 s, con fundido cruzado entre voces
+const PROG = [
+  [62, 69, 73, 76, 78],   // Dmaj9
+  [62, 67, 71, 74, 78],   // G/D (Gmaj7)
+  [62, 66, 69, 71, 76],   // Bm9/D
+  [62, 64, 69, 73, 76]    // A/D (Aadd9)
 ];
+// soprano: una melodía lenta encima (dos notas por acorde); el do# final resuelve subiendo al re
+const MELODY = [74, 78, 79, 78, 76, 78, 76, 73];
+const CHORD_LEN = 6, MEL_LEN = 3;
+const CHORDS = PROG;                                  // (efectos: notas del acorde que suena)
 const SPARK = [[86, 88, 90], [86, 88, 90], [85, 88, 92], [85, 88, 90], [86, 88, 90], [85, 88, 92], [85, 90, 93]];
 const PROC_NOTES = [74, 76, 78, 81, 83];             // proceso: una onda por etapa, subiendo
 const VOWELS = { a: [730, 1090, 2440], o: [570, 840, 2410] };   // "aah" ↔ "ooh"
@@ -36,6 +38,7 @@ export function createSound({ reduced = false } = {}) {
   let on = true;
   try { on = localStorage.getItem(KEY) !== "0"; } catch (e) {}
   let ctx = null, started = false, scene = 0, lastHover = 0, lastSpeedSet = 0, lastPew = 0, bankIdx = 0;
+  let progIdx = 0, melIdx = 0, nextChordT = 0, nextMelT = 0, progTimer = 0, sop = null;
   let master, music, fx, rev, echoIn, choirIn, choirOut, formants, sparkBus, sparkGlow, sparks, airGain;
   const banks = [];
   const listeners = new Set();
@@ -112,7 +115,7 @@ export function createSound({ reduced = false } = {}) {
     const vib = ctx.createOscillator(), vibG = ctx.createGain(); vib.frequency.value = 4.6; vibG.gain.value = 7; vib.connect(vibG); vib.start();
     for (let b = 0; b < 3; b++) {
       const g = ctx.createGain(); g.gain.value = 0; g.connect(choirIn);
-      const vs = CHORDS[scene].map((m, i) => {
+      const vs = PROG[0].map((m, i) => {
         const p = panner((i / 4 - 0.5) * 0.9); p.connect(g);
         return [-7, 7].map((c) => {                                   // dos voces por nota, apenas desafinadas (ensamble)
           const o = ctx.createOscillator(); o.type = "sawtooth"; o.frequency.value = mtof(m); o.detune.value = c + (Math.random() - 0.5) * 4;
@@ -123,6 +126,15 @@ export function createSound({ reduced = false } = {}) {
       });
       banks.push({ g, vs });
     }
+    // soprano: una voz sola del coro (mismos formantes) que canta la melodía, ligada
+    const sopG = ctx.createGain(); sopG.gain.value = 0; sopG.connect(choirIn);
+    const sopOscs = [-6, 6].map((c) => {
+      const o = ctx.createOscillator(); o.type = "sawtooth"; o.frequency.value = mtof(MELODY[0]); o.detune.value = c;
+      vibG.connect(o.detune);
+      const og = ctx.createGain(); og.gain.value = 0.028; o.connect(og); og.connect(sopG); o.start();
+      return o;
+    });
+    sop = { g: sopG, oscs: sopOscs };
     // pedal de re, muy suave y quieto (calidez sin peso)
     const ped = ctx.createOscillator(); ped.type = "sine"; ped.frequency.value = mtof(50);
     const pedG = ctx.createGain(); pedG.gain.value = 0.024; ped.connect(pedG); pedG.connect(music); ped.start();
@@ -162,6 +174,39 @@ export function createSound({ reduced = false } = {}) {
     choirOut.gain.linearRampToValueAtTime(1, now + 5);
     banks[0].g.gain.setValueAtTime(1, now);
     setScene(scene, true);
+    sop.g.gain.setValueAtTime(0, now); sop.g.gain.linearRampToValueAtTime(1, now + 7);   // la soprano entra después del coro
+    nextChordT = now + CHORD_LEN; nextMelT = now + MEL_LEN;
+    clearInterval(progTimer); progTimer = setInterval(tickProg, 150);
+  }
+  // el coro cambia de acorde (fundido cruzado entre bancos: ninguna voz desliza su tono)
+  function choirTo(chord, now) {
+    const old = banks[bankIdx];
+    bankIdx = (bankIdx + 1) % banks.length;
+    const nb = banks[bankIdx], audible = nb.g.gain.value > 0.02;
+    const tr = now + (audible ? 0.15 : 0.01);
+    if (audible) { nb.g.gain.cancelScheduledValues(now); nb.g.gain.setTargetAtTime(0, now, 0.04); }
+    nb.vs.forEach((pair, v) => pair.forEach((o) => { o.frequency.cancelScheduledValues(now); o.frequency.setValueAtTime(mtof(chord[v]), tr); }));
+    nb.g.gain.setTargetAtTime(1, tr, 0.8);                       // entra
+    old.g.gain.cancelScheduledValues(now); old.g.gain.setTargetAtTime(0, now + 0.3, 1.1);   // el anterior se queda un poco y se desvanece
+  }
+  // la soprano pasa a su siguiente nota: ligado corto y una leve rearticulación (como una cantante)
+  function sing(m, now) {
+    sop.oscs.forEach((o) => { o.frequency.cancelScheduledValues(now); o.frequency.setTargetAtTime(mtof(m), now, 0.06); });
+    sop.g.gain.cancelScheduledValues(now);
+    sop.g.gain.setTargetAtTime(0.72, now, 0.05);
+    sop.g.gain.setTargetAtTime(1, now + 0.1, 0.45);
+  }
+  function advance(now, to = (progIdx + 1) % PROG.length) {
+    progIdx = to; melIdx = progIdx * 2;
+    choirTo(PROG[progIdx], now);
+    sing(MELODY[melIdx], now + 0.2);
+    nextChordT = now + CHORD_LEN; nextMelT = now + MEL_LEN;
+  }
+  function tickProg() {
+    if (!live() || document.hidden || ctx.state !== "running") return;
+    const now = ctx.currentTime;
+    if (now >= nextChordT) advance(now);
+    else if (now >= nextMelT) { melIdx = progIdx * 2 + 1; sing(MELODY[melIdx], now); nextMelT = nextChordT + 99; }
   }
   function unlock() {
     if (!on) return;
@@ -190,18 +235,12 @@ export function createSound({ reduced = false } = {}) {
     const now = ctx.currentTime;
     sparks.forEach((o, k) => { o.frequency.cancelScheduledValues(now); o.frequency.setValueAtTime(mtof(SPARK[scene][k]), now + 0.02); });
     if (instant) {
-      banks.forEach((b, i) => { b.vs.forEach((trio, v) => trio.forEach((o) => o.frequency.setValueAtTime(mtof(CHORDS[scene][v]), now))); b.g.gain.setValueAtTime(i === bankIdx ? 1 : 0, now); });
+      banks.forEach((b, i) => { b.vs.forEach((pair, v) => pair.forEach((o) => o.frequency.setValueAtTime(mtof(PROG[progIdx][v]), now))); b.g.gain.setValueAtTime(i === bankIdx ? 1 : 0, now); });
       return;
     }
     if (prev === scene) return;
-    const old = banks[bankIdx];
-    bankIdx = (bankIdx + 1) % banks.length;
-    const nb = banks[bankIdx], audible = nb.g.gain.value > 0.02;
-    const tr = now + (audible ? 0.15 : 0.01);
-    if (audible) { nb.g.gain.cancelScheduledValues(now); nb.g.gain.setTargetAtTime(0, now, 0.04); }
-    nb.vs.forEach((trio, v) => trio.forEach((o) => { o.frequency.cancelScheduledValues(now); o.frequency.setValueAtTime(mtof(CHORDS[scene][v]), tr); }));
-    nb.g.gain.setTargetAtTime(1, tr, 0.8);                       // entra
-    old.g.gain.cancelScheduledValues(now); old.g.gain.setTargetAtTime(0, now + 0.3, 1.1);   // el anterior se queda un poco y se desvanece
+    // cada cambio de escena es un paso del coro (si el acorde recién entró, no se apresura)
+    if (nextChordT - now < CHORD_LEN - 1.5) advance(now);
   }
 
   /* ---------- efectos ---------- */
@@ -238,7 +277,7 @@ export function createSound({ reduced = false } = {}) {
     mk("sawtooth", 1900, 240, 0.2, gain);
     mk("triangle", 2600, 340, 0.15, gain * 0.4, 0.012);
   }
-  const chordNote = (k) => CHORDS[scene][k % 5];
+  const chordNote = (k) => PROG[progIdx][k % 5];
   return {
     get on() { return on; },
     get playing() { return !!(ctx && started && on && ctx.state === "running"); },
@@ -299,6 +338,7 @@ export function createSound({ reduced = false } = {}) {
     resolve() {
       if (!live()) return;
       const t = ctx.currentTime;
+      if (progIdx !== 0) advance(t, 0);                      // el coro llega a casa (re)
       sparkGlow.gain.cancelScheduledValues(t);
       sparkGlow.gain.setTargetAtTime(2.2, t, 1.4);
       sparkGlow.gain.setTargetAtTime(1, t + 5, 2.5);
