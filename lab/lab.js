@@ -1546,13 +1546,13 @@ for (const ev of ["pointerdown", "keydown", "touchend"]) addEventListener(ev, (e
   if (e.target.closest && e.target.closest("[data-snd]")) return;
   snd.unlock();
 }, { passive: true, capture: true });
-// mouse: bip de datos al pasar por textos; chirp en botones, enlaces y tarjetas
-const HOVER_UI = "a, button, .pk", HOVER_TXT = ".kicker, .title, .trio p, .svc-grid li, .proc__step, .pk, .orbit-cap__txt b, .rpanel__title, .det__name, .det__desc, .sub, .manifesto, .hud-sub";
+// mouse: una onda suave al pasar por botones, enlaces y tarjetas (los textos no suenan)
+const HOVER_UI = "a, button, .pk";
 let hoverEl = null;
 addEventListener("pointerover", (e) => {
   if (e.pointerType !== "mouse" || !e.target.closest) return;
-  const ui = e.target.closest(HOVER_UI), el = ui || e.target.closest(HOVER_TXT);
-  if (el && el !== hoverEl && !(e.relatedTarget && el.contains(e.relatedTarget))) snd.hover(ui ? "ui" : "text");
+  const el = e.target.closest(HOVER_UI);
+  if (el && el !== hoverEl && !(e.relatedTarget && el.contains(e.relatedTarget))) snd.hover("ui");
   hoverEl = el;
 }, { passive: true });
 // clic en botones y enlaces: "piu" (el clic en el vacío ya dispara la explosión con su propio disparo)

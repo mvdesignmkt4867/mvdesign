@@ -380,10 +380,6 @@ html.is-short body[data-scene="proceso"] .hud-note-m, html.is-short body[data-sc
 .swipe-hint i::after { content: ""; position: absolute; inset: 0; background: #2BCCD9; animation: cue 2.2s cubic-bezier(.2,.8,.25,1) infinite; }
 body:not([data-scene="inicio"]) .swipe-hint, html.hint-done .swipe-hint, html:not(.is-3d) .swipe-hint { opacity: 0; }
 @keyframes cue { 0% { transform: translateY(-100%); } 70%, 100% { transform: translateY(100%); } }
-/* con mouse, los textos también "escuchan" el cursor (bip de datos al pasar); sin cursor de texto */
-@media (hover: hover) and (pointer: fine) {
-  html.is-3d .scene :is(.kicker, .title, .trio p, .svc-grid li, .proc__step, .orbit-cap__txt b) { pointer-events: auto; cursor: default; }
-}
 /* sonido: barras que se mueven mientras suena */
 .snd, .idx .snd--m { display: none; }
 html.is-3d .snd--d {
