@@ -50,7 +50,7 @@
   <link rel="preload" href="assets/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
   <!-- internet lento: si a los 4 s el 3D sigue cargando, el WhatsApp aparece sobre el telón (va antes de los estilos: corre desde el inicio; con carga normal el telón se va antes y la entrada no cambia) -->
   <script>setTimeout(function () { var c = document.querySelector(".curtain"); if (!c || !c.classList.contains("is-off")) document.documentElement.classList.add("wa-early"); }, 4000);</script>
-  <link rel="stylesheet" href="lab/lab.css?v=43" />
+  <link rel="stylesheet" href="lab/lab.css?v=44" />
   <noscript><style>.curtain { display: none; }</style></noscript>
   <script type="importmap">
   {
@@ -310,13 +310,13 @@
       </div>
       <p class="sr-only" aria-live="polite" data-cap-live></p>
       <div class="orbit-cap">
-        <button type="button" class="arrow" data-case-prev aria-label="Rubro anterior">↑</button>
+        <button type="button" class="arrow" data-case-prev aria-label="Rubro anterior"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg></button>
         <p class="orbit-cap__txt">
           <span class="mono" data-cap-meta>01 / 06 · Rubro</span>
           <b data-cap-name>A&amp;B</b>
           <button type="button" class="chip mono chip--cta" data-cap-open>Ver proyectos →</button>
         </p>
-        <button type="button" class="arrow" data-case-next aria-label="Rubro siguiente">↓</button>
+        <button type="button" class="arrow" data-case-next aria-label="Rubro siguiente"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3v10M3.5 8.5 8 13l4.5-4.5"/></svg></button>
       </div>
     </section>
 
@@ -383,7 +383,7 @@
       setTimeout(function () { if (!document.documentElement.classList.contains("is-3d")) off(); }, 4000);
     })();
   </script>
-  <script type="module" src="lab/lab.js?v=102"></script>
+  <script type="module" src="lab/lab.js?v=103"></script>
   <!-- Conversiones: WhatsApp = Lead (principal) · correo = Contact. Envia a Meta Pixel Y a GA4 -->
   <script>
   (function () {

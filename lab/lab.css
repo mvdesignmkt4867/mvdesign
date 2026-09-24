@@ -159,8 +159,9 @@ html.is-3d .orbit-cap { display: flex; align-items: center; gap: 18px; pointer-e
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .orbit-cap__txt .mono { color: var(--fg-3); font-size: 11px; letter-spacing: .08em; }
 .orbit-cap__txt b { font: 600 clamp(18px, 1.9vw, 26px)/1.15 "Montserrat", sans-serif; letter-spacing: -.02em; color: #fff; }
-.arrow { width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255,255,255,.28); background: rgba(7,7,11,.62); font-size: 15px; color: #fff; transition: background .3s, border-color .3s; flex: none; }
-.arrow:hover { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.3); }
+.arrow { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255,255,255,.22); background: rgba(7,7,11,.62); color: #fff; transition: background .3s, border-color .3s; flex: none; }
+.arrow svg { width: 16px; height: 16px; }
+.arrow:hover { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.45); }
 
 /* ---------- panel de un rubro: en horizontal vive en el espacio libre de la derecha (la espiral se corre a la izquierda) ---------- */
 .rpanel {
@@ -606,3 +607,9 @@ html.contact-bare body[data-scene="contacto"] .hud-note-m { display: none; }
 .snd-hint.is-on { opacity: 1; translate: 0 0; }
 @media (prefers-reduced-motion: reduce) { .snd-hint, .swipe-hint, .swipe-hint i { transition: none !important; } .swipe-hint.is-tap i::after, .swipe-hint.is-scroll i::before { animation: none; } }
 body:not([data-scene="inicio"]) .swipe-hint.is-tap { pointer-events: none; }
+/* la nota del HUD se escribe con saltos reales (el decodificado la reescribe como texto) */
+[data-note] { white-space: pre-line; }
+/* estela del cursor (solo con mouse): puntos de marca que siguen al puntero y se apagan al detenerse */
+.trail { position: fixed; inset: 0; z-index: 7; pointer-events: none; mix-blend-mode: screen; }
+.trail i { position: absolute; left: 0; top: 0; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; opacity: 0; will-change: transform, opacity; }
+html:not(.is-3d) .trail { display: none; }
