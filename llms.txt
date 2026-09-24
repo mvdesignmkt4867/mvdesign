@@ -14,7 +14,7 @@
 ## Paquetes web
 - **Editorial / Corporativa** — sitio one-pager o multipágina estilo editorial, responsive, con estructura pensada para vender, WhatsApp integrado y SEO básico on-page.
 - **E-commerce · Shopify** — tienda completa en Shopify, mobile first, hasta 20 productos con variantes, checkout optimizado + Mercado Pago, envíos, Analytics y capacitación del panel.
-- **Web 3D inmersiva** — experiencia 3D inmersiva e interactiva con mapas, recorridos, animación y transiciones a medida, estructura lista para crecer y SEO técnico on-page. Es el paquete con el que está hecho www.mvdesign.mx: una experiencia 3D inmersiva en siete escenas (la firma, manifiesto, servicios, proceso, casos por rubro, paquetes y contacto).
+- **Web 3D inmersiva** — experiencia 3D inmersiva e interactiva con mapas, recorridos, animación y transiciones a medida, estructura lista para crecer y SEO técnico on-page. Es el paquete con el que está hecho www.mvdesign.mx: una experiencia 3D inmersiva en seis escenas (la firma, manifiesto, servicios, proceso, casos por rubro y contacto).
 
 ## Cómo trabajamos
 Cinco etapas: briefing → estructura y wireframe → diseño → desarrollo → lanzamiento, con capacitación y acompañamiento los primeros 30 días.

@@ -379,8 +379,7 @@ html.is-short body[data-scene="proceso"] .hud-note-m, html.is-short body[data-sc
 .social__a::before { content: ""; position: absolute; inset: -4px; }   /* área táctil de 44 px */
 .social__a svg { width: 16px; height: 16px; }
 .legal { margin-top: 16px; font-size: 10.5px; letter-spacing: .04em; color: var(--fg-3); }
-/* contacto: dónde atendemos y el pie con la razón de ser local (texto real para Google y para quien llega) */
-.zone { margin-top: 12px; font-size: 11px; letter-spacing: .04em; color: var(--fg-2); }
+/* contacto: el pie con la razón de ser local (texto real para Google) */
 .copyline { margin-top: 6px; font-size: 9.5px; letter-spacing: .03em; color: var(--fg-3); }
 .legal a { position: relative; color: var(--fg-2); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(255,255,255,.25); pointer-events: auto; }
 .legal a:hover { color: #fff; }
@@ -538,18 +537,16 @@ html:not(.is-3d) .pk__more, html:not(.is-3d) .psheet, html:not(.is-3d) .psheet-v
   .scene--contact .pill--two { min-height: 52px; }
   html.is-3d .legal { margin-top: 12px; font-size: 9.5px; letter-spacing: 0; white-space: nowrap; }   /* un renglón: no empuja el bloque sobre la M */
   html.is-3d .legal a::before { inset: -6px -4px; }     /* (no invade los íconos de redes de arriba) */
-  .zone { font-size: 10px; letter-spacing: .02em; }
   .copyline { font-size: 9px; letter-spacing: 0; }
 }
 /* contacto en pantallas bajas: buildPath mide el aire que le queda a la M y aprieta el bloque (tight) o,
    si aun así no alcanza, suelta el kicker y la nota del HUD (bare). Todo sigue a ≥ 44 px táctiles */
 html.is-3d .scene--contact.is-tight .kicker { margin-bottom: 10px; }
 html.is-3d .scene--contact.is-tight .ctas { gap: 6px; margin-top: 14px; }
-html.is-3d .scene--contact.is-tight .zone { margin-top: 8px; }
 html.is-3d .scene--contact.is-tight .pill--two { min-height: 46px; padding-top: 7px; padding-bottom: 7px; }
 html.is-3d .scene--contact.is-tight .pill--ghost { min-height: 44px; padding-top: 12px; padding-bottom: 12px; }
 html.is-3d .scene--contact.is-tight .contact-foot { margin-top: 8px; }
-html.is-3d .scene--contact.is-bare :is(.kicker, .zone, .copyline) { display: none; }   /* (pantallas muy bajas: la M necesita ese aire) */
+html.is-3d .scene--contact.is-bare :is(.kicker, .copyline) { display: none; }   /* (pantallas muy bajas: la M necesita ese aire) */
 html.contact-bare body[data-scene="contacto"] .hud-note-m { display: none; }
 @media (max-width: 380px) {
   .idx__now { display: none; }                          /* celulares angostos: número + flecha (cabe el botón de sonido) */

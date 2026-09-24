@@ -20,7 +20,7 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { CSS3DRenderer, CSS3DObject } from "three/addons/renderers/CSS3DRenderer.js";
-import { createParticles, BLAST_GLSL, BLAST_N } from "./particles.js?v=29";
+import { createParticles, BLAST_GLSL, BLAST_N } from "./particles.js?v=30";
 import { ICON_DRAW } from "./rubro-icons.js?v=1";
 import { createSound } from "./sound.js?v=21";
 
@@ -34,7 +34,7 @@ const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const snd = createSound({ reduced });
 const mobile = matchMedia("(max-width: 760px), (pointer: coarse)").matches;
 // escenas (0..6): el orden del DOM, del índice y de SLUGS es éste
-const SC = { firma: 0, manif: 1, serv: 2, proc: 3, casos: 4, pk: 5, contacto: 6 };
+const SC = { firma: 0, manif: 1, serv: 2, proc: 3, casos: 4, contacto: 5 };
 const LAST = SC.contacto;
 const END_Z = -40;     // donde la M se vuelve a armar: el planeta de los casos y el cierre
 const AXIS_Y = 1.9;    // centro de la M, del eclipse y del túnel
@@ -442,9 +442,10 @@ const RUBROS = [...document.querySelectorAll("[data-rubro]")].map((el) => ({
   }))
 }));
 const NR = RUBROS.length;
-// estaciones de cámara: 0 inicio · 1 manifiesto · 2 servicios · 3 proceso · Q0.. un rubro cada una · QPK paquetes · QLAST contacto
-const Q0 = SC.casos, QPK = Q0 + NR, QLAST = QPK + 1;
-// la "escena" que ven los efectos (0..6): dentro de la espiral siempre es la de casos
+// estaciones de cámara: 0 inicio · 1 manifiesto · 2 servicios · 3 proceso · Q0.. un rubro cada una · QLAST contacto
+// (después del último rubro la espiral cae y se arma la M del cierre)
+const Q0 = SC.casos, QLAST = Q0 + NR;
+// la "escena" que ven los efectos (0..5): dentro de la espiral siempre es la de casos
 const sceneP = (q) => (q <= Q0 ? q : q <= Q0 + NR - 1 ? Q0 : Q0 + (q - (Q0 + NR - 1)));
 const stationOf = (s) => (s <= Q0 ? s : Q0 + NR - 1 + (s - Q0));
 // geometría de la espiral (buildPath la ajusta a la pantalla)
@@ -879,7 +880,7 @@ function closeDetail(via = "ui") {
 // tocar / hacer clic en una ficha de rubro: si es la del frente, abre sus proyectos; si no, la espiral viaja a ella.
 // En cualquier escena, un clic o toque fuera de botones y fichas suelta la explosión invisible.
 let downX = 0, downY = 0, downT = 0;
-const onUI = (e) => !!(e.target.closest && e.target.closest("button, a, input, .orbit-cap, .hud, .wa, [data-rpanel], .pk, [data-psheet], [data-psheet-veil]"));
+const onUI = (e) => !!(e.target.closest && e.target.closest("button, a, input, .orbit-cap, .hud, .wa, [data-rpanel]"));
 const cardAt = (x, y) => {
   if (active !== SC.casos) return null;
   raycaster.setFromCamera(new THREE.Vector2(x / innerWidth * 2 - 1, -(y / innerHeight) * 2 + 1), camera);
@@ -941,17 +942,16 @@ const outputPass = new ShaderPass({
 composer.addPass(outputPass);
 const BASE_CA = 0;   // sin aberración cromática en reposo (sólo un toque al moverse)
 const finalPass = new ShaderPass({
-  uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uCA: { value: BASE_CA }, uFade: { value: 1 }, uRes: { value: new THREE.Vector2(innerWidth, innerHeight) } },
+  uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uCA: { value: BASE_CA }, uRes: { value: new THREE.Vector2(innerWidth, innerHeight) } },
   vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }`,
   fragmentShader: `
-    uniform sampler2D tDiffuse; uniform float uTime; uniform float uCA; uniform float uFade; uniform vec2 uRes; varying vec2 vUv;
+    uniform sampler2D tDiffuse; uniform float uTime; uniform float uCA; uniform vec2 uRes; varying vec2 vUv;
     float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233))) * 43758.5453); }
     void main(){
       vec2 d = vUv - .5; float r = length(d);
       vec2 off = d * uCA * (1. + r * 2.);
       vec3 c = vec3(texture2D(tDiffuse, vUv + off).r, texture2D(tDiffuse, vUv).g, texture2D(tDiffuse, vUv - off).b);
       c *= mix(1., .55, smoothstep(.35, .95, r));                         // viñeta
-      c *= uFade;                                                          // (bucle: el cosmos se funde a negro y la vuelta sale de ahí)
       c += (hash(vUv * uRes + fract(uTime) * 100.) - .5) * .035;           // grano
       gl_FragColor = vec4(c, 1.);
     }`
@@ -986,8 +986,8 @@ const KEYS = { pos: [], look: [] };
 // ancla de cada texto: distancia frente a la cámara de su escena y desplazamiento vertical (fracción de pantalla)
 // (manifiesto y servicios se anclan en el plano de su anillo: ver buildPath)
 // (en las de anillo, oy es fracción del diámetro del anillo: servicios sube un poco porque su base es más ancha)
-const TEXT_DESK = [{ d: 11, oy: 0.28 }, { oy: 0 }, { oy: -0.04 }, { d: 9.5, oy: 0 }, { d: 9.5, oy: 0 }, { d: 11, oy: 0 }, { d: 13.5, oy: 0.29 }];
-const TEXT_PORT = [{ d: 14, oy: 0.17 }, { oy: 0 }, { oy: 0 }, { d: 12, oy: 0 }, { d: 9.5, oy: 0 }, { d: 13.5, oy: 0 }, { d: 17.5, oy: 0.28 }];
+const TEXT_DESK = [{ d: 11, oy: 0.28 }, { oy: 0 }, { oy: -0.04 }, { d: 9.5, oy: 0 }, { d: 9.5, oy: 0 }, { d: 13.5, oy: 0.29 }];
+const TEXT_PORT = [{ d: 14, oy: 0.17 }, { oy: 0 }, { oy: 0 }, { d: 12, oy: 0 }, { d: 9.5, oy: 0 }, { d: 17.5, oy: 0.28 }];
 // qué tanto del lado corto de la pantalla ocupa el anillo cuando llegas a su escena
 const RING_FILL = { land: 0.84, port: 0.96 };
 const mLook = new THREE.Matrix4(), qTmp = new THREE.Quaternion();
@@ -1062,9 +1062,6 @@ function buildPath() {
     KEYS.look.push(V(0, y + camLift - pitch, E));
     FOCUS.push(SPI.camD);
   }
-  // paquetes: al pie de la espiral, un paso antes de la M, de frente y a nivel (su plano pasa donde estaba la ficha del frente)
-  const yK = yM + (portrait ? 2.0 : 1.2), PK_Z = E + 3;
-  KEYS.pos.push(V(0, yK, PK_Z + T[SC.pk].d)); KEYS.look.push(V(0, yK, PK_Z)); FOCUS.push(T[SC.pk].d);
   if (portrait) { KEYS.pos.push(V(0, yM + 0.6, E + 20.5)); KEYS.look.push(V(0, yM - 1.55 - (H < 760 ? 1.2 : 0.3), E)); FOCUS.push(20.5); }   // (la M sube: el pie de contacto no la toca)
   else { KEYS.pos.push(V(0, yM + 0.4, E + 16.5)); KEYS.look.push(V(0, yM - 0.95, E)); FOCUS.push(16.5); }
   // cada texto queda de frente a la cámara de su escena, a 1:1 (nítido) cuando llegas.
@@ -1073,7 +1070,6 @@ function buildPath() {
   const RING_AT = { 1: [SUN_R, dSun], 2: [TUN_R, dTun] };
   // proceso y paquetes: en vertical (paquetes también en pantallas bajas) sólo lo esencial
   sections[SC.proc].classList.toggle("is-compact", portrait);
-  sections[SC.pk].classList.toggle("is-compact", portrait || H < 620);
   procTight = false;
   const elC = sections[LAST], root = document.documentElement;
   elC.classList.remove("is-tight", "is-bare"); root.classList.remove("contact-bare");
@@ -1098,8 +1094,8 @@ function buildPath() {
     const h = el.offsetHeight;
     el.style.display = prevD;
     // en celular: casos, proceso y paquetes dejan libre la nota del HUD (en pantallas bajas se oculta y suben)
-    const top = (narrow ? (i === SC.casos ? 112 : i === SC.proc || i === SC.pk ? (H < 620 ? 76 : 112) : 76) : 96) + SAFE_T;
-    let bottom = narrow && (i === LAST || i === SC.casos || i === SC.pk) ? Math.max(24, SAFE_B + 14) : (narrow ? 96 : i === 0 ? 110 : 40) + SAFE_B;   // (inicio: la pista 'Desliza' va abajo)
+    const top = (narrow ? (i === SC.casos ? 112 : i === SC.proc ? (H < 620 ? 76 : 112) : 76) : 96) + SAFE_T;
+    let bottom = narrow && (i === LAST || i === SC.casos) ? Math.max(24, SAFE_B + 14) : (narrow ? 96 : i === 0 ? 110 : 40) + SAFE_B;   // (inicio: la pista 'Desliza' va abajo)
     if (i === SC.proc && ((narrow && h + top + bottom > H) || (!portrait && H < 620))) { procTight = true; bottom = Math.max(24, SAFE_B + 14); }   // no cabe con el WhatsApp flotante: se quita en esta escena
     // con anillo: centrado exacto y sin achicar (su tamaño ya sale del anillo), así texto, disco y anillo son concéntricos
     const fit = ring ? 1 : h > 0 ? Math.min(1, (H - top - bottom) / h) : 1;   // si no cabe, se achica un poco
@@ -1172,19 +1168,6 @@ function anchorUI() {
     U.uProcSplit.value = clamp(len / (len + 5 * TAU * R), 0.25, 0.6);   // densidad pareja entre el hilo y los anillos
     U.uProcX.value.copy(axX); U.uProcY.value.copy(axY); U.uProcZ.value.copy(axZ);
   });
-  place(SC.pk, (el, at, S) => {
-    const g = el.querySelector(".pk-grid"), cs = g ? getComputedStyle(g) : null;
-    const gap = cs ? Math.min(parseFloat(cs.rowGap) || 20, parseFloat(cs.columnGap) || 20) : 20;
-    const thick = Math.min(7, Math.max(2, gap / 2 - 3));             // dos marcos vecinos no se funden en el hueco
-    [...el.querySelectorAll(".pk")].slice(0, 3).forEach((c, k) => {
-      const [x, y] = offsetIn(c, el), w = c.offsetWidth, h = c.offsetHeight;
-      const rad = parseFloat(getComputedStyle(c).borderTopLeftRadius) || 18;
-      at(x + w / 2, y + h / 2, axP);
-      U.uPkC.value[k].set(axP.x, axP.y, axP.z, rad * S);
-      U.uPkH.value[k].set((w / 2 + 2) * S, (h / 2 + 2) * S, thick * S, c.classList.contains("pk--hot") ? 1 : 0);
-    });
-    U.uPkX.value.copy(axX); U.uPkY.value.copy(axY); U.uPkZ.value.copy(axZ);
-  });
 }
 
 // zonas seguras (muesca, barra de inicio): CSS las conoce con env(); JS las lee de una sonda
@@ -1253,7 +1236,7 @@ const QEND = Q0 + NR - 1;                               // el último rubro
 const FREE_PX = 380;                                    // px de rueda por rubro
 function setFree(q) { free = true; pendingOpen = null; to = from = clamp(q, Q0, QEND); dur = 0; }
 // ¿estamos (o vamos) dentro de la espiral? (con un panel u hoja abiertos, no)
-const inSpiral = () => rp.open < 0 && pk.open < 0 && to >= Q0 && to <= QEND && prog >= Q0 - 0.05 && prog <= QEND + 0.05;
+const inSpiral = () => rp.open < 0 && to >= Q0 && to <= QEND && prog >= Q0 - 0.05 && prog <= QEND + 0.05;
 // en qué extremo de la espiral estás quieto: -1 el primer rubro, 1 el último, 0 ninguno
 const edgeOf = () => (Math.abs(prog - to) > 0.05 ? 0 : Math.abs(to - Q0) < 0.02 ? -1 : Math.abs(to - QEND) < 0.02 ? 1 : 0);
 const now = () => performance.now();
@@ -1289,7 +1272,6 @@ function goQ(i) {
   if (i === to) return;                                 // mismo destino: no se reinicia nada
   free = false; pendingOpen = null;
   if (rp.open >= 0) closeRubro(false, "nav");
-  if (pk.open >= 0) closePk("nav");
   const moving = prog !== to;
   from = clamp(prog, 0, QLAST); to = i; tStart = now();
   v0 = moving && !reduced ? progVel : 0;
@@ -1312,30 +1294,6 @@ function goQ(i) {
   lockUntil = tStart + (reduced ? 350 : Math.max(part ? 0 : 800, dur * 1000 * 0.72));
 }
 const goTo = (s) => goQ(stationOf(clamp(s, 0, LAST)));   // por escena (índice, "volver al inicio")
-/* ---------- Modo Igloo: el sitio no termina ----------
-   En Contacto, ya quieto, un gesto NUEVO hacia adelante (o "Volver al inicio") abre el bucle: la cámara se clava en la M,
-   las partículas se sueltan en un cosmos negro, el cosmos respira y se funde a negro, y la vuelta empieza otra vez con la
-   entrada (las partículas llegan desde el fondo, la M se arma y el titular entra). Solo hacia adelante, nunca con la
-   inercia del gesto que te trajo, nunca con teclado (Inicio sigue ahí) y nunca con "reducir movimiento" */
-const LOOP_OUT = 1.9, LOOP_HOLD = 1.0, LOOP_FADE = 0.45, LOOP_IN = 1.2;
-let loopT0 = -1, loopSwapT = -1, lapN = 0, landLastT = -1;
-function startLoop() {
-  if (reduced || !particles || loopT0 >= 0 || rp.open >= 0 || pk.open >= 0) return false;
-  if (prog !== QLAST || to !== QLAST || landLastT < 0 || now() - landLastT < 700) return false;
-  loopT0 = now(); loopSwapT = -1; lapN += 1;
-  lockUntil = loopT0 + (LOOP_OUT + LOOP_HOLD + LOOP_FADE) * 1000 + 1200;   // nada mueve la cámara mientras tanto
-  idxMenu(false);
-  snd.blast();                                        // el "Om" hondo abre el viaje
-  if (typeof window.gtag === "function") window.gtag("event", "loop_restart", { lap: lapN });
-  return true;
-}
-function loopSwap() {                                 // en negro: de vuelta a la entrada (sin entrada nueva en el historial)
-  loopSwapT = now();
-  free = false; from = to = prog = 0; dur = 0; tStart = now(); progVel = 0; v0 = 0;
-  t0 = null;                                          // la entrada vuelve a correr: dolly, la M se arma y el titular llega
-  railInit = false; camSpd = 0; kickS = 0; peekT0 = -1;
-  particles?.replay();
-}
 // siguiente / anterior estación; entre dos fichas (scroll libre), la que sigue en esa dirección
 const step = (dirn) => goQ(Math.round(to) + dirn);   // (entre dos fichas: desde la que muestra el pie)
 // rueda / trackpad: se cuenta UN gesto hasta que la rueda descansa 200 ms (así la inercia no brinca escenas)
@@ -1346,7 +1304,6 @@ addEventListener("wheel", (e) => {
     e.preventDefault(); lastWheel = now(); gestureUsed = true; wheelAvg = wheelAvg * 0.75 + Math.abs(e.deltaY) * 0.25;   // (y su inercia es el mismo gesto)
     return;
   }
-  if (pk.open >= 0 && e.target.closest && e.target.closest("[data-psheet]")) return;   // dentro de la hoja: su propio scroll
   if (idxNav?.classList.contains("is-open") && e.target.closest && e.target.closest("[data-idx]")) return;   // y dentro del menú del índice
   if (rp.open >= 0 && e.target.closest && e.target.closest("[data-rpanel]")) {        // dentro del panel: scroll normal…
     const canUp = rpEl.scrollTop > 0, canDown = rpEl.scrollTop + rpEl.clientHeight < rpEl.scrollHeight - 1;
@@ -1387,8 +1344,8 @@ addEventListener("wheel", (e) => {
   wheelAcc += d;
   if (Math.abs(wheelAcc) >= 36) {
     gestureUsed = true; wheelAcc = 0; idxMenu(false);
-    if (pk.open >= 0) closePk(); else if (rp.open >= 0) closeRubro();
-    else if (!(d > 0 && startLoop())) step(Math.sign(d));   // (en Contacto, ya quieto: el bucle)
+    if (rp.open >= 0) closeRubro();
+    else step(Math.sign(d));
   }
 }, { passive: false });
 // touch: un deslizamiento de ~48 px = una escena
@@ -1398,7 +1355,7 @@ addEventListener("touchstart", (e) => {
   // (y en la hoja de paquetes y en el índice abierto, tampoco)
   const t = e.target.closest ? e.target : null;
   if (!lifted) { ty0 = null; tf = null; return; }      // (telón arriba)
-  ty0 = (rp.open >= 0 && t?.closest("[data-rpanel]")) || (pk.open >= 0 && t?.closest("[data-psheet]")) || t?.closest("[data-idx]") ? null : e.touches[0].clientY;
+  ty0 = (rp.open >= 0 && t?.closest("[data-rpanel]")) || t?.closest("[data-idx]") ? null : e.touches[0].clientY;
   touchUsed = false; tf = null;
   // casos: el dedo arrastra la espiral (scroll libre, con inercia al soltar)
   if (ty0 !== null && !onUI(e) && inSpiral() && now() >= lockUntil) {
@@ -1427,11 +1384,10 @@ addEventListener("touchmove", (e) => {
   }
   if (ty0 === null || touchUsed || now() < lockUntil) return;
   const dy = ty0 - e.touches[0].clientY;
-  const fwdEnd = dy > 0 && Math.round(to) === QLAST;   // en Contacto, el bucle pide un deslizamiento más decidido
-  if (Math.abs(dy) > (fwdEnd ? 72 : 48)) {
+  if (Math.abs(dy) > 48) {
     touchUsed = true; idxMenu(false);
-    if (pk.open >= 0) closePk(); else if (rp.open >= 0) closeRubro();
-    else if (!(fwdEnd && startLoop())) step(Math.sign(dy));
+    if (rp.open >= 0) closeRubro();
+    else step(Math.sign(dy));
   }
 }, { passive: true });
 addEventListener("touchend", () => {
@@ -1442,8 +1398,7 @@ addEventListener("touchend", () => {
 }, { passive: true });
 addEventListener("keydown", (e) => {
   if (e.target.closest && e.target.closest("input, textarea, select")) return;
-  if (!lifted || loopT0 >= 0) { if ([" ", "ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End"].includes(e.key)) e.preventDefault(); return; }   // (telón arriba o bucle en curso)
-  if (pk.open >= 0) { if (e.key === "Escape") { e.preventDefault(); closePk(); } return; }   // la hoja es modal: Tab, Enter y flechas dentro
+  if (!lifted) { if ([" ", "ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End"].includes(e.key)) e.preventDefault(); return; }   // (telón arriba)
   if (e.key === "Escape" && pendingOpen) { pendingOpen = null; e.preventDefault(); return; }   // (un rubro que iba a abrirse al acomodarse)
   if (idxNav?.classList.contains("is-open")) {                                               // menú del índice (celular)
     const k = idxBtns.indexOf(document.activeElement);
@@ -1468,30 +1423,28 @@ addEventListener("keydown", (e) => {
   else if (e.key === "End") { e.preventDefault(); navByKey = true; goQ(QLAST); }
 });
 // cada escena tiene su dirección (#casos, #contacto…): se puede compartir, y Atrás regresa a la escena anterior
-const SLUGS = ["inicio", "manifiesto", "servicios", "proceso", "casos", "paquetes", "contacto"];
-const NAMES = ["La firma", "Manifiesto", "Servicios", "Proceso", "Casos", "Paquetes", "Contacto"];
+const SLUGS = ["inicio", "manifiesto", "servicios", "proceso", "casos", "contacto"];
+const NAMES = ["La firma", "Manifiesto", "Servicios", "Proceso", "Casos", "Contacto"];
 // medidor de rendimiento: solo con ?perf (en producción, ?qa=1&perf para no medir en GA4/Meta)
 let perf = null;
 if (/[?&]perf\b/.test(location.search)) import("./perf.js?v=1").then((m) => {
   perf = m.createPerf({ names: NAMES, particles: () => (particles ? particles.count : 0), getDpr: () => DPR, mobile });
   if (lifted) perf.lifted();
 }).catch((err) => console.error(err));
-const LIVE_MORE = { [SC.proc]: "Cinco etapas.", [SC.pk]: "Tres paquetes, cada uno con su botón de WhatsApp." };
+const LIVE_MORE = { [SC.proc]: "Cinco etapas." };
 let navByKey = false;                                  // al llegar con teclado, el foco pasa al titular de la escena
 function goScene(s, push) {
-  if (!lifted || loopT0 >= 0) return;                                 // (el HUD ya existe bajo el telón, invisible)
+  if (!lifted) return;                                 // (el HUD ya existe bajo el telón, invisible)
   if (push && SLUGS[s] && s !== Math.round(sceneP(to))) { try { history.pushState({ s }, "", s === 0 ? location.pathname + location.search : "#" + SLUGS[s]); } catch (e) {} }
   goTo(s);
 }
 // (con teclado, e.detail = 0: al llegar, el foco pasa al titular de la escena)
 document.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", (e) => {
-  if (b.classList.contains("restart") && +b.dataset.go === 0 && startLoop()) return;   // "Volver al inicio" desde Contacto: el bucle
   if (e.detail === 0) navByKey = true;
   goScene(+b.dataset.go, true);
 }));
 addEventListener("popstate", () => {
   if (ignorePop > 0) { ignorePop -= 1; return; }       // (lo consumió la propia interfaz al cerrar)
-  if (pk.open >= 0) { closePk("pop"); return; }
   if (rp.detail >= 0) { closeDetail("pop"); return; }
   if (rp.open >= 0) { closeRubro(false, "pop"); return; }
   const s = SLUGS.indexOf(location.hash.slice(1)), target = s >= 0 ? s : 0;
@@ -1523,8 +1476,7 @@ const NOTES = [
   "Estrategia, diseño, contenido <br>y pauta en un solo equipo.",
   "Primero entendemos tu negocio. <br>Después diseñamos.",
   "Trabajo real de branding, <br>diseño web y contenido. <br>Desde Querétaro para todo México.",
-  "El mensaje de WhatsApp <br>ya lleva el paquete elegido.",
-  "Respondemos el mismo día <br>por WhatsApp."
+  ""                                                   // (contacto: sin nota; el cierre es la M y los botones)
 ];
 let active = -1;
 const sceneSeen = new Set();
@@ -1535,8 +1487,8 @@ const narrowMQ = matchMedia("(max-width: 720px)");
 let waOffNow = null, waInertNow = null;
 function waSync() {
   if (!waFloat) return;
-  const off = lifted && (active === LAST || active === SC.pk || (active === SC.proc && procTight) || (narrowMQ.matches && active === SC.casos));
-  const inert = off || rp.open >= 0 || pk.open >= 0;
+  const off = lifted && (active === LAST || (active === SC.proc && procTight) || (narrowMQ.matches && active === SC.casos));
+  const inert = off || rp.open >= 0;
   if (off !== waOffNow) { waOffNow = off; document.body.classList.toggle("wa-off", off); }
   if (inert !== waInertNow) { waInertNow = inert; waFloat.inert = inert; }
 }
@@ -1557,52 +1509,6 @@ idxNav?.addEventListener("focusout", (e) => { if (!idxNav.contains(e.relatedTarg
 addEventListener("pointerdown", (e) => { if (idxNav?.classList.contains("is-open") && !idxNav.contains(e.target)) idxMenu(false); }, { passive: true });
 
 /* ---------- Paquetes en celular: "Qué incluye" abre una hoja con las viñetas y el mismo WhatsApp ---------- */
-const psEl = document.querySelector("[data-psheet]"), psVeil = document.querySelector("[data-psheet-veil]");
-const stageEl = document.querySelector(".stage"), hudEls = [...document.querySelectorAll(".hud")];
-const pk = { open: -1, opener: null, timer: 0 };
-function openPk(k, opener) {
-  const card = sections[SC.pk].querySelectorAll(".pk")[k];
-  if (!card || !psEl || pk.open === k) return;
-  clearTimeout(pk.timer);
-  pk.open = k; pk.opener = opener || null;
-  snd.ui("open");
-  psEl.textContent = "";
-  const back = mk("button", "psheet__back mono", "← Paquetes");
-  back.type = "button"; back.setAttribute("aria-label", "Cerrar y volver a los paquetes");
-  back.addEventListener("click", () => closePk());
-  const top = card.querySelector(".pk__top").cloneNode(true);
-  const h = mk("h3", "", card.querySelector(".pk__name").textContent); h.id = "psheet-t"; h.tabIndex = -1;
-  const list = card.querySelector(".pk__list").cloneNode(true);
-  const cta = card.querySelector(".pk__cta").cloneNode(true);
-  cta.dataset.cta = (cta.dataset.cta || "") + "-hoja";
-  const srt = cta.querySelector(".sr-only");                          // aquí se lee completo: "Cotizar editorial por WhatsApp"
-  if (srt) { srt.remove(); const tn = [...cta.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim()); if (tn) tn.textContent = tn.textContent.trim() + " por WhatsApp"; }
-  psEl.append(back, top, h, list, cta);
-  psVeil.hidden = false;
-  psEl.classList.add("is-open");                                      // (visible ya: el foco puede entrar)
-  requestAnimationFrame(() => psVeil.classList.add("is-open"));
-  psEl.inert = false; psEl.setAttribute("aria-hidden", "false");
-  stageEl.inert = true; hudEls.forEach((e) => { e.inert = true; });   // modal: lo de atrás no se toca ni se lee
-  waSync();
-  psEl.scrollTop = 0;
-  try { history.pushState({ sheet: 1 }, ""); } catch (e) {}
-  h.focus({ preventScroll: true });
-}
-function closePk(via = "ui") {
-  if (pk.open < 0) return;
-  if (via === "ui" && history.state && history.state.sheet) { ignorePop += 1; try { history.back(); } catch (e) { ignorePop -= 1; } }
-  pk.open = -1;
-  if (via !== "nav") snd.ui("close");
-  psEl.classList.remove("is-open"); psVeil.classList.remove("is-open");
-  psEl.inert = true; psEl.setAttribute("aria-hidden", "true");
-  stageEl.inert = false; hudEls.forEach((e) => { e.inert = false; });
-  waSync();
-  pk.timer = setTimeout(() => { if (pk.open < 0) { psVeil.hidden = true; psEl.textContent = ""; } }, reduced ? 0 : 450);
-  const o = pk.opener; pk.opener = null;
-  if (via !== "nav" && o && o.isConnected) o.focus({ preventScroll: true });
-}
-psVeil?.addEventListener("click", () => closePk());
-sections[SC.pk].querySelectorAll("[data-pk-more]").forEach((b, k) => b.addEventListener("click", () => openPk(k, b)));
 try { if (sessionStorage.getItem("mv-hint")) document.documentElement.classList.add("hint-done"); } catch (e) {}
 const sceneLive = document.querySelector("[data-scene-live]");
 function setActive(a) {
@@ -1618,13 +1524,12 @@ function setActive(a) {
   if (!sceneSeen.has(a) && a === Math.round(sceneP(to)) && typeof window.gtag === "function") { sceneSeen.add(a); window.gtag("event", "scene_view", { scene: SLUGS[a] }); }
   waSync();
   if (a !== SC.casos && rp.open >= 0) closeRubro(true, "nav");
-  if (a !== SC.pk && pk.open >= 0) closePk("nav");
   idxBtns.forEach((b, i) => { if (i === a) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current"); });
   if (idxNum) idxNum.textContent = pad2(a + 1);
   if (idxName) idxName.textContent = NAMES[a];
   if (noteEl) noteEl.innerHTML = NOTES[a];
   if (noteM) noteM.textContent = NOTES[a].replace(/ ?<br>/g, " ");
-  snd.scene(a);                                          // la armonía se desliza al acorde de la escena
+  snd.scene(a === LAST ? 6 : a);                       // la armonía se desliza al acorde de la escena (contacto conserva el suyo)
 }
 
 /* ---------- Sonido: botón, primer gesto y tic de los botones ---------- */
@@ -1635,12 +1540,13 @@ function sndUI() {
 snd.onChange(() => { sndUI(); setTimeout(sndUI, 400); });
 sndBtns.forEach((b) => b.addEventListener("click", () => snd.toggle()));
 // los navegadores sólo dejan sonar tras un gesto (clic, toque o tecla; la rueda no cuenta). El botón de sonido decide por sí mismo
-for (const ev of ["pointerdown", "keydown", "touchend"]) addEventListener(ev, (e) => {
+// (también al deslizar: el primer touchstart/touchend de un deslizamiento cuenta; el navegador acepta el que le toque)
+for (const ev of ["pointerdown", "pointerup", "keydown", "touchstart", "touchend", "click"]) addEventListener(ev, (e) => {
   if (e.target.closest && e.target.closest("[data-snd]")) return;
   snd.unlock();
 }, { passive: true, capture: true });
 // mouse: una onda suave al pasar por botones, enlaces y tarjetas (los textos no suenan)
-const HOVER_UI = "a, button, .pk";
+const HOVER_UI = "a, button";
 let hoverEl = null;
 addEventListener("pointerover", (e) => {
   if (e.pointerType !== "mouse" || !e.target.closest) return;
@@ -1708,26 +1614,6 @@ function frame() {
     const h = sections[Math.round(sceneP(to))]?.querySelector("h1, h2");
     if (h && !(rp.open >= 0)) requestAnimationFrame(() => h.focus({ preventScroll: true }));
   }
-  // bucle: salida al cosmos → respiro → fundido a negro → vuelta a la entrada
-  let loopOut = 0, loopFwd = 0, loopFade = 1, cosmosK = 0;
-  if (loopT0 >= 0) {
-    const e = (now() - loopT0) / 1000;
-    if (loopSwapT < 0) {
-      loopOut = clamp(e / LOOP_OUT, 0, 1);
-      loopFwd = 24 * Math.pow(loopOut, 2.2) + Math.max(0, e - LOOP_OUT) * 2.2;   // se clava en la M y sigue a la deriva entre estrellas
-      cosmosK = sm(0.18, 0.75, loopOut);               // la M aguanta el primer tramo: la cámara entra en ella y se deshace
-      const fe = e - LOOP_OUT - LOOP_HOLD;
-      loopFade = fe > 0 ? 1 - easeInOut(clamp(fe / LOOP_FADE, 0, 1)) : 1;
-      if (fe >= LOOP_FADE) loopSwap();
-    }
-    if (loopSwapT >= 0) {
-      const ie = (now() - loopSwapT) / 1000;
-      loopFade = easeOut(clamp((ie - 0.25) / LOOP_IN, 0, 1));   // (la luz vuelve cuando las partículas ya se acercan)
-      cosmosK = 1 - sm(0.1, 1.5, ie);                  // las estrellas vuelven a ser la M, desde el fondo
-      if (ie > 1.8) { loopT0 = -1; loopSwapT = -1; }
-    }
-  }
-  if (prog === QLAST && to === QLAST) { if (landLastT < 0) landLastT = now(); } else landLastT = -1;
   const q = prog, p = sceneP(q);                       // q: estación (con rubros) · p: escena para los efectos (0..4)
   setActive(Math.round(p));
   if (progEl) progEl.style.transform = `scaleX(${q / QLAST})`;
@@ -1743,13 +1629,12 @@ function frame() {
   }
   peekV = userMoved ? peekV * Math.exp(-dt * 8) : peek;                   // un gesto lo cancela sin brinco
   camAt(q + peekV, camPos, camLook);
-  if (loopFwd > 0) { tmp.copy(camLook).sub(camPos).normalize().multiplyScalar(loopFwd); camPos.add(tmp); camLook.add(tmp); }
   // velocidad real de la cámara sobre su riel (u/s): de aquí sale el efecto de velocidad
   if (railInit && dt > 0) camSpd += (camPos.distanceTo(railPos) / dt - camSpd) * (1 - Math.exp(-dt * 10));
   railPos.copy(camPos); railInit = true;
   const heroW = 1 - sm(0, 0.6, p), endW = sm(LAST - 0.6, LAST, p);
   // proceso y paquetes: sin deriva de cámara (el hilo y los marcos quedan exactos sobre sus números y tarjetas)
-  const uiLock = 1 - sm(0.12, 0.45, Math.min(Math.abs(p - SC.proc), Math.abs(p - SC.pk)));
+  const uiLock = 1 - sm(0.12, 0.45, Math.abs(p - SC.proc));
   if (heroW > 0 && k < 1) {                                               // dolly de entrada (también para los textos)
     tmp.copy(camPos).sub(camLook).normalize().multiplyScalar(7 * (1 - k) * heroW);
     camPos.add(tmp); camPos.y += (1 - k) * 1.0 * heroW;
@@ -1769,21 +1654,19 @@ function frame() {
   const land = sm(0.12, 0.4, Math.min(Math.abs(p - pA), Math.abs(p - pB)));
   kickS += ((reduced ? 0 : sm(6, 20, camSpd) * land) - kickS) * (1 - Math.exp(-dt * 8));
   const kick = kickS;                                                    // 0..1 según la velocidad real, sólo a media carrera
-  const loopKick = Math.sin(Math.PI * loopOut);
-  camera.fov = BASE_FOV + kick * 3.5 + loopKick * 9;
+  camera.fov = BASE_FOV + kick * 3.5;
   camera.updateProjectionMatrix();
   // con un rubro abierto, la vista se corre (sin cambiar la perspectiva): la espiral queda a la izquierda
   // en horizontal, o arriba en vertical, y el panel ocupa el espacio libre
   rpView += ((rp.open >= 0 ? 1 : 0) - rpView) * (1 - Math.exp(-dt * (reduced ? 60 : 4.5)));
   setView(rpView);
   camera.getWorldDirection(camFwd);
-  finalPass.uniforms.uCA.value = BASE_CA + kick * 0.003 + loopKick * 0.004;
-  finalPass.uniforms.uFade.value = loopFade;
+  finalPass.uniforms.uCA.value = BASE_CA + kick * 0.003;
 
   // el estudio del inicio se apaga al salir; el del final se enciende al llegar
   const studio = 1 - sm(0.2, 0.9, p), endStudio = sm(LAST - 0.6, LAST, p);
   floor.material.opacity = FLOOR_OPACITY * studio; floor.visible = studio > 0.001;
-  floorEnd.material.opacity = FLOOR_OPACITY * endStudio * (1 - loopOut); floorEnd.visible = floorEnd.material.opacity > 0.001;
+  floorEnd.material.opacity = FLOOR_OPACITY * endStudio; floorEnd.visible = endStudio > 0.001;
   beam.material.uniforms.uDim.value = studio; beam.visible = studio > 0.001;
   horizon.material.uniforms.uDim.value = studio; horizon.visible = studio > 0.001;
   dust.material.uniforms.uDim.value = studio; dust.visible = studio > 0.001;
@@ -1819,9 +1702,8 @@ function frame() {
     U.uC.value = sm(1.15, 2.1, p);
     U.uProc.value = sm(2.05, 2.8, p);                                    // (se arma mientras el túnel se apaga: sin cuadro vacío)
     U.uPlanet.value = sm(3.15, 3.9, p);
-    U.uPack.value = sm(4.15, 4.9, p);
-    U.uB.value = sm(5.1, 5.8, p);
-    particles.ribbon = U.uPlanet.value * (1 - U.uPack.value);             // sólo la cinta se agita con el flujo
+    U.uB.value = sm(4.12, 4.85, p);                                        // la espiral cae y se arma la M del cierre
+    particles.ribbon = U.uPlanet.value * (1 - U.uB.value);                // sólo la cinta se agita con el flujo
     U.uMScale.value = mScale; U.uRingS.value = RING_S; U.uRingZ.value = RING_Z;
     U.uMouseK.value = clamp(camera.position.distanceTo(camLook) / mouseRef, 1, 1.7);   // el remolino del cursor sigue a la distancia
     U.uRot.value = reduced ? 0 : Math.sin(t * 0.23) * 0.22 + smooth.x * 0.1;
@@ -1853,10 +1735,8 @@ function frame() {
     U.uMouse.value = mouseAmt;
     AU.uRayO.value.copy(raycaster.ray.origin); AU.uRayD.value.copy(raycaster.ray.direction); AU.uMouse.value = mouseAmt;
     const fi = Math.min(QLAST - 1, Math.floor(q)), ff = q - fi;
-    particles.focus = THREE.MathUtils.lerp(THREE.MathUtils.lerp(FOCUS[fi], FOCUS[fi + 1], ff), 9, loopSwapT < 0 ? cosmosK : 0);   // (cosmos: estrellas cercanas nítidas)
-    particles.reflect = Math.max(studio, endStudio * (1 - loopOut));
-    U.uCosmos.value = cosmosK;
-    if (loopSwapT < 0) U.uCosmosC.value.copy(U.uEnd.value); else U.uCosmosC.value.set(0, AXIS_Y, -4);
+    particles.focus = THREE.MathUtils.lerp(FOCUS[fi], FOCUS[fi + 1], ff);
+    particles.reflect = Math.max(studio, endStudio);
     particles.floorY = endStudio > studio ? SPI.yM - AXIS_Y : 0;           // el reflejo del cierre, sobre su propio piso
     waSync();
     particles.update(dt, reduced ? 0 : t);
@@ -1918,7 +1798,7 @@ function frame() {
     vis *= o.userData.midK;
     if (i === SC.casos) { o.position.copy(o.userData.base); o.position.y -= SPI.drop * sIn; }   // baja con la cámara de rubro en rubro
     const ratio = tmp.copy(o.position).sub(cssCam.position).dot(cssFwd) / o.userData.d;   // 1 = a 1:1; 0.5 = al doble
-    const op = vis * sm(0.5, 0.78, ratio) * (i === SC.casos ? 1 - rpView : 1) * (1 - sm(0, 0.3, loopOut))   // con un rubro abierto manda el panel; en el bucle se van
+    const op = vis * sm(0.5, 0.78, ratio) * (i === SC.casos ? 1 - rpView : 1)   // con un rubro abierto manda el panel
       * (i === 0 ? introText : 1);                                        // el titular llega cuando la M ya se lee
     const on = (i === SC.casos ? op / Math.max(0.001, 1 - rpView) : op) > 0.01;   // (casos: se desvanece, no se quita del DOM)
     if (o.visible !== on) o.visible = on;
@@ -1973,7 +1853,7 @@ const qsScene = new URLSearchParams(location.search).get("s");
 const hashScene = SLUGS.indexOf(location.hash.slice(1));
 if (qsScene !== null) { from = to = prog = stationOf(clamp(Math.round(+qsScene) || 0, 0, LAST)); }
 else if (hashScene > 0) { from = to = prog = stationOf(hashScene); }
-if (/[?&]debug\b/.test(location.search)) window.__lab = { THREE, get dpr() { return DPR; }, renderer, scene, composer, bloom, camera, get particles() { return particles; }, goTo, goQ, openRubro, openDetail, get rp() { return rp; }, loseGL: () => renderer.forceContextLoss(), restoreGL: () => renderer.forceContextRestore(), get nav() { return { prog, to, free, lockUntil: lockUntil - now() }; }, cards, SPI, SC, anchorUI, openPk, closePk, labels, sections, snd };
+if (/[?&]debug\b/.test(location.search)) window.__lab = { THREE, get dpr() { return DPR; }, renderer, scene, composer, bloom, camera, get particles() { return particles; }, goTo, goQ, openRubro, openDetail, get rp() { return rp; }, loseGL: () => renderer.forceContextLoss(), restoreGL: () => renderer.forceContextRestore(), get nav() { return { prog, to, free, lockUntil: lockUntil - now() }; }, cards, SPI, SC, anchorUI, labels, sections, snd };
 
 // la entrada: el telón se levanta cuando todo está listo y ahí arranca el reloj de la intro
 // (antes corría debajo del telón). Primero la M y el anillo, luego el titular, al final HUD, botón y pista

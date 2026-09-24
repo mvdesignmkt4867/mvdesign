@@ -22,7 +22,6 @@ const TARGET_GLSL = /* glsl */ `
 uniform sampler2D tHome, tRing, tHelix;
 uniform float uTime, uA, uB, uC, uRot, uPlanet, uMScale, uRingS, uProc, uPack;
 uniform vec3 uStart, uEnd; uniform vec2 uAxis; uniform float uRingZ;
-uniform float uCosmos; uniform vec3 uCosmosC;  // bucle: las partículas se sueltan en un cosmos alrededor de uCosmosC
 uniform vec4 uSpiral;  // espiral de rubros · x: altura del primer rubro, y: caída por rubro, z: radio, w: giro actual
 uniform vec2 uSpiralK; // x: ángulo por rubro, y: cuántos rubros
 // proceso: centro de cada número (mundo), ejes del plano del texto, radio del anillo y parte de partículas para el hilo
@@ -91,7 +90,7 @@ vec4 mvTarget(vec2 u){
   vec3 t = mix(mix(mp + uStart, ring, eA), helix, eC);
   // (ramas uniformes: fuera de su tramo no cuestan; si el estado siguiente ya es total, éste no se calcula)
   if (uProc > 0. && uPlanet < 1.) t = mix(t, mvProc(h, rg, hx.w), eP);
-  if (uPlanet > 0. && uPack < 1.) {
+  if (uPlanet > 0. && uB < 1.) {
     // casos: TODAS forman la cinta de la espiral de rubros (por dentro de las fichas: no les pasan encima)
     // y giran con ella; posición a lo largo (la semilla, así llegan en orden), ancho y grosor con azar independiente
     float along = aS * (uSpiralK.y - 1. + SPI_UP + SPI_DN) - SPI_UP;          // en rubros: desde arriba del primero hasta abajo del último
@@ -102,14 +101,7 @@ vec4 mvTarget(vec2 u){
   }
   if (uPack > 0. && uB < 1.) t = mix(t, mvPack(h, rg, hx.w), eK);
   t = mix(t, mp + uEnd, eB);                                                   // el cierre: la M al pie de la espiral
-  float eL = 0.;
-  if (uCosmos > 0.) {                                                          // bucle: cosmos negro (una estrella por partícula)
-    vec3 hz = fract(sin(vec3(dot(u, vec2(127.1, 311.7)), dot(u, vec2(269.5, 183.3)), dot(u, vec2(419.2, 371.9)))) * 43758.5453);
-    vec3 dir = normalize(hz * 2. - 1. + 1e-3);
-    eL = mvStag(uCosmos, hz.y);
-    t = mix(t, uCosmosC + dir * (2.5 + 17. * pow(hz.x, .8)), eL);
-  }
-  float travel = sin(eA * 3.14159) + sin(eC * 3.14159) + sin(eP * 3.14159) + sin(eS * 3.14159) + sin(eK * 3.14159) + sin(eB * 3.14159) + sin(eL * 3.14159);
+  float travel = sin(eA * 3.14159) + sin(eC * 3.14159) + sin(eP * 3.14159) + sin(eS * 3.14159) + sin(eK * 3.14159) + sin(eB * 3.14159);
   return vec4(t, clamp(travel, 0., 1.));
 }
 `;
@@ -257,7 +249,7 @@ void main(){
   float calm = mvStag(uC, rgs.w) * (1. - mvStag(uProc, rgs.w));             // 1 = viajando por el túnel
   // pesos de cada forma: la M (inicio y cierre), la cinta de la espiral (se ve igual que la M), el hilo y los marcos
   float aS = mvAlong(aSeed, rgs.w);
-  float wS = mvStag(uPlanet, aS) * (1. - mvStag(uPack, hxr.w));
+  float wS = mvStag(uPlanet, aS) * (1. - mvStag(uB, 1. - aSeed));            // (la cinta cae directo a la M del cierre)
   float wP = mvStag(uProc, rgs.w) * (1. - mvStag(uPlanet, aS));
   float wK = mvStag(uPack, hxr.w) * (1. - mvStag(uB, 1. - aSeed));
   float asmW = max(max(1. - mvStag(uA, aSeed), mvStag(uB, 1. - aSeed)), wS);  // 1 = forma la M (o la cinta)
@@ -361,7 +353,6 @@ export function createParticles({ renderer, geos, holderMatrix, mobile, reduced,
     tHome: { value: tHome }, tRing: { value: tRing }, tHelix: { value: tHelix },
     uTime: { value: 0 }, uA: { value: 0 }, uB: { value: 0 }, uC: { value: 0 }, uRot: { value: 0 },
     uStart: { value: new THREE.Vector3() }, uEnd: { value: new THREE.Vector3() },
-    uCosmos: { value: 0 }, uCosmosC: { value: new THREE.Vector3() },
     uPlanet: { value: 0 }, uSpiral: { value: new THREE.Vector4(1.9, 2, 3, 0) }, uSpiralK: { value: new THREE.Vector2(Math.PI / 3, 6) },
     uMScale: { value: 1 }, uRingS: { value: 1 }, uMouseK: { value: 1 },
     uAxis: { value: new THREE.Vector2(0, 1.9) }, uRingZ: { value: -4.2 },
@@ -433,7 +424,7 @@ export function createParticles({ renderer, geos, holderMatrix, mobile, reduced,
   // la reflexión comparte el estado de la principal
   for (const key of ["uPx", "uFocus", "uAperture", "uAlpha", "tPos", "tVel"]) reflection.material.uniforms[key] = points.material.uniforms[key];
 
-  let intro = reduced ? 1 : 0, snapNext = false;
+  let intro = reduced ? 1 : 0;
   return {
     points, reflection, simulated: !!gpu, count: N, shared,
     set px(v) { points.material.uniforms.uPx.value = v; },
@@ -443,7 +434,6 @@ export function createParticles({ renderer, geos, holderMatrix, mobile, reduced,
     set procFill(v) { procFillU.value = v; },
     set procPulse(v) { procPulseU.value = v; },
     set ribbon(v) { if (velVar) velVar.material.uniforms.uRibbon.value = v; },
-    replay() { intro = 0.15; snapNext = true; },      // (bucle, en negro: cada partícula salta a su estrella alrededor del inicio y la M se arma en cascada)
     dispose() {                                       // (al rearmarse tras perder el contexto WebGL)
       points.geometry.dispose(); points.material.dispose();
       if (reflection.geometry !== points.geometry) reflection.geometry.dispose();
@@ -457,10 +447,7 @@ export function createParticles({ renderer, geos, holderMatrix, mobile, reduced,
       velVar.material.uniforms.uIntro.value = intro;
       const sdt = Math.min(dt, 1 / 30);
       velVar.material.uniforms.uDt.value = posVar.material.uniforms.uDt.value = sdt;
-      const snap = snapNext && !reduced;
-      if (snap) velVar.material.uniforms.uSnap.value = 1;   // (uSnap es el mismo objeto en velocidad y posición)
       gpu.compute();
-      if (snap) { velVar.material.uniforms.uSnap.value = 0; snapNext = false; }
       points.material.uniforms.tPos.value = gpu.getCurrentRenderTarget(posVar).texture;
       points.material.uniforms.tVel.value = gpu.getCurrentRenderTarget(velVar).texture;
     }

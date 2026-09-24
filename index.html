@@ -50,7 +50,7 @@
   <link rel="preload" href="assets/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
   <!-- internet lento: si a los 4 s el 3D sigue cargando, el WhatsApp aparece sobre el telón (va antes de los estilos: corre desde el inicio; con carga normal el telón se va antes y la entrada no cambia) -->
   <script>setTimeout(function () { var c = document.querySelector(".curtain"); if (!c || !c.classList.contains("is-off")) document.documentElement.classList.add("wa-early"); }, 4000);</script>
-  <link rel="stylesheet" href="lab/lab.css?v=39" />
+  <link rel="stylesheet" href="lab/lab.css?v=40" />
   <noscript><style>.curtain { display: none; }</style></noscript>
   <script type="importmap">
   {
@@ -180,7 +180,7 @@
     <button type="button" class="snd snd--m" data-snd aria-pressed="true" aria-label="Sonido"><span class="snd__bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span></button>
     <!-- en celular el índice es un solo botón que abre la lista (7 números no caben junto a la marca) -->
     <button class="idx__toggle mono" type="button" aria-expanded="false" aria-controls="idx-list" data-idx-toggle>
-      <span class="sr-only">Índice: escena </span><span data-idx-num>01</span><span class="sr-only"> de 7:</span> <span class="idx__now" data-idx-name>La firma</span><i aria-hidden="true"></i>
+      <span class="sr-only">Índice: escena </span><span data-idx-num>01</span><span class="sr-only"> de 6:</span> <span class="idx__now" data-idx-name>La firma</span><i aria-hidden="true"></i>
     </button>
     <ol id="idx-list">
       <li><button type="button" data-go="0" aria-current="step"><span>01</span><span class="idx__t">La firma</span></button></li>
@@ -188,8 +188,7 @@
       <li><button type="button" data-go="2"><span>03</span><span class="idx__t">Servicios</span></button></li>
       <li><button type="button" data-go="3"><span>04</span><span class="idx__t">Proceso</span></button></li>
       <li><button type="button" data-go="4"><span>05</span><span class="idx__t">Casos</span></button></li>
-      <li><button type="button" data-go="5"><span>06</span><span class="idx__t">Paquetes</span></button></li>
-      <li><button type="button" data-go="6"><span>07</span><span class="idx__t">Contacto</span></button></li>
+      <li><button type="button" data-go="5"><span>06</span><span class="idx__t">Contacto</span></button></li>
     </ol>
   </nav>
 
@@ -321,45 +320,10 @@
       </div>
     </section>
 
-    <section class="scene scene--pk" data-scene="paquetes" aria-label="Paquetes">
-      <p class="kicker mono">Paquetes</p>
-      <h2 class="title title--2" tabindex="-1">Elige el nivel de tu <em class="grad">presencia</em>.</h2>
-      <!-- con 3D, las partículas dibujan el marco de cada paquete -->
-      <div class="pk-grid" data-pk>
-        <article class="pk" aria-labelledby="pk-n1">
-          <p class="pk__top"><span class="pk__k mono">Paquete 01</span></p>
-          <h3 class="pk__name" id="pk-n1">Editorial / Corporativa</h3>
-          <ul class="pk__list mono" role="list"><li>One-pager o multipágina, estilo editorial</li><li>Estructura pensada para vender</li><li>Responsive + formulario de contacto</li><li>WhatsApp y redes integrados</li><li>SEO básico on-page</li></ul>
-          <div class="pk__acts">
-            <a class="pill pill--ghost pk__cta" href="https://wa.me/5214427146255?text=Hola%20MV%20Design%2C%20me%20interesa%20el%20paquete%20Editorial%20%2F%20Corporativa.%20%5Bweb%20%C2%B7%20paquete%20editorial%5D" target="_blank" rel="noopener" data-cta="paquete-editorial"><span class="wa__dot" aria-hidden="true"></span>Cotizar editorial<span class="sr-only"> por WhatsApp</span></a>
-            <button type="button" class="pk__more mono" data-pk-more>Qué incluye<span class="sr-only"> en Editorial / Corporativa</span></button>
-          </div>
-        </article>
-        <article class="pk pk--hot" aria-labelledby="pk-n2">
-          <p class="pk__top"><span class="pk__k mono">Paquete 02</span><span class="pk__badge mono">Como esta web</span></p>
-          <h3 class="pk__name" id="pk-n2">Web 3D inmersiva</h3>
-          <ul class="pk__list mono" role="list"><li>Experiencia 3D inmersiva e interactiva</li><li>Mapas, recorridos y exploración</li><li>Animación y transiciones a medida</li><li>Estructura lista para crecer</li><li>SEO técnico on-page</li></ul>
-          <div class="pk__acts">
-            <a class="pill pill--light pk__cta" href="https://wa.me/5214427146255?text=Hola%20MV%20Design%2C%20me%20interesa%20el%20paquete%20Web%203D%20inmersiva.%20%5Bweb%20%C2%B7%20paquete%203D%5D" target="_blank" rel="noopener" data-cta="paquete-3d"><span class="wa__dot" aria-hidden="true"></span>Cotizar inmersiva<span class="sr-only"> por WhatsApp</span></a>
-            <button type="button" class="pk__more mono" data-pk-more>Qué incluye<span class="sr-only"> en Web 3D inmersiva</span></button>
-          </div>
-        </article>
-        <article class="pk" aria-labelledby="pk-n3">
-          <p class="pk__top"><span class="pk__k mono">Paquete 03</span><span class="pk__badge pk__badge--line mono"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.7 4.8c-.1-.1-.3-.1-.4-.1l-1-.1s-.7-.7-.8-.8c-.1-.1-.2-.1-.3-.1l-.5 11.8 4.1-.9s-1-9.6-1.1-9.8ZM12.6 3.9c-.2-.4-.5-.7-.9-.7-.1 0-.1 0-.2.1-.5.1-1.4.6-2 1.7-.4.8-.5 1.6-.5 1.6l-1.5.5c-.4.1-.5.2-.5.6 0 .3-1.2 9.3-1.2 9.3l9 1.7.5-11.9c-.2 0-.4 0-.5.1l-.6.2s-.5-1.5-1.6-3.2Zm-1.8 4.2-1.7.5s.1-.8.5-1.6c.5-.9 1.1-1.3 1.5-1.4.4.9.4 1.8-.3 2.5Z"/></svg>Shopify Partners</span></p>
-          <h3 class="pk__name" id="pk-n3">E-commerce · Shopify</h3>
-          <ul class="pk__list mono" role="list"><li>Tienda completa en Shopify, mobile first</li><li>Hasta 20 productos con variantes</li><li>Checkout optimizado + Mercado Pago</li><li>Envíos, Analytics y WhatsApp</li><li>Capacitación del panel</li></ul>
-          <div class="pk__acts">
-            <a class="pill pill--ghost pk__cta" href="https://wa.me/5214427146255?text=Hola%20MV%20Design%2C%20me%20interesa%20el%20paquete%20E-commerce%20Shopify.%20%5Bweb%20%C2%B7%20paquete%20Shopify%5D" target="_blank" rel="noopener" data-cta="paquete-shopify"><span class="wa__dot" aria-hidden="true"></span>Cotizar tienda<span class="sr-only"> por WhatsApp</span></a>
-            <button type="button" class="pk__more mono" data-pk-more>Qué incluye<span class="sr-only"> en E-commerce · Shopify</span></button>
-          </div>
-        </article>
-      </div>
-    </section>
 
     <section class="scene scene--contact" data-scene="contacto" aria-label="Contacto">
       <p class="kicker mono">Contacto · Querétaro, México</p>
       <h2 class="title title--2" tabindex="-1">Hagamos que tu marca <em class="grad">venda</em>.</h2>
-      <p class="zone mono">Presencial en Santiago de Querétaro y su zona metropolitana · a distancia en todo México</p>
       <div class="ctas">
         <a class="pill pill--light pill--two" href="https://wa.me/5214427146255?text=Hola%20Fernanda%2C%20quiero%20cotizar%20un%20proyecto%20con%20MV%20Design.%20%5Bweb%20%C2%B7%20contacto%5D" target="_blank" rel="noopener" data-cta="contacto-fer">
           <span class="wa__dot" aria-hidden="true"></span>
@@ -384,9 +348,6 @@
     </section>
   </main>
 
-  <!-- paquetes en celular: "Qué incluye" abre esta hoja con las viñetas y el mismo botón de WhatsApp -->
-  <div class="psheet-veil" data-psheet-veil hidden></div>
-  <div class="psheet" data-psheet role="dialog" aria-modal="true" aria-labelledby="psheet-t" aria-hidden="true" inert></div>
 
   <!-- panel de un rubro: sus proyectos (subfichas) y la ficha del caso. Lo arma lab.js desde la lista de rubros -->
   <div class="rpanel" data-rpanel role="dialog" aria-modal="false" aria-labelledby="rpanel-title" aria-hidden="true" inert></div>
@@ -420,7 +381,7 @@
       setTimeout(function () { if (!document.documentElement.classList.contains("is-3d")) off(); }, 4000);
     })();
   </script>
-  <script type="module" src="lab/lab.js?v=96"></script>
+  <script type="module" src="lab/lab.js?v=97"></script>
   <!-- Conversiones: WhatsApp = Lead (principal) · correo = Contact. Envia a Meta Pixel Y a GA4 -->
   <script>
   (function () {
