@@ -198,7 +198,8 @@ void main(){
   vel += acc * uDt;
   // amortiguado: un poco de rebote; hacia el hilo y los marcos (formas delgadas), crítico: se arman sin deshacerse y rehacerse
   vec4 rgD = texture2D(tRing, u), hxD = texture2D(tHelix, u);
-  float wD = max(mvStag(uProc, rgD.w) * (1. - mvStag(uPlanet, mvAlong(seed, rgD.w))), mvStag(uPack, hxD.w) * (1. - mvStag(uB, 1. - seed)));
+  // (la M del cierre llega de la cinta con amortiguado intermedio: sin rebote visible, sin volverse rígida)
+  float wD = max(mvStag(uProc, rgD.w) * (1. - mvStag(uPlanet, mvAlong(seed, rgD.w))), mvStag(uB, 1. - seed) * .5);
   vel *= exp(-uDt * mix(3.2, mix(7.2, 10.5, wD), rel));
   // clic: se dispersan y el resorte las regresa. Se mide desde su lugar de reposo: un solo impulso, igual a 60 o 120 Hz
   vel += mvBlastKick(mix(pos, tg.xyz, 1. - tg.w), seed) * rel;

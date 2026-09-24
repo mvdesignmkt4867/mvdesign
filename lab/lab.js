@@ -20,9 +20,9 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { CSS3DRenderer, CSS3DObject } from "three/addons/renderers/CSS3DRenderer.js";
-import { createParticles, BLAST_GLSL, BLAST_N } from "./particles.js?v=30";
+import { createParticles, BLAST_GLSL, BLAST_N } from "./particles.js?v=31";
 import { ICON_DRAW } from "./rubro-icons.js?v=1";
-import { createSound } from "./sound.js?v=21";
+import { createSound } from "./sound.js?v=22";
 
 const canvas = document.querySelector("[data-gl]");
 const curtain = document.querySelector("[data-curtain]");
@@ -638,7 +638,7 @@ function showRubro(j) {
     capOpen.setAttribute("aria-label", `Ver los ${r.projects.length} proyectos de ${r.name}`);
   }
   capPrev?.setAttribute("aria-label", j === 0 ? "Volver al proceso" : "Rubro anterior");
-  capNext?.setAttribute("aria-label", j === NR - 1 ? "Ir a paquetes" : "Rubro siguiente");
+  capNext?.setAttribute("aria-label", j === NR - 1 ? "Ir a contacto" : "Rubro siguiente");
   if (capLive && active === SC.casos) capLive.textContent = `${r.name}. ${r.projects.length} proyectos.`;
 }
 // el rubro al frente (o al que vas): con el scroll libre la espiral puede quedar entre dos fichas
@@ -1119,7 +1119,7 @@ function buildPath() {
   const kC = QLAST, GAP = 18, mH = M_HALF * mScale, D0 = KEYS.pos[kC].z - E;
   const shot = (ly, y) => { probe.position.copy(KEYS.pos[kC]); probe.lookAt(0, ly, E); probe.updateMatrixWorld(); pv.set(0, y, E).project(probe); return (1 - pv.y) / 2 * H; };
   const mPx = (D) => (mH * H) / (D * tanH);          // alto de la M en pantalla a distancia D
-  let minTop = (narrow ? 112 : 96) + SAFE_T, topC = place(labels[LAST], LAST);
+  let minTop = (narrow ? 76 : 96) + SAFE_T, topC = place(labels[LAST], LAST);   // (contacto ya no lleva nota del HUD: no se le reserva lugar)
   if (topC - GAP - minTop < mPx(D0)) { elC.classList.add("is-tight"); topC = place(labels[LAST], LAST); }
   if (topC - GAP - minTop < mPx(D0) * 0.8) {
     elC.classList.add("is-bare"); root.classList.add("contact-bare");
@@ -1453,7 +1453,7 @@ addEventListener("popstate", () => {
   if (ignorePop > 0) { ignorePop -= 1; return; }       // (lo consumió la propia interfaz al cerrar)
   if (rp.detail >= 0) { closeDetail("pop"); return; }
   if (rp.open >= 0) { closeRubro(false, "pop"); return; }
-  const s = SLUGS.indexOf(location.hash.slice(1)), target = s >= 0 ? s : 0;
+  const s = SLUGS.indexOf(slugOf()), target = s >= 0 ? s : 0;
   if (target !== active) goTo(target);
 });
 document.querySelector(".brand")?.addEventListener("click", (e) => {   // el logo regresa al inicio de la experiencia
@@ -1535,7 +1535,7 @@ function setActive(a) {
   if (idxName) idxName.textContent = NAMES[a];
   if (noteEl) noteEl.innerHTML = NOTES[a];
   if (noteM) noteM.textContent = NOTES[a].replace(/ ?<br>/g, " ");
-  snd.scene(a === LAST ? 6 : a);                       // la armonía se desliza al acorde de la escena (contacto conserva el suyo)
+  snd.scene(a);                                          // la armonía se desliza al acorde de la escena
 }
 
 /* ---------- Sonido: botón, primer gesto y tic de los botones ---------- */
@@ -1635,6 +1635,7 @@ function hintStart() {                                // al levantar el telón
   if (!hintEl) return;
   const locked = snd.on && !snd.playing;
   if (document.documentElement.classList.contains("hint-done") && !locked) return;   // (ya recorrió la página en esta visita)
+  document.documentElement.classList.remove("hint-done");   // (la guía se muestra completa: tap y luego scroll; vuelve a marcarse al salir del inicio)
   setHint("tap");
 }
 function tapped() { if (hintMode === "tap") setHint("scroll"); }
@@ -1826,7 +1827,7 @@ function frame() {
   const jumpA = Math.round(sceneP(from)), jumpB = Math.round(sceneP(to));
   const crossC = Math.min(jumpA, jumpB) < SC.casos && Math.max(jumpA, jumpB) > SC.casos;   // salto que pasa de largo por casos
   if (crossC) crossK = 1; else crossK *= Math.exp(-dt * 6);
-  const cIn = sm(3.3, 3.95, p), cOut = sm(4.2, 4.62, p), cVis = cIn * (1 - cOut) * (1 - crossK);
+  const cIn = sm(3.3, 3.95, p), cOut = sm(4.0, 4.2, p), cVis = cIn * (1 - cOut) * (1 - crossK);
   if (p > 1.4) loadRubroTextures();
   const cur = Math.round(sIn);
   if (cVis > 0.01) showRubro(to >= Q0 - 0.5 && to <= QEND + 0.5 ? nearestRubro() : cur);   // en camino: el rubro al que vas
@@ -1871,7 +1872,7 @@ function frame() {
     // Contacto espera a que la M esté armada. En saltos largos (índice) los intermedios no aparecen
     let vis = i === SC.serv && p > SC.serv ? 1 - sm(0.04, 0.18, p - SC.serv)
       : i === LAST ? (1 - sm(0.12, 0.4, Math.abs(p - LAST)))            // sale como los demás…
-          * (reduced || !particles ? 1 : planetOff < 0 ? 0 : sm(0.3, 0.55, (now() - planetOff) / 1000))   // …y llega con la M ya armada
+          * (reduced || !particles ? 1 : planetOff < 0 ? 0 : sm(0.6, 0.85, (now() - planetOff) / 1000))   // …y llega con la M ya armada y quieta
       : 1 - sm(0.12, 0.4, Math.abs(p - i));
     const mid = jumpA !== jumpB && Math.abs(jumpB - jumpA) >= 2 && i !== jumpA && i !== jumpB;
     o.userData.midK = mid ? 0 : (o.userData.midK ?? 1) + (1 - (o.userData.midK ?? 1)) * (1 - Math.exp(-dt * 6));
@@ -1931,7 +1932,10 @@ document.addEventListener("visibilitychange", glWatch);
 
 // para pruebas: ?s=3 abre directo en una escena; ?debug expone el mundo en la consola
 const qsScene = new URLSearchParams(location.search).get("s");
-const hashScene = SLUGS.indexOf(location.hash.slice(1));
+const HASH_ALIAS = { paquetes: "contacto" };          // (enlaces viejos: la escena de paquetes ya no existe)
+const slugOf = () => { const h = location.hash.slice(1); return HASH_ALIAS[h] || h; };
+if (HASH_ALIAS[location.hash.slice(1)]) { try { history.replaceState(null, "", "#" + slugOf()); } catch (e) {} }
+const hashScene = SLUGS.indexOf(slugOf());
 if (qsScene !== null) { from = to = prog = stationOf(clamp(Math.round(+qsScene) || 0, 0, LAST)); }
 else if (hashScene > 0) { from = to = prog = stationOf(hashScene); }
 if (/[?&]debug\b/.test(location.search)) window.__lab = { THREE, get dpr() { return DPR; }, renderer, scene, composer, bloom, camera, get particles() { return particles; }, goTo, goQ, openRubro, openDetail, get rp() { return rp; }, loseGL: () => renderer.forceContextLoss(), restoreGL: () => renderer.forceContextRestore(), get nav() { return { prog, to, free, lockUntil: lockUntil - now() }; }, cards, SPI, SC, anchorUI, labels, hint: (m) => setHint(m), sections, snd };

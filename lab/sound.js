@@ -83,6 +83,7 @@ export function createSound({ reduced = false } = {}) {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return false;
     ctx = new AC();
+    ctx.onstatechange = emit;                              // (el botón refleja el estado real: sonando o no, lo haya desbloqueado quien sea)
     // sólo un limitador para los picos (un compresor que bombea hacía "bajones" al entrar los efectos)
     const lim = ctx.createDynamicsCompressor();
     lim.threshold.value = -4; lim.knee.value = 2; lim.ratio.value = 20; lim.attack.value = 0.003; lim.release.value = 0.2;
