@@ -80,7 +80,9 @@ vec4 mvTarget(vec2 u){
   vec3 mp = mvRotY(h.xyz * uMScale, uRot);
   vec4 rg = texture2D(tRing, u);
   float tt = rg.x + uTime * (1.45 / (rg.y * rg.y));                 // órbita: más rápido cerca del anillo
-  vec3 ring = vec3(uAxis.x + cos(tt) * rg.y * uRingS, uAxis.y + sin(tt) * rg.y * uRingS, uRingZ + rg.z * uRingS);
+  // disco de acreción inclinado 12° en X (se siente de volumen sin sacar el texto del anillo)
+  vec3 ro = vec3(cos(tt) * rg.y, sin(tt) * rg.y, rg.z) * uRingS;
+  vec3 ring = vec3(uAxis.x + ro.x, uAxis.y + ro.y * .9781 - ro.z * .2079, uRingZ + ro.y * .2079 + ro.z * .9781);
   vec4 hx = texture2D(tHelix, u);
   float th = hx.x + uTime * (.035 + seed * .05);
   vec3 helix = vec3(uAxis.x + cos(th) * hx.y, uAxis.y + sin(th) * hx.y * .9, hx.z);
@@ -261,6 +263,8 @@ void main(){
   vA = tw / (1. + coc * coc * 5.) * smoothstep(1., 3.5, z) * uAlpha * mix(1., .55, calm);
   if (uMirror > .5) vA *= .7 * smoothstep(-1.8, 0., p.y - uFloorY) * uReflect;
   vA *= mix(1., smoothstep(.03, .12, aS) * smoothstep(1., .91, aS), wS);    // la cinta fluye: entran y salen por los extremos sin verse el regreso
+  float wR = mvStag(uA, aSeed) * (1. - mvStag(uC, rgs.w));                  // en el disco de acreción:
+  vA *= mix(1., .65 + .35 * cos(atan(p.y - uAxis.y, p.x - uAxis.x) - uTime * .4), wR);   // un lado más brillante que gira lento
   blastLit = min(blastLit, 1.);
   vA *= 1. + blastLit * .35;                                                    // la onda del clic: crecen y brillan un poco al pasar
   gl_PointSize *= 1. + blastLit * .7;                                           // (más tamaño que brillo: el color de marca no se satura)
@@ -334,7 +338,8 @@ export function createParticles({ renderer, geos, holderMatrix, mobile, reduced,
       refs.set([(k % W + 0.5) / W, (Math.floor(k / W) + 0.5) / W], k * 2);
       // anillo de acreción ceñido al eclipse (así cabe en pantalla con el manifiesto adentro)
       const g = (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
-      ring.set([Math.random() * Math.PI * 2, 2.62 + g * 0.38 + (Math.random() < .06 ? Math.random() * 2 : 0), g * 0.3, Math.random()], k * 4);
+      // borde interior definido y densidad que se abre hacia afuera (algunas sueltas más lejos)
+      ring.set([Math.random() * Math.PI * 2, 2.45 + Math.pow(Math.random(), 2.2) * 1.25 + (Math.random() < .04 ? Math.random() * 1.6 : 0), g * 0.3, Math.random()], k * 4);
       // hélice de tres brazos a lo largo del túnel
       const z = Math.random() < 0.86 ? -8 - Math.random() * 29 : -37.5 - Math.random() * 22;   // dentro del túnel (más ancho y largo)
       const spread = Math.pow(Math.random(), 2) * (Math.random() < .5 ? -1 : 1);
