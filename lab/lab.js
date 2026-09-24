@@ -833,7 +833,8 @@ function openDetail(k, tile) {
   if (!pr.desc) desc.classList.add("is-soon");
   const ctas = mk("div", "det__ctas");
   const wa = mk("a", "pill pill--light", "Quiero algo así →");
-  wa.href = WA_URL + encodeURIComponent(`Hola MV Design, vi el caso de ${pr.name} y quiero cotizar algo así. [web · lab]`);
+  wa.href = WA_URL + encodeURIComponent(`Hola MV Design, vi el caso de ${pr.name} y quiero cotizar algo así. [web · caso]`);
+  wa.dataset.cta = "caso";                              // (medición: WhatsApp = Lead con su ubicación)
   wa.target = "_blank"; wa.rel = "noopener";
   ctas.append(wa);
   if (pr.url) { const a = mk("a", "pill pill--ghost", "Ver sitio ↗"); a.href = pr.url; a.target = "_blank"; a.rel = "noopener"; ctas.append(a); }
@@ -1054,7 +1055,7 @@ function buildPath() {
   // paquetes: al pie de la espiral, un paso antes de la M, de frente y a nivel (su plano pasa donde estaba la ficha del frente)
   const yK = yM + (portrait ? 2.0 : 1.2), PK_Z = E + 3;
   KEYS.pos.push(V(0, yK, PK_Z + T[SC.pk].d)); KEYS.look.push(V(0, yK, PK_Z)); FOCUS.push(T[SC.pk].d);
-  if (portrait) { KEYS.pos.push(V(0, yM + 0.6, E + 20.5)); KEYS.look.push(V(0, yM - 1.55 - (H < 760 ? 0.6 : 0), E)); FOCUS.push(20.5); }
+  if (portrait) { KEYS.pos.push(V(0, yM + 0.6, E + 20.5)); KEYS.look.push(V(0, yM - 1.55 - (H < 760 ? 1.2 : 0.3), E)); FOCUS.push(20.5); }   // (la M sube: el pie de contacto no la toca)
   else { KEYS.pos.push(V(0, yM + 0.4, E + 16.5)); KEYS.look.push(V(0, yM - 0.95, E)); FOCUS.push(16.5); }
   posCurve = new THREE.CatmullRomCurve3(KEYS.pos, false, "centripetal");
   lookCurve = new THREE.CatmullRomCurve3(KEYS.look, false, "centripetal");
@@ -1437,6 +1438,7 @@ const NOTES = [
   "Respondemos el mismo día<br>por WhatsApp."
 ];
 let active = -1;
+const sceneSeen = new Set();
 const waFloat = document.querySelector(".wa");
 const narrowMQ = matchMedia("(max-width: 720px)");
 // el WhatsApp flotante se quita donde ya hay botones propios (paquetes, contacto) o donde tapa
@@ -1523,6 +1525,8 @@ function setActive(a) {
   if (active === 0 && a > 0) { document.documentElement.classList.add("hint-done"); try { sessionStorage.setItem("mv-hint", "1"); } catch (e) {} }
   active = a;
   document.body.dataset.scene = SLUGS[a];
+  // medición: qué escenas se ven (una vez por visita; gtag sólo envía en el dominio real)
+  if (!sceneSeen.has(a) && typeof window.gtag === "function") { sceneSeen.add(a); window.gtag("event", "scene_view", { scene: SLUGS[a] }); }
   waSync();
   if (a !== SC.casos && rp.open >= 0) closeRubro(true, "nav");
   if (a !== SC.pk && pk.open >= 0) closePk("nav");

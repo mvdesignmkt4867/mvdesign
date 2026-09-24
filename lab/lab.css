@@ -367,6 +367,21 @@ html.is-short body[data-scene="proceso"] .hud-note-m, html.is-short body[data-sc
 .pill--ghost:hover { background: rgba(255,255,255,.07); }
 .restart { position: relative; margin-top: 22px; color: #9DA1B0; letter-spacing: .08em; text-transform: uppercase; font-size: 11px; }
 .restart:hover { color: #fff; }
+/* pie de contacto: volver al inicio + redes (íconos) en un renglón; enlaces legales debajo */
+.contact-foot { display: flex; align-items: center; justify-content: center; gap: 20px; margin-top: 22px; }
+.contact-foot .restart { margin-top: 0; }
+.social { display: inline-flex; gap: 10px; }
+.social__a {
+  position: relative; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.22); color: #fff; pointer-events: auto; transition: background .3s, border-color .3s;
+}
+.social__a:hover { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.5); }
+.social__a::before { content: ""; position: absolute; inset: -4px; }   /* área táctil de 44 px */
+.social__a svg { width: 16px; height: 16px; }
+.legal { margin-top: 16px; font-size: 10.5px; letter-spacing: .04em; color: var(--fg-3); }
+.legal a { position: relative; color: var(--fg-2); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(255,255,255,.25); pointer-events: auto; }
+.legal a:hover { color: #fff; }
+.legal a::before { content: ""; position: absolute; inset: -12px -4px; }   /* área táctil */
 .restart::before { content: ""; position: absolute; inset: -14px -16px; }   /* área táctil ≥ 44 px sin agrandar el bloque (no empuja el texto hacia la M) */
 
 /* ---------- HUD inferior ---------- */
@@ -504,6 +519,10 @@ html:not(.is-3d) .pk__more, html:not(.is-3d) .psheet, html:not(.is-3d) .psheet-v
   body[data-scene="contacto"] .hud--bl, body[data-scene="casos"] .hud--bl, body[data-scene="paquetes"] .hud--bl { opacity: 0; }
   .swipe-hint { bottom: calc(var(--pad) + 62px + env(safe-area-inset-bottom, 0px)); }
   .progress { display: none; }                         /* en celular, la línea suelta sobraba */
+  .contact-foot { margin-top: 10px; gap: 16px; }
+  .scene--contact .ctas { gap: 8px; margin-top: 22px; }
+  .scene--contact .pill--two { min-height: 52px; }
+  .legal { margin-top: 8px; font-size: 9.5px; letter-spacing: 0; white-space: nowrap; }   /* un renglón: no empuja el bloque sobre la M */
 }
 @media (max-width: 380px) {
   .idx__now { display: none; }                          /* celulares angostos: número + flecha (cabe el botón de sonido) */
