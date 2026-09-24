@@ -484,7 +484,8 @@ const cards = RUBROS.map((r, i) => {
 });
 
 // ícono animado del rubro (motion graphic), arriba a la derecha de cada ficha: proporciones respecto al alto de la ficha
-const ICON_K = 0.31, ICON_M = 0.06, ICON_PX = 192;
+// (en computadora el ícono se ve a ~230 px reales: se dibuja a 320 para que no se estire)
+const ICON_K = 0.31, ICON_M = 0.06, ICON_PX = mobile ? 192 : 320;
 const iconGeo = new THREE.PlaneGeometry(1, 1);
 const icons = RUBROS.map((r) => {
   const c = document.createElement("canvas"); c.width = c.height = ICON_PX;
@@ -552,10 +553,13 @@ function whiteOf(im) {
   return whiteCache.get(im);
 }
 // la ficha de un rubro: vidrio oscuro, número, nombre grande, subrayado de marca y la fila de logos de sus proyectos
-const TEX_W = 1024, TEX_H = Math.round(TEX_W / CARD_AR);
+// TEX_W/TEX_H = medidas de diseño de la ficha; en computadora se dibuja al doble (la ficha del frente llega a ~1,400 px
+// reales en una pantalla retina grande: a 1024 se estiraba y el texto se veía pixelado)
+const TEX_W = 1024, TEX_H = Math.round(TEX_W / CARD_AR), TEX_K = mobile ? 1 : 2;
 const ICON_ROOM = Math.round((ICON_K + ICON_M * 0.6) * TEX_H);   // espacio que el nombre le deja al ícono
 function drawRubroCard(c, j, logos) {
   const r = RUBROS[j], g = c.getContext("2d");
+  g.setTransform(TEX_K, 0, 0, TEX_K, 0, 0);          // (se dibuja en medidas de diseño; el lienzo trae la resolución)
   g.clearRect(0, 0, TEX_W, TEX_H);
   const bg = g.createLinearGradient(0, 0, TEX_W, TEX_H);
   bg.addColorStop(0, "#17132b"); bg.addColorStop(0.55, "#0c0a16"); bg.addColorStop(1, "#07070b");
@@ -605,9 +609,9 @@ async function loadRubroTextures() {
   const nextFrame = () => new Promise((r) => requestAnimationFrame(r));
   for (const [j, m] of cards.entries()) {            // una ficha por cuadro: sin tirones
     const ud = m.userData;
-    ud.canvas = document.createElement("canvas"); ud.canvas.width = TEX_W; ud.canvas.height = TEX_H;
+    ud.canvas = document.createElement("canvas"); ud.canvas.width = TEX_W * TEX_K; ud.canvas.height = TEX_H * TEX_K;
     const tx = new THREE.CanvasTexture(ud.canvas);
-    tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = 8;
+    tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = Math.min(16, renderer.capabilities.getMaxAnisotropy());
     const paint = (logos) => { drawRubroCard(ud.canvas, j, logos); tx.needsUpdate = true; renderer.initTexture(tx); };   // se sube ya, no a medio vuelo
     paint([]);                                       // el nombre ya se ve; los logos llegan después
     ud.u.uMap.value = tx; ud.ready = true;
@@ -1346,6 +1350,7 @@ addEventListener("wheel", (e) => {
     gestureUsed = true; wheelAcc = 0; idxMenu(false);
     if (rp.open >= 0) closeRubro();
     else step(Math.sign(d));
+    setTimeout(sndHintMaybe, 700);                      // (la rueda no desbloquea el sonido: se invita a un clic)
   }
 }, { passive: false });
 // touch: un deslizamiento de ~48 px = una escena
@@ -1388,6 +1393,7 @@ addEventListener("touchmove", (e) => {
     touchUsed = true; idxMenu(false);
     if (rp.open >= 0) closeRubro();
     else step(Math.sign(dy));
+    setTimeout(sndHintMaybe, 700);                      // (en iPhone el deslizamiento no desbloquea el sonido: se invita a un toque)
   }
 }, { passive: true });
 addEventListener("touchend", () => {
@@ -1557,9 +1563,68 @@ addEventListener("pointerover", (e) => {
 // clic en botones y enlaces: "piu" (el clic en el vacío ya dispara la explosión con su propio disparo)
 addEventListener("click", (e) => {
   if (!e.target.closest || e.target.closest("[data-snd]")) return;
-  if (e.target.closest("a, button")) snd.pew();
+  if (e.target.closest("a, button") && !e.target.closest("[data-hint]")) snd.pew();   // (el "Toca" ya suena con su explosión)
 }, { capture: true });
 sndUI();
+// el navegador solo deja arrancar el sonido con un toque, clic o tecla (en iPhone un deslizamiento no cuenta, y en
+// computadora la rueda tampoco): tras el primer gesto que no lo logra, una pista discreta junto al botón, una vez por visita
+const sndHint = Object.assign(document.createElement("p"), { className: "snd-hint mono", textContent: "Toca para escuchar" });
+sndHint.setAttribute("aria-hidden", "true");
+document.body.append(sndHint);
+let sndHintDone = false, sndHintT = 0;
+function sndHintMaybe() {
+  if (sndHintDone || !snd.on || snd.playing) return;
+  const b = sndBtns.find((x) => x.offsetParent !== null);
+  if (!b) return;
+  sndHintDone = true;
+  const r = b.getBoundingClientRect(), below = r.top < innerHeight / 2;
+  sndHint.style.left = `${Math.round(r.left + r.width / 2)}px`;
+  sndHint.style.top = below ? `${Math.round(r.bottom + 10)}px` : `${Math.round(r.top - 10)}px`;
+  sndHint.classList.toggle("is-above", !below);
+  sndHint.classList.add("is-on");
+  sndHintT = setTimeout(() => sndHint.classList.remove("is-on"), 4200);
+}
+snd.onChange(() => { if (snd.playing) { clearTimeout(sndHintT); sndHint.classList.remove("is-on"); } });
+
+/* ---------- "Toca" sobre la M del inicio ----------
+   Si al abrir el sonido todavía no puede sonar (iPhone, o Chrome en una primera visita), la pista de abajo empieza como un
+   botón sobre la M: al tocarlo la M explota y la música entra en el mismo gesto; después baja y se vuelve "Desliza" */
+const hintEl = document.querySelector("[data-hint]"), hintTx = document.querySelector("[data-hint-t]");
+const fineMQ = matchMedia("(hover: hover) and (pointer: fine)");
+const mScr = new THREE.Vector3();
+let tapOn = false, tapX = -1, tapY = -1;
+function tapShow(test) {
+  if (!hintEl || !hintTx || tapOn || (!test && (!snd.on || snd.playing))) return;
+  tapOn = true;
+  hintEl.classList.add("is-tap");
+  hintTx.textContent = fineMQ.matches ? "Clic" : "Toca";
+  hintEl.removeAttribute("aria-hidden"); hintEl.tabIndex = 0; hintEl.setAttribute("aria-label", "Activar el sonido");
+  tapPlace(true);
+}
+function tapPlace(force) {                           // sobre el centro de la M (se sigue mientras la cámara entra)
+  if (!tapOn) return;
+  mScr.set(0, AXIS_Y, 0).project(camera);
+  const x = (mScr.x + 1) / 2 * innerWidth, y = (1 - mScr.y) / 2 * innerHeight;
+  if (!force && Math.abs(x - tapX) < 0.5 && Math.abs(y - tapY) < 0.5) return;
+  tapX = x; tapY = y;
+  const b = parseFloat(getComputedStyle(hintEl).bottom) || 0, h = hintEl.offsetHeight;
+  hintEl.style.setProperty("--tx", `${(x - innerWidth / 2).toFixed(1)}px`);
+  hintEl.style.setProperty("--ty", `${(y - (innerHeight - b - h / 2)).toFixed(1)}px`);
+}
+function tapDone() {                                 // ya suena: el botón baja y se vuelve "Desliza"
+  if (!tapOn) return;
+  tapOn = false;
+  hintEl.classList.add("is-swap");
+  setTimeout(() => {
+    hintEl.classList.remove("is-tap");
+    hintEl.style.removeProperty("--tx"); hintEl.style.removeProperty("--ty");
+    hintTx.textContent = "Desliza";
+    hintEl.setAttribute("aria-hidden", "true"); hintEl.tabIndex = -1; hintEl.removeAttribute("aria-label");
+    requestAnimationFrame(() => hintEl.classList.remove("is-swap"));
+  }, reduced ? 0 : 280);
+}
+hintEl?.addEventListener("click", () => { if (tapOn) fireBlast(tapX, tapY); });   // (el sonido se desbloquea en este mismo gesto)
+snd.onChange(() => { if (snd.playing) tapDone(); });
 
 /* ---------- Cursor: rayo en el mundo para empujar partículas ---------- */
 const ndc = new THREE.Vector2(), smooth = new THREE.Vector2(), swayT = new THREE.Vector2();
@@ -1825,6 +1890,7 @@ function frame() {
   if (dq !== detentQ) { if (dq >= 0 && detentQ >= 0) { snd.detent(); snd.step(dq - detentQ); } detentQ = dq; }   // (y el coro da un paso)
   if (kt >= 1 && prog === to) { const sA = Math.round(sceneP(to)); if (sA !== arrivedS) { if (arrivedS >= 0) snd.arrive(sA); arrivedS = sA; } }
 
+  if (tapOn) tapPlace();
   composer.render();
   css.render(cssScene, cssCam);
   requestAnimationFrame(frame);
@@ -1853,7 +1919,7 @@ const qsScene = new URLSearchParams(location.search).get("s");
 const hashScene = SLUGS.indexOf(location.hash.slice(1));
 if (qsScene !== null) { from = to = prog = stationOf(clamp(Math.round(+qsScene) || 0, 0, LAST)); }
 else if (hashScene > 0) { from = to = prog = stationOf(hashScene); }
-if (/[?&]debug\b/.test(location.search)) window.__lab = { THREE, get dpr() { return DPR; }, renderer, scene, composer, bloom, camera, get particles() { return particles; }, goTo, goQ, openRubro, openDetail, get rp() { return rp; }, loseGL: () => renderer.forceContextLoss(), restoreGL: () => renderer.forceContextRestore(), get nav() { return { prog, to, free, lockUntil: lockUntil - now() }; }, cards, SPI, SC, anchorUI, labels, sections, snd };
+if (/[?&]debug\b/.test(location.search)) window.__lab = { THREE, get dpr() { return DPR; }, renderer, scene, composer, bloom, camera, get particles() { return particles; }, goTo, goQ, openRubro, openDetail, get rp() { return rp; }, loseGL: () => renderer.forceContextLoss(), restoreGL: () => renderer.forceContextRestore(), get nav() { return { prog, to, free, lockUntil: lockUntil - now() }; }, cards, SPI, SC, anchorUI, labels, tapShow: () => tapShow(true), tapDone, sections, snd };
 
 // la entrada: el telón se levanta cuando todo está listo y ahí arranca el reloj de la intro
 // (antes corría debajo del telón). Primero la M y el anillo, luego el titular, al final HUD, botón y pista
@@ -1877,6 +1943,7 @@ function lift() {
   liftedAt = now();
   perf?.lifted();
   snd.autostart();                                   // si el navegador ya lo permite, la música entra con la escena
+  tapShow();                                         // si no, el "Toca" sobre la M
   setTimeout(revealHud, reduced ? 0 : 2800);
 }
 if (!reduced) document.documentElement.classList.add("is-intro");

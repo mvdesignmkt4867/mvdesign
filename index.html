@@ -50,7 +50,7 @@
   <link rel="preload" href="assets/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
   <!-- internet lento: si a los 4 s el 3D sigue cargando, el WhatsApp aparece sobre el telón (va antes de los estilos: corre desde el inicio; con carga normal el telón se va antes y la entrada no cambia) -->
   <script>setTimeout(function () { var c = document.querySelector(".curtain"); if (!c || !c.classList.contains("is-off")) document.documentElement.classList.add("wa-early"); }, 4000);</script>
-  <link rel="stylesheet" href="lab/lab.css?v=40" />
+  <link rel="stylesheet" href="lab/lab.css?v=42" />
   <noscript><style>.curtain { display: none; }</style></noscript>
   <script type="importmap">
   {
@@ -365,7 +365,9 @@
   <p class="sr-only" aria-live="polite" data-scene-live></p>
 
   <!-- pista de deslizar: se va para siempre con el primer cambio de escena -->
-  <p class="mono swipe-hint" data-hint aria-hidden="true"><i></i>Desliza</p>
+  <!-- al inicio, si el sonido aún no puede sonar: un botón sobre la M ("Toca"); al tocarlo explota la M, entra la música
+       y el botón baja y se vuelve la pista "Desliza" -->
+  <button type="button" class="mono swipe-hint" data-hint aria-hidden="true" tabindex="-1"><i></i><span data-hint-t>Desliza</span></button>
 
   <!-- telón de carga: la M oficial (sin brillo) y el progreso real -->
   <div class="curtain" data-curtain aria-hidden="true">
@@ -381,7 +383,7 @@
       setTimeout(function () { if (!document.documentElement.classList.contains("is-3d")) off(); }, 4000);
     })();
   </script>
-  <script type="module" src="lab/lab.js?v=97"></script>
+  <script type="module" src="lab/lab.js?v=99"></script>
   <!-- Conversiones: WhatsApp = Lead (principal) · correo = Contact. Envia a Meta Pixel Y a GA4 -->
   <script>
   (function () {
