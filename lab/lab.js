@@ -22,7 +22,7 @@ import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { CSS3DRenderer, CSS3DObject } from "three/addons/renderers/CSS3DRenderer.js";
 import { createParticles, BLAST_GLSL, BLAST_N } from "./particles.js?v=27";
 import { ICON_DRAW } from "./rubro-icons.js?v=1";
-import { createSound } from "./sound.js?v=6";
+import { createSound } from "./sound.js?v=7";
 
 const canvas = document.querySelector("[data-gl]");
 const curtain = document.querySelector("[data-curtain]");
@@ -1824,7 +1824,7 @@ function frame() {
   // sonido: el aire sigue a la cámara; al pasar cada ficha de la espiral, un clic de cristal; al llegar a otra escena, campanas
   snd.speed(camSpd);
   const dq = active === SC.casos && prog >= Q0 - 0.01 && prog <= QEND + 0.01 ? Math.round(prog) : -1;
-  if (dq !== detentQ) { if (dq >= 0 && detentQ >= 0) snd.detent(); detentQ = dq; }
+  if (dq !== detentQ) { if (dq >= 0 && detentQ >= 0) { snd.detent(); snd.step(dq - detentQ); } detentQ = dq; }   // (y el coro da un paso)
   if (kt >= 1 && prog === to) { const sA = Math.round(sceneP(to)); if (sA !== arrivedS) { if (arrivedS >= 0) snd.arrive(sA); arrivedS = sA; } }
 
   composer.render();
